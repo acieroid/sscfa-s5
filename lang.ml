@@ -177,6 +177,10 @@ struct
     | False _ -> unch (Val `False, env, vstore, ostore)
     | Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
                           vstore, ostore)
+    | Lambda (_, args, body) ->
+      let free = free_vars body in
+      let env' = Env.keep free env in
+      unch (Val (`Clos (env', args, body)), env, vstore, ostore)
     | Object (_, attrs, props) ->
       let { primval = pexp;
             code = cexp;
@@ -208,7 +212,8 @@ struct
       end
     | Let (_, id, exp, body) ->
       push (Let (id, body, env)) (Exp exp, env, vstore, ostore)
-    | _ -> failwith ("Not yet handled: " ^ (string_of_exp exp))
+    | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
+
 
   let apply_frame v frame ((control, env, vstore, ostore) as state) _ = match frame with
     | Let (id, body, env') ->

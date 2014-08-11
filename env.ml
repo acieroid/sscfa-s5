@@ -1,4 +1,5 @@
 open Shared
+open Prelude
 
 module type Env_signature =
   sig
@@ -6,6 +7,7 @@ module type Env_signature =
     val empty : t
     val extend : string -> Address.t -> t -> t
     val lookup : string -> t -> Address.t
+    val keep : IdSet.t -> t -> t
     val compare : t -> t -> int
     val size : t -> int
     val to_string : t -> string
@@ -24,6 +26,8 @@ module Env : Env_signature =
     let extend = StringMap.add
 
     let lookup = StringMap.find
+
+    let keep vars = StringMap.filter (fun var _ -> IdSet.mem var vars)
 
     let compare = StringMap.compare Address.compare
 
