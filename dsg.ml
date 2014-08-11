@@ -1,7 +1,15 @@
+open Prelude
+open Ljs_syntax
 open Shared
 open Env
 open Store
 open Lattice
+
+module O = Obj_val
+
+let bool_to_val = function
+  | true -> `True
+  | false -> `False
 
 module type Lang_signature =
 sig
@@ -27,22 +35,91 @@ end
 
 module LJS =
 struct
-  module Address = IntegerAddress
+  type clo = [`Clos of Env.t * id list * exp ]
 
-  type clo = TODO (* See labichn's Clo lattice *)
+  type frame =
+    (* {let (id = exp) body}, where the exp in the frame is body *)
+    | Let of id * exp * Env.t
+    (* {[field1: val1, ...]} *)
+    | ObjectAttrs of string * O.t * (string * exp) list * (string * prop) list * Env.t
+    | ObjectProps of string * O.t * (string * prop) list * Env.t
+    | PropData of (O.data * AValue.t * AValue.t) * Env.t
+    | PropAccessor of exp option * (O.accessor * AValue.t * AValue.t) * Env.t
 
-  module Lattice = TODO (* labichn's Aval lattice *)
+  let string_of_frame = function
+    | Let (id, _, _) -> "Let-" ^ id
+    | ObjectProps _ -> "ObjectProps"
+    | ObjectAttrs _ -> "ObjectAttrs"
+    | PropData _ -> "PropData"
+    | PropAccessor _ -> "PropAccessor"
 
+  (* TODO: use ppx_deriving? *)
+  let compare_frame f f' = match f, f' with
+    | Let (id, exp, env), Let (id', exp', env') ->
+      order_concat [lazy (Pervasives.compare id id');
+                    lazy (Pervasives.compare exp exp');
+                    lazy (Env.compare env env')]
+    | Let _, _ -> 1
+    | _, Let _ -> -1
+    | ObjectAttrs (attr, obj, attrs, props, env),
+      ObjectAttrs (attr', obj', attrs', props', env') ->
+      order_concat [lazy (Pervasives.compare attr attr');
+                    lazy (O.compare obj obj');
+                    lazy (Pervasives.compare attrs attrs');
+                    lazy (Pervasives.compare props props');
+                    lazy (Env.compare env env')];
+    | ObjectAttrs _, _ -> 1
+    | _, ObjectAttrs _ -> -1
+    | ObjectProps (prop, obj, props, env),
+      ObjectProps (prop', obj', props', env') ->
+      order_concat [lazy (Pervasives.compare prop prop');
+                    lazy (O.compare obj obj');
+                    lazy (Pervasives.compare props props');
+                    lazy (Env.compare env env')];
+    | ObjectProps _, _ -> 1
+    | _, ObjectProps _ -> -1
+    | PropData (prop, env), PropData (prop', env') ->
+      order_concat [lazy (Pervasives.compare prop prop');
+                    lazy (Env.compare env env')]
+    | PropData _, _ -> 1
+    | _, PropData _ -> -1
+    | PropAccessor (exp, acc, env), PropAccessor (exp', acc', env') ->
+      order_concat [lazy (Pervasives.compare exp exp');
+                    lazy (Pervasives.compare acc acc');
+                    lazy (Env.compare env env')]
+    | PropAccessor _, _ -> 1
+    | _, PropAccessor _ -> -1
 
-  module Store = MapStore(Lattice)(Address)
+  type control =
+    | Exp of exp
+    | Prop of prop
+    | PropVal of O.prop
+    | Val of AValue.t
+    | Frame of (control * frame)
 
-  type state = Ljs_syntax.exp * Env.t * Store.t
-  type frame = TODO (* What should be contained in the frames? See the LambdaS5 CESK already existing *)
+  let string_of_control = function
+    | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
+    | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
+    | Val v -> "Val(" ^ (AValue.to_string v) ^ ")"
+    | PropVal v -> "PropVal"
+    | Frame (exp, f) -> "Frame(" ^ (string_of_frame f) ^ ")"
 
-  let string_of_frame = TODO
-  let compare_frame = TODO
+  type state = control * Env.t * ValueStore.t * ObjectStore.t
 
-  let compare_state = TODO
+  let string_of_state (control, _, _, _) = string_of_control control
+
+  let compare_state (state, env, vstore, ostore) (state', env', vstore', ostore') =
+    order_concat [lazy (Pervasives.compare state state');
+                  lazy (Env.compare env env');
+                  lazy (ValueStore.compare vstore vstore');
+                  lazy (ObjectStore.compare ostore ostore')]
+
+  (* TODO: add stack summary *)
+  type conf = state
+
+  let string_of_conf = string_of_state
+
+  let compare_conf = compare_state
 
   type stack_change =
     | StackPop of frame
@@ -68,14 +145,139 @@ struct
     let compare = compare_frame
   end
 
+  module ConfOrdering = struct
+    type t = conf
+    let compare = compare_conf
+  end
+
   module StackChangeOrdering = struct
     type t = stack_change
     let compare = compare_stack_change
   end
 
-  let atomic_eval atom env store = TODO (* what are the atomic values? *)
-
   (* TODO: put that somewhere else? *)
-  let alloc v state = match state with
-    | (_, _, store) -> Address.alloc (Store.size store + 1)
+  let alloc_val _ state = match state with
+    | (_, _, vstore, _) -> Address.alloc (ValueStore.size vstore + 1)
+
+  let alloc_obj _ state = match state with
+    | (_, _, _, ostore) -> Address.alloc (ObjectStore.size ostore + 1)
+
+  let inject (exp : exp) = (Exp exp, Env.empty, ValueStore.empty, ObjectStore.empty)
+
+  let unch conf = [(StackUnchanged, conf)]
+  let push frame conf = [(StackPush frame, conf)]
+
+  (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
+  let step_exp exp ((_, env, vstore, ostore) as state) = match exp with
+    | Null _ -> unch (Val `Null, env, vstore, ostore)
+    | Undefined _ -> unch (Val `Undef, env, vstore, ostore)
+    | String (_, s) -> unch (Val (`Str s), env, vstore, ostore)
+    | Num (_, n) -> unch (Val (`Num n), env, vstore, ostore)
+    | True _ -> unch (Val `True, env, vstore, ostore)
+    | False _ -> unch (Val `False, env, vstore, ostore)
+    | Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
+                          vstore, ostore)
+    | Object (_, attrs, props) ->
+      let { primval = pexp;
+            code = cexp;
+            proto = proexp;
+            klass = kls;
+            extensible = ext } = attrs in
+      let opt_add name ox xs = match ox with
+        | Some x -> (name, x)::xs
+        | None -> xs in
+      let attrs = [] |>
+                  opt_add "proto" proexp |>
+                  opt_add "code" cexp |>
+                  opt_add "prim" pexp in
+      let obj = ({ O.code=`Undef; O.proto=`Undef; O.primval=`Undef;
+                   O.klass=(`Str kls);
+                   O.extensible = bool_to_val ext },
+                 IdMap.empty) in
+      begin match attrs, props with
+        | [], [] ->
+          let a = alloc_obj obj state in
+          let ostore' = ObjectStore.join a (`Obj obj) ostore in
+          unch (Val (`Obj a), env, vstore, ostore')
+        | [], (prop, exp)::props ->
+          push (ObjectProps (prop, obj, props, env))
+            (Prop exp, env, vstore, ostore)
+        | (attr, exp)::attrs, props ->
+          push (ObjectAttrs (attr, obj, attrs, props, env))
+            (Exp exp, env, vstore, ostore)
+      end
+    | Let (_, id, exp, body) ->
+      push (Let (id, body, env)) (Exp exp, env, vstore, ostore)
+    | _ -> failwith ("Not yet handled: " ^ (string_of_exp exp))
+
+  let apply_frame v frame ((control, env, vstore, ostore) as state) _ = match frame with
+    | Let (id, body, env') ->
+      let a = alloc_val id state in
+      let env'' = Env.extend id a env' in
+      let vstore' = ValueStore.join a v vstore in
+      (Exp body, env'', vstore', ostore)
+    (* ObjectAttrs of string * O.t * (string * exp) list * (string * prop) list * Env.t *)
+    | ObjectAttrs (name, obj, [], [], env') ->
+      let obj' = O.set_attr obj name v in
+      let a = alloc_obj obj' state in
+      let ostore' = ObjectStore.join a (`Obj obj') ostore in
+      (Val (`Obj a), env', vstore, ostore')
+    | ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
+      let obj' = O.set_attr obj name v in
+      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
+    | ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
+      let obj' = O.set_attr obj name v in
+      (Frame (Exp attr, ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore)
+    (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
+    | PropData ((data, enum, config), env') ->
+      (PropVal (O.Data ({data with O.value = v}, enum, config)), env', vstore, ostore)
+    (* PropAccessor of exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
+    | PropAccessor (None, (accessor, enum, config), env') ->
+      (PropVal (O.Accessor ({accessor with O.setter = v}, enum, config)), env', vstore, ostore)
+    | PropAccessor (Some exp, (accessor, enum, config), env') ->
+      (Frame (Exp exp, (PropAccessor (None, ({accessor with O.getter = v}, enum, config), env'))),
+       env', vstore, ostore)
+    | _ -> failwith "Not implemented"
+
+  let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
+    (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
+    | ObjectProps (name, obj, [], env') ->
+      let obj' = O.set_prop obj name v in
+      let a = alloc_obj obj' state in
+      let ostore' = ObjectStore.join a (`Obj obj') ostore in
+      (Val (`Obj a), env', vstore, ostore')
+    | ObjectProps (name, obj, (name', prop) :: props, env') ->
+      let obj' = O.set_prop obj name v in
+      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
+    | _ -> failwith "Not implemented"
+
+  let step_prop p ((_, env, vstore, ostore) as state) = match p with
+    | Data ({ value = v; writable = w }, enum, config) ->
+      push (PropData (({ O.value = `Undef; O.writable = bool_to_val w },
+                       bool_to_val enum, bool_to_val config),
+                      env))
+        (Exp v, env, vstore, ostore)
+    | Accessor ({ getter = g; setter = s }, enum, config) ->
+      push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
+                                   bool_to_val enum, bool_to_val config),
+                          env))
+        (Exp g, env, vstore, ostore)
+
+  let step ((control, env, vstore, ostore) as state) frames = match control with
+    | Exp e -> step_exp e state
+    | Prop p -> step_prop p state
+    | Val v ->
+      List.map
+        (fun (state', frame) ->
+           (StackPop frame, apply_frame v frame state state'))
+        frames
+    | Frame (control', frame) ->
+      [(StackPush frame, (control', env, vstore, ostore))]
+    | PropVal prop ->
+      List.map
+        (fun (state', frame) ->
+           (StackPop frame, apply_frame_prop prop frame state state'))
+        frames
+
+
 end

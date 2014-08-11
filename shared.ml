@@ -85,3 +85,8 @@ let rec string_of_exp exp = match exp with
     "lam("^(string_of_list xs (fun x->x))^", "^(string_of_exp e)^")"
   | Eval (_, _, _) -> "eval"
   | Hint (_, _, _) -> "hint"
+
+let string_of_prop = function
+  | Data ({value = v; _}, _, _) -> "data(" ^ (string_of_exp v) ^ ")"
+  | Accessor ({getter = g; setter = s}, _, _) ->
+    "accessor(" ^ (string_of_exp g) ^ ", " ^ (string_of_exp s) ^ ")"

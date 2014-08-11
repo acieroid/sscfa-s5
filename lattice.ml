@@ -49,7 +49,7 @@ module type VLATTICE = sig
   val subsumes: t -> t -> bool
 
   (** returns a string representation of the given abstract value *)
-  val string_of: t -> string
+  val to_string: t -> string
 
   (** returns the nearest top value *)
   val to_top: t -> t
@@ -77,7 +77,7 @@ module BoolF(L : BoolS) = struct
   let subsumes ((`True | `False | `BoolT) as b : t0)
       ((`True | `False | `BoolT) as b' : t0) = match b, b' with
     | `BoolT, _ -> true | b, b' when b = b' -> true | _ -> false
-  let string_of ((`True | `False | `BoolT) as b : t0) = match b with
+  let to_string ((`True | `False | `BoolT) as b : t0) = match b with
     | `True -> "true" | `False -> "false" | `BoolT -> "bool⊤"
   let to_top ((`True | `False | `BoolT) : t0) = `BoolT
 end
@@ -104,7 +104,7 @@ module ClosF(L : ClosS) = struct
       | `Clos (env, xs, exp), `Clos (env', xs', exp') ->
         Env.subsumes env env' && xs = xs' && compare exp exp' = 0
       | _ -> false
-  let string_of ((`Clos _ | `ClosT) as c : t0) : string = match c with
+  let to_string ((`Clos _ | `ClosT) as c : t0) : string = match c with
     | `Clos (env, xs, exp) ->
       "clos("^(Env.to_string env)^", "^
         (string_of_list xs (fun x -> x))^", "^
@@ -130,7 +130,7 @@ module ObjF(L : ObjS) = struct
   let subsumes ((`Obj _ | `ObjT) as o : t0)
       ((`Obj _ | `ObjT) as o' : t0) : bool =
     match o, o' with `ObjT, _ -> true | _ -> o = o'
-  let string_of ((`Obj _ | `ObjT) as o : t0) = match o with
+  let to_string ((`Obj _ | `ObjT) as o : t0) = match o with
     | `Obj a -> "obj"^(Address.to_string a)
     | `ObjT -> "obj⊤"
   let to_top ((`Obj _ | `ObjT) : t0) = `ObjT
@@ -152,7 +152,7 @@ module ConstNumF(L : ConstNumS) = struct
   let subsumes ((`Num _ | `NumT) as n : t0)
       ((`Num _ | `NumT) as n' : t0) =
     match n, n' with `NumT, _ -> true | _ -> compare n n' = 0
-  let string_of ((`Num _ | `NumT) as n : t0) : string =
+  let to_string ((`Num _ | `NumT) as n : t0) : string =
     match n with `Num f -> string_of_float f | `NumT -> "num⊤"
   let to_top ((`Num _ | `NumT)  : t0) = `NumT
 end
@@ -173,7 +173,7 @@ module ConstStrF(L : ConstStrS) = struct
   let subsumes ((`Str _ | `StrT) as s : t0)
       ((`Str _ | `StrT) as s' : t0) =
     match s, s' with `StrT, _ -> true | _ -> s = s'
-  let string_of ((`Str _ | `StrT) as s : t0) : string =
+  let to_string ((`Str _ | `StrT) as s : t0) : string =
     match s with `Str s -> "'"^s^"'" | `StrT -> "string⊤"
   let to_top ((`Str _ | `StrT) : t0) = `StrT
 end
@@ -189,7 +189,7 @@ module NullF(L : NullS) = struct
   let join (`Null : t0) (`Null : t0): t = `Null
   let singletonp (`Null : t0) = true
   let subsumes (`Null : t0) (`Null : t0) : bool = true
-  let string_of (`Null : t0) = "null"
+  let to_string (`Null : t0) = "null"
   let to_top (`Null : t0) = `Null
 end
 
@@ -204,7 +204,7 @@ module UndefF(L : UndefS) = struct
   let join (`Undef : t0) (`Undef : t0): t = `Undef
   let singletonp (`Undef : t0) = true
   let subsumes (`Undef : t0) (`Undef : t0) : bool = true
-  let string_of (`Undef : t0) = "undef"
+  let to_string (`Undef : t0) = "undef"
   let to_top (`Undef : t0) = `Undef
 end
 
@@ -286,16 +286,16 @@ module AValueF
       |  (#Undef.t0 as u),  (#Undef.t0 as u') ->  Undef.subsumes u u'
       | _ -> false
 
-    let string_of (v : t) : string = match v with
+    let to_string (v : t) : string = match v with
       | `Top -> "⊤" | `Bot -> "⊥"
-      |   #Bool.t0 as b ->   Bool.string_of b
-      |   #Clos.t0 as c ->   Clos.string_of c
-      |   #Null.t0 as n ->   Null.string_of n
-      |    #Num.t0 as n ->    Num.string_of n
-      |    #Obj.t0 as o ->    Obj.string_of o
-      | #String.t0 as s -> String.string_of s
-      |  #Undef.t0 as u ->  Undef.string_of u
-      | _ -> failwith "somehow fell through AValue's string_of"
+      |   #Bool.t0 as b ->   Bool.to_string b
+      |   #Clos.t0 as c ->   Clos.to_string c
+      |   #Null.t0 as n ->   Null.to_string n
+      |    #Num.t0 as n ->    Num.to_string n
+      |    #Obj.t0 as o ->    Obj.to_string o
+      | #String.t0 as s -> String.to_string s
+      |  #Undef.t0 as u ->  Undef.to_string u
+      | _ -> failwith "somehow fell through AValue's to_string"
      (* ^ Why is this last case needed? Isn't the function complete? *)
 
     let to_top (v : t) : t = match v with
