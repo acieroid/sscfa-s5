@@ -1,10 +1,6 @@
-open Prelude
-open Ljs_syntax
-open Store
-open Env
-open Lattice
-open Shared
 open Lang
+
+module S = Ljs_syntax
 
 let file =
   if Array.length Sys.argv < 2 then
@@ -12,17 +8,11 @@ let file =
   else
     Array.get Sys.argv 1
 
-let load_s5 file : exp =
+let load_s5 file : S.exp =
   Marshal.from_channel (open_in_bin file)
 
 let save_s5 s5 file =
   Marshal.to_channel (open_out_bin file) s5 []
-
-module S = BatSet.Make(struct
-    type t = LJS.stack_change * LJS.conf
-    let compare (g, c) (g', c') =
-      order_comp (LJS.compare_stack_change g g') (LJS.compare_conf c c')
-end)
 
 let eval exp =
   let push stack v = v :: stack in

@@ -1,10 +1,10 @@
 open Prelude
-open Ljs_syntax
 open Shared
 open Env
 open Store
 open Lattice
 
+module S = Ljs_syntax
 module O = Obj_val
 
 let bool_to_val = function
@@ -35,16 +35,18 @@ end
 
 module LJS =
 struct
-  type clo = [`Clos of Env.t * id list * exp ]
+  type clo = [`Clos of Env.t * id list * S.exp ]
 
   type frame =
     (* {let (id = exp) body}, where the exp in the frame is body *)
-    | Let of id * exp * Env.t
+    | Let of id * S.exp * Env.t
     (* {[field1: val1, ...]} *)
-    | ObjectAttrs of string * O.t * (string * exp) list * (string * prop) list * Env.t
-    | ObjectProps of string * O.t * (string * prop) list * Env.t
+    | ObjectAttrs of string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
+    | ObjectProps of string * O.t * (string * S.prop) list * Env.t
     | PropData of (O.data * AValue.t * AValue.t) * Env.t
-    | PropAccessor of exp option * (O.accessor * AValue.t * AValue.t) * Env.t
+    | PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
+    (* left; right *)
+    | Seq of S.exp * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -52,6 +54,7 @@ struct
     | ObjectAttrs _ -> "ObjectAttrs"
     | PropData _ -> "PropData"
     | PropAccessor _ -> "PropAccessor"
+    | Seq _ -> "Seq"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -89,10 +92,15 @@ struct
                     lazy (Env.compare env env')]
     | PropAccessor _, _ -> 1
     | _, PropAccessor _ -> -1
+    | Seq (right, env), Seq (right', env') ->
+      order_concat [lazy (Pervasives.compare right right');
+                    lazy (Env.compare env env')]
+    | Seq _, _ -> 1
+    | _, Seq _ -> -1
 
   type control =
-    | Exp of exp
-    | Prop of prop
+    | Exp of S.exp
+    | Prop of S.prop
     | PropVal of O.prop
     | Val of AValue.t
     | Frame of (control * frame)
@@ -162,31 +170,31 @@ struct
   let alloc_obj _ state = match state with
     | (_, _, _, ostore) -> Address.alloc (ObjectStore.size ostore + 1)
 
-  let inject (exp : exp) = (Exp exp, Env.empty, ValueStore.empty, ObjectStore.empty)
+  let inject (exp : S.exp) = (Exp exp, Env.empty, ValueStore.empty, ObjectStore.empty)
 
   let unch conf = [(StackUnchanged, conf)]
   let push frame conf = [(StackPush frame, conf)]
 
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
   let step_exp exp ((_, env, vstore, ostore) as state) = match exp with
-    | Null _ -> unch (Val `Null, env, vstore, ostore)
-    | Undefined _ -> unch (Val `Undef, env, vstore, ostore)
-    | String (_, s) -> unch (Val (`Str s), env, vstore, ostore)
-    | Num (_, n) -> unch (Val (`Num n), env, vstore, ostore)
-    | True _ -> unch (Val `True, env, vstore, ostore)
-    | False _ -> unch (Val `False, env, vstore, ostore)
-    | Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
+    | S.Null _ -> unch (Val `Null, env, vstore, ostore)
+    | S.Undefined _ -> unch (Val `Undef, env, vstore, ostore)
+    | S.String (_, s) -> unch (Val (`Str s), env, vstore, ostore)
+    | S.Num (_, n) -> unch (Val (`Num n), env, vstore, ostore)
+    | S.True _ -> unch (Val `True, env, vstore, ostore)
+    | S.False _ -> unch (Val `False, env, vstore, ostore)
+    | S.Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
                           vstore, ostore)
-    | Lambda (_, args, body) ->
-      let free = free_vars body in
+    | S.Lambda (_, args, body) ->
+      let free = S.free_vars body in
       let env' = Env.keep free env in
       unch (Val (`Clos (env', args, body)), env, vstore, ostore)
-    | Object (_, attrs, props) ->
-      let { primval = pexp;
-            code = cexp;
-            proto = proexp;
-            klass = kls;
-            extensible = ext } = attrs in
+    | S.Object (_, attrs, props) ->
+      let { S.primval = pexp;
+            S.code = cexp;
+            S.proto = proexp;
+            S.klass = kls;
+            S.extensible = ext } = attrs in
       let opt_add name ox xs = match ox with
         | Some x -> (name, x)::xs
         | None -> xs in
@@ -210,10 +218,11 @@ struct
           push (ObjectAttrs (attr, obj, attrs, props, env))
             (Exp exp, env, vstore, ostore)
       end
-    | Let (_, id, exp, body) ->
+    | S.Let (_, id, exp, body) ->
       push (Let (id, body, env)) (Exp exp, env, vstore, ostore)
+    | S.Seq (_, left, right) ->
+      push (Seq (right, env)) (Exp left, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
-
 
   let apply_frame v frame ((control, env, vstore, ostore) as state) _ = match frame with
     | Let (id, body, env') ->
@@ -221,7 +230,7 @@ struct
       let env'' = Env.extend id a env' in
       let vstore' = ValueStore.join a v vstore in
       (Exp body, env'', vstore', ostore)
-    (* ObjectAttrs of string * O.t * (string * exp) list * (string * prop) list * Env.t *)
+    (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | ObjectAttrs (name, obj, [], [], env') ->
       let obj' = O.set_attr obj name v in
       let a = alloc_obj obj' state in
@@ -236,12 +245,14 @@ struct
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | PropData ((data, enum, config), env') ->
       (PropVal (O.Data ({data with O.value = v}, enum, config)), env', vstore, ostore)
-    (* PropAccessor of exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
+    (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
     | PropAccessor (None, (accessor, enum, config), env') ->
       (PropVal (O.Accessor ({accessor with O.setter = v}, enum, config)), env', vstore, ostore)
     | PropAccessor (Some exp, (accessor, enum, config), env') ->
       (Frame (Exp exp, (PropAccessor (None, ({accessor with O.getter = v}, enum, config), env'))),
        env', vstore, ostore)
+    | Seq (exp, env') ->
+      (Exp exp, env', vstore, ostore)
     | _ -> failwith "Not implemented"
 
   let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
@@ -256,13 +267,13 @@ struct
       (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
     | _ -> failwith "Not implemented"
 
-  let step_prop p ((_, env, vstore, ostore) as state) = match p with
-    | Data ({ value = v; writable = w }, enum, config) ->
+  let step_prop p (_, env, vstore, ostore) = match p with
+    | S.Data ({ S.value = v; S.writable = w }, enum, config) ->
       push (PropData (({ O.value = `Undef; O.writable = bool_to_val w },
                        bool_to_val enum, bool_to_val config),
                       env))
         (Exp v, env, vstore, ostore)
-    | Accessor ({ getter = g; setter = s }, enum, config) ->
+    | S.Accessor ({ S.getter = g; S.setter = s }, enum, config) ->
       push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
                                    bool_to_val enum, bool_to_val config),
                           env))

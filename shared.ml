@@ -70,7 +70,7 @@ let rec string_of_exp exp = match exp with
   | Op1 (_, _, _) -> "op1"
   | Op2 (_, _, _, _) -> "op2"
   | If (_, _, _, _) -> "if"
-  | App (_, _, _) -> "app"
+  | App (_, _, _) -> "appr"
   | Seq (_, _, _) -> "seq"
   | Let (_, x, e, _) ->
     "(let "^x^" "^(string_of_exp e)^")"
