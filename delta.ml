@@ -16,7 +16,8 @@ let to_int v = match v with
   | `Num x -> int_of_float x
   | _ -> raise (PrimErr "to-int")
 
-let typeof ostore v = match v with
+let typeof ostore v = 
+  let res = match v with
   | `Undef -> AValue.str "undefined"
   | `Null -> AValue.str "null"
   | `Str _ -> AValue.str "string"
@@ -33,6 +34,9 @@ let typeof ostore v = match v with
       (get_objs a store) `Bot *)
   | `Clos _ -> raise (PrimErr "typeof got lambda")
   | _ -> `StrT
+  in
+  print_endline ("typeof " ^ (AValue.to_string v) ^ " = " ^ (AValue.to_string res)); 
+  res
 
 let is_closure store v = match v with
   | `Clos _ -> `True
@@ -91,7 +95,7 @@ let prim_to_num store v = AValue.num (match v with
   | `Num x -> x
   | `Str "" -> 0.0
   | `Str s -> (try float_of_string s with Failure _ -> nan)
-  | _ -> raise (PrimErr "prim_to_num"))
+  | _ -> raise (PrimErr ("prim_to_num with value " ^ (AValue.to_string v))))
 
 let prim_to_bool store v = AValue.bool (match v with
   | `Num x -> not (x == nan || x = 0.0 || x = -0.0)
@@ -219,6 +223,7 @@ let current_utc store = function
 
 
 let op1 (store : ObjectStore.t) op : AValue.t -> AValue.t =
+  print_endline ("==== op1 " ^ op);
 (*  let f = *)match op with
 (* return undef *)
   | "print" -> print store
@@ -468,6 +473,7 @@ let rec is_accessor ostore a b = match a, b with
   | _ -> raise (PrimErr "isAccessor")
 
 let op2 (store : ObjectStore.t) op =
+  print_endline ("==== op2 " ^ op);
   match op with
   | "+" -> arith_sum store
   | "-" -> arith_sub store

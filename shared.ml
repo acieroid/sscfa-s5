@@ -51,7 +51,7 @@ let string_of_map fold k v m =
   "{" ^ (fold (fun k' v' a -> (k k')^" --> "^(v v')^"\n"^a) m " }")
 
 let rec string_of_exp exp = match exp with
-  | Null _ -> "null"
+  | Null p -> "null"
   | Undefined _ -> "undef"
   | String (_, v) -> "string("^v^")"
   | Num (_, f) -> "num("^(string_of_float f)^")"

@@ -34,8 +34,13 @@ module Make =
     let empty = AddrMap.empty
 
     let join a v store =
-      if AddrMap.mem a store then
+      if AddrMap.mem a store then begin
+        print_string ("Joining: " ^ (Elt.to_string v) ^ " and " ^
+                      (Elt.to_string (AddrMap.find a store)) ^
+                      " at location " ^ (Address.to_string a)
+                     );
         AddrMap.add a (Elt.join (AddrMap.find a store) v) store
+      end
       else
         AddrMap.add a v store
 
