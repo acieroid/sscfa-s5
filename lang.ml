@@ -47,6 +47,9 @@ struct
     | PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
     (* left; right *)
     | Seq of S.exp * Env.t
+    (* f(arg1, ...) *)
+    | AppFun of S.exp list * Env.t
+    | AppArgs of AValue.t * AValue.t list * S.exp list * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -55,6 +58,8 @@ struct
     | PropData _ -> "PropData"
     | PropAccessor _ -> "PropAccessor"
     | Seq _ -> "Seq"
+    | AppFun _ -> "AppFun"
+    | AppArgs _ -> "AppArgs"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -97,6 +102,16 @@ struct
                     lazy (Env.compare env env')]
     | Seq _, _ -> 1
     | _, Seq _ -> -1
+    | AppFun (args, env), AppFun (args', env') ->
+      order_concat [lazy (Pervasives.compare args args');
+                    lazy (Env.compare env env')]
+    | AppArgs (f, vals, args, env), AppArgs (f', vals', args', env') ->
+      order_concat [lazy (AValue.compare f f');
+                    lazy (compare_list AValue.compare vals vals');
+                    lazy (Pervasives.compare args args');
+                    lazy (Env.compare env env')]
+    | AppArgs _, _ -> 1
+    | _, AppArgs _ -> -1
 
   type control =
     | Exp of S.exp
@@ -222,7 +237,28 @@ struct
       push (Let (id, body, env)) (Exp exp, env, vstore, ostore)
     | S.Seq (_, left, right) ->
       push (Seq (right, env)) (Exp left, env, vstore, ostore)
+    | S.App (_, f, args) ->
+      push (AppFun (args, env)) (Exp f, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
+
+  let rec apply_fun f args env ((_, _, vstore, ostore) as state) = match f with
+    | `Clos (env', args', body) ->
+      if (List.length args) != (List.length args') then
+        failwith "Arity mismatch"
+      else
+        let alloc_arg v name (vstore, env) =
+          let a = alloc_val v state in
+          (ValueStore.join a v vstore,
+           Env.extend name a env) in
+        let (vstore', env') =
+          BatList.fold_right2 alloc_arg args args' (vstore, env) in
+        (Exp body, env', vstore', ostore)
+    | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
+    | `Obj a -> begin match ObjectStore.lookup a ostore with
+      | `Obj ({ O.code = `Clos f }, _) -> apply_fun (`Clos f) args env state
+      | _ -> failwith "Applied object without code attribute"
+      end
+    | _ -> failwith "Applied non-function"
 
   let apply_frame v frame ((control, env, vstore, ostore) as state) _ = match frame with
     | Let (id, body, env') ->
@@ -253,6 +289,14 @@ struct
        env', vstore, ostore)
     | Seq (exp, env') ->
       (Exp exp, env', vstore, ostore)
+    | AppFun ([], env') ->
+      apply_fun v [] env' state
+    | AppFun (arg :: args, env') ->
+      (Frame (Exp arg, (AppArgs (v, [], args, env'))), env', vstore, ostore)
+    | AppArgs (f, vals, [], env') ->
+      apply_fun f (v :: vals) env' state
+    | AppArgs (f, vals, arg :: args, env') ->
+      (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore)
     | _ -> failwith "Not implemented"
 
   let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
