@@ -333,7 +333,7 @@ struct
     | AppFun (arg :: args, env') ->
       (Frame (Exp arg, (AppArgs (v, [], args, env'))), env', vstore, ostore)
     | AppArgs (f, vals, [], env') ->
-      apply_fun f (v :: vals) env' state
+      apply_fun f (BatList.rev (v :: vals)) env' state
     | AppArgs (f, vals, arg :: args, env') ->
       (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore)
     | Op1App (op, env') ->

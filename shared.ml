@@ -37,7 +37,8 @@ struct
   type t = int
   let compare = Pervasives.compare
   let to_string = string_of_int
-  let alloc x = x mod 100
+  let counter = ref 0
+  let alloc x = counter := !counter+1; !counter
 end
 
 let string_of_list l s_o_elt =
