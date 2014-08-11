@@ -4,6 +4,7 @@ open Env
 open Store
 open Lattice
 
+module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
 
@@ -50,6 +51,9 @@ struct
     (* f(arg1, ...) *)
     | AppFun of S.exp list * Env.t
     | AppArgs of AValue.t * AValue.t list * S.exp list * Env.t
+    | Op1App of string * Env.t
+    | Op2Arg of string * S.exp * Env.t
+    | Op2App of string * AValue.t * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -60,6 +64,9 @@ struct
     | Seq _ -> "Seq"
     | AppFun _ -> "AppFun"
     | AppArgs _ -> "AppArgs"
+    | Op1App _ -> "Op1App"
+    | Op2Arg _ -> "Op2Arg"
+    | Op2App _ -> "Op2App"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -112,6 +119,23 @@ struct
                     lazy (Env.compare env env')]
     | AppArgs _, _ -> 1
     | _, AppArgs _ -> -1
+    | Op1App (op, env), Op1App (op', env') ->
+      order_concat [lazy (Pervasives.compare op op');
+                    lazy (Env.compare env env')]
+    | Op1App _, _ -> 1
+    | _, Op1App _ -> -1
+    | Op2Arg (op, arg2, env), Op2Arg (op', arg2', env') ->
+      order_concat [lazy (Pervasives.compare op op');
+                    lazy (Pervasives.compare arg2 arg2');
+                    lazy (Env.compare env env')]
+    | Op2Arg _, _ -> 1
+    | _, Op2Arg _ -> -1
+    | Op2App (op, arg1, env), Op2App (op', arg1', env') ->
+      order_concat [lazy (Pervasives.compare op op');
+                    lazy (AValue.compare arg1 arg1');
+                    lazy (Env.compare env env')]
+    | Op2App _, _ -> 1
+    | _, Op2App _ -> -1
 
   type control =
     | Exp of S.exp
@@ -239,6 +263,10 @@ struct
       push (Seq (right, env)) (Exp left, env, vstore, ostore)
     | S.App (_, f, args) ->
       push (AppFun (args, env)) (Exp f, env, vstore, ostore)
+    | S.Op1 (_, op, arg) ->
+      push (Op1App (op, env)) (Exp arg, env, vstore, ostore)
+    | S.Op2 (_, op, arg1, arg2) ->
+      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args env ((_, _, vstore, ostore) as state) = match f with
@@ -255,7 +283,7 @@ struct
         (Exp body, env', vstore', ostore)
     | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
     | `Obj a -> begin match ObjectStore.lookup a ostore with
-      | `Obj ({ O.code = `Clos f }, _) -> apply_fun (`Clos f) args env state
+      | `Obj ({ O.code = `Clos f; _ }, _) -> apply_fun (`Clos f) args env state
       | _ -> failwith "Applied object without code attribute"
       end
     | _ -> failwith "Applied non-function"
@@ -297,6 +325,12 @@ struct
       apply_fun f (v :: vals) env' state
     | AppArgs (f, vals, arg :: args, env') ->
       (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore)
+    | Op1App (op, env') ->
+      (Val (D.op1 ostore op v), env', vstore, ostore)
+    | Op2Arg (op, arg2, env') ->
+      (Frame (Exp arg2, (Op2App (op, v, env'))), env', vstore, ostore)
+    | Op2App (op, arg1, env') ->
+      (Val (D.op2 ostore op arg1 v), env', vstore, ostore)
     | _ -> failwith "Not implemented"
 
   let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
