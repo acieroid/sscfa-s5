@@ -51,9 +51,13 @@ struct
     (* f(arg1, ...) *)
     | AppFun of S.exp list * Env.t
     | AppArgs of AValue.t * AValue.t list * S.exp list * Env.t
+    (* op arg *)
     | Op1App of string * Env.t
+    (* arg1 op arg2 *)
     | Op2Arg of string * S.exp * Env.t
     | Op2App of string * AValue.t * Env.t
+    (* if pred then cons else alt *)
+    | If of S.exp * S.exp * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -67,6 +71,7 @@ struct
     | Op1App _ -> "Op1App"
     | Op2Arg _ -> "Op2Arg"
     | Op2App _ -> "Op2App"
+    | If _ -> "If"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -136,6 +141,12 @@ struct
                     lazy (Env.compare env env')]
     | Op2App _, _ -> 1
     | _, Op2App _ -> -1
+    | If (cons, alt, env), If (cons', alt', env') ->
+      order_concat [lazy (Pervasives.compare cons cons');
+                    lazy (Pervasives.compare alt alt');
+                    lazy (Env.compare env env')]
+    | If _, _ -> 1
+    | _, If _ -> -1
 
   type control =
     | Exp of S.exp
@@ -223,7 +234,7 @@ struct
     | S.True _ -> unch (Val `True, env, vstore, ostore)
     | S.False _ -> unch (Val `False, env, vstore, ostore)
     | S.Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
-                          vstore, ostore)
+                            vstore, ostore)
     | S.Lambda (_, args, body) ->
       let free = S.free_vars body in
       let env' = Env.keep free env in
@@ -331,6 +342,11 @@ struct
       (Frame (Exp arg2, (Op2App (op, v, env'))), env', vstore, ostore)
     | Op2App (op, arg1, env') ->
       (Val (D.op2 ostore op arg1 v), env', vstore, ostore)
+    | If (cons, alt, env') -> begin match v with
+      | `True -> (Exp cons, env', vstore, ostore)
+      | `BoolT | `Top -> failwith "TODO: two if possibilities"
+      | _ -> (Exp alt, env', vstore, ostore)
+      end
     | _ -> failwith "Not implemented"
 
   let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
