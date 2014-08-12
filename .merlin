@@ -2,4 +2,5 @@ S .
 S imported
 B _build
 B _build/imported
+PKG ocamlgraph
 PKG batteries

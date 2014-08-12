@@ -32,7 +32,10 @@ end
 
 module LJS =
 struct
-  type clo = [`Clos of Env.t * id list * S.exp ]
+  type exp = S.exp
+  let string_of_exp = string_of_exp
+
+  (* type clo = [`Clos of Env.t * id list * S.exp ] *)
 
   type frame =
     (* {let (id = exp) body}, where the exp in the frame is body *)
@@ -627,6 +630,4 @@ struct
         (fun (state', frame) ->
            (StackPop frame, apply_frame_prop prop frame state state'))
         frames
-
-
 end
