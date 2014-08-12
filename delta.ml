@@ -110,7 +110,7 @@ let print store v = match v with
   | `Str s -> printf "%s\n%!" s; `Undef
   | `Num n -> let s = string_of_float n in printf "%S\n" s; `Undef
   | _ -> printf "%s\n%!" (AValue.to_string v); `Undef
-  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v)
+(*  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v) *)
 
 let pretty store v =
   printf "%s\n%!" (AValue.to_string v); `Undef
@@ -400,7 +400,7 @@ let base store n r =
     let digit = String.make 1 (List.nth digits (int_of_float index)) in
     if len = 0.0 then result ^ digit
     else convert (b -. (index *. lp)) (result ^ digit)  (len -. 1.0) in
-  let rec shift frac n = if n = 0 then frac else shift (frac *. 10.0) (n - 1) in
+  (* let rec shift frac n = if n = 0 then frac else shift (frac *. 10.0) (n - 1) in *)
   let (f, integ) = modf n in
     (* TODO(joe): shifted is unused *)
     (* let shifted = shift f ((`Str.length (string_of_float f)) - 2) in *)
