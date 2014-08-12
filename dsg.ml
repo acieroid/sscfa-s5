@@ -84,38 +84,7 @@ module BuildDSG =
     let output_dsg dsg = output_graph dsg.g
     let output_ecg dsg = output_graph dsg.ecg
 
-    let find_frames dsg c =
-      (* find the potential frame on the top of the stack when state c is
-       * reached in the dsg *)
-      let direct_preds c =
-        if G.mem_vertex dsg.g c then
-          List.fold_left (fun s p -> EdgeSet.add p s)
-            EdgeSet.empty (G.pred_e dsg.g c)
-        else
-          EdgeSet.empty in
-      let eps_preds c =
-        if G.mem_vertex dsg.ecg c then
-          List.fold_left (fun s p -> EdgeSet.add p s)
-            EdgeSet.empty (G.pred_e dsg.ecg c)
-        else
-          EdgeSet.empty in
-      let all_preds c =
-        (EdgeSet.union (direct_preds c) (eps_preds c)) in
-      let rec aux frames preds =
-        if EdgeSet.is_empty preds then
-          frames
-        else
-          let (c, g, c') = EdgeSet.choose preds in
-          match g with
-          | L.StackPush f -> aux ((c, f) :: frames) (EdgeSet.remove (c, g, c') preds)
-          | L.StackPop _ -> aux frames (EdgeSet.remove (c, g, c') preds)
-          | L.StackUnchanged -> aux frames (EdgeSet.remove (c, g, c')
-                                              (EdgeSet.union (all_preds c) preds))
-      in
-      aux [] (all_preds c)
-
     let add_short dsg c c' =
-      let stepped = L.step c' (find_frames dsg c) in
       let de = G.fold_edges_e
           (fun e acc -> match e with
              | (c1, L.StackPush k, c1') when L.ConfOrdering.compare c1' c == 0 ->
@@ -124,7 +93,7 @@ module BuildDSG =
                       | (L.StackPop k', c2) when L.FrameOrdering.compare k k' == 0 ->
                         EdgeSet.add (c', L.StackPop k, c2) acc
                       | _ -> acc)
-                     EdgeSet.empty stepped)
+                     EdgeSet.empty (L.step c' (Some (c, k))))
              | _ -> acc)
           dsg.g EdgeSet.empty in
       let ds = EdgeSet.fold (fun (c1, g, c2) acc -> match g with
@@ -157,7 +126,7 @@ module BuildDSG =
                if L.ConfOrdering.compare c_ c' == 0 then
                  let c2s = List.filter (fun (g', c2) -> match g' with
                      | L.StackPop k' -> L.FrameOrdering.compare k k' == 0
-                     | _ -> false) (L.step c1 (find_frames dsg c1)) in
+                     | _ -> false) (L.step c1 (Some (c1, k))) in
                  List.fold_left (fun acc (g, c2) -> EdgeSet.add (c1, g, c2) acc)
                    acc c2s
                else
@@ -201,7 +170,7 @@ module BuildDSG =
          EpsSet.filter (fun (c1, c2) -> not (G.mem_edge dsg.ecg c1 c2)) dh)
 
     let explore dsg c =
-      let stepped = L.step c (find_frames dsg c) in
+      let stepped = L.step c None in
       let ds = (List.fold_left
                   (fun set (_, conf) -> ConfSet.add conf set)
                   ConfSet.empty stepped)
@@ -217,8 +186,8 @@ module BuildDSG =
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;
-        output_dsg dsg ("/tmp/dsg/dsg-" ^ (string_of_int !i) ^ ".dot");
-        output_ecg dsg ("/tmp/dsg/ecg-" ^ (string_of_int !i) ^ ".dot");
+        (* output_dsg dsg ("/tmp/dsg/dsg-" ^ (string_of_int !i) ^ ".dot"); *)
+        (* output_ecg dsg ("/tmp/dsg/ecg-" ^ (string_of_int !i) ^ ".dot"); *)
         if not (EpsSet.is_empty dh) then
           let c, c' = EpsSet.choose dh in
           print_string ("eps: " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'));
@@ -252,6 +221,5 @@ module BuildDSG =
         (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
   end
 
-(* module L = ANFStackSummary(ReachableAddressesSummary) *)
 module L = LJS
 module DSG = BuildDSG(L)

@@ -27,7 +27,7 @@ sig
   val inject : exp -> conf
   (* the frame list argument is the list of the potential frames that reside on
      the top of the stack, not the stack itself *)
-  val step : conf -> (conf * frame) list -> (stack_change * conf) list
+  val step : conf -> (conf * frame) option -> (stack_change * conf) list
 end
 
 module LJS =
@@ -615,19 +615,21 @@ struct
                           env))
         (Exp g, env, vstore, ostore)
 
-  let step ((control, env, vstore, ostore) as state) frames = match control with
+  let step ((control, env, vstore, ostore) as state) frame = match control with
     | Exp e -> step_exp e state
     | Prop p -> step_prop p state
-    | Val v ->
-      List.map
-        (fun (state', frame) ->
-           (StackPop frame, apply_frame v frame state state'))
-        frames
+    | Val v -> begin match frame with
+        | Some (state', frame) ->
+          [StackPop frame, apply_frame v frame state state']
+        | None ->
+          []
+      end
     | Frame (control', frame) ->
       [(StackPush frame, (control', env, vstore, ostore))]
-    | PropVal prop ->
-      List.map
-        (fun (state', frame) ->
-           (StackPop frame, apply_frame_prop prop frame state state'))
-        frames
+    | PropVal prop -> begin match frame with
+        | Some (state', frame) ->
+          [StackPop frame, apply_frame_prop prop frame state state']
+        | None ->
+          []
+      end
 end

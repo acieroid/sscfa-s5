@@ -21,8 +21,8 @@ let eval exp =
     | [] -> []
     | hd :: tl -> tl in
   let top = function
-    | [] -> []
-    | hd :: tl -> [hd] in
+    | [] -> None
+    | hd :: tl -> Some hd in
   let rec aux stack conf =
     let confs' = LJS.step conf (top stack) in
     match confs' with
