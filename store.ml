@@ -44,6 +44,10 @@ module Make =
       else
         AddrMap.add a v store
 
+    let set a v store =
+      (* Strong update. TODO: use abstract counting and only join, no set *)
+      AddrMap.add a v store
+
     let lookup = AddrMap.find
 
     let restrict addrs =

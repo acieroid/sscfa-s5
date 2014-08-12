@@ -8,10 +8,6 @@ module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
 
-let bool_to_val = function
-  | true -> `True
-  | false -> `False
-
 module type Lang_signature =
 sig
   type exp
@@ -63,6 +59,11 @@ struct
     | GetFieldField of AValue.t * S.exp * Env.t
     | GetFieldBody of AValue.t * AValue.t * Env.t
     | RestoreEnv of Env.t
+    (* obj[field] = val *)
+    | SetFieldObj of S.exp * S.exp * S.exp * Env.t
+    | SetFieldField of AValue.t * S.exp * S.exp * Env.t
+    | SetFieldNewval of AValue.t * AValue.t * S.exp * Env.t
+    | SetFieldArgs of AValue.t * AValue.t * AValue.t * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -81,6 +82,10 @@ struct
     | GetFieldField _ -> "GetFieldField"
     | GetFieldBody _ -> "GetFieldBody"
     | RestoreEnv _ -> "RestoreEnv"
+    | SetFieldObj _ -> "SetFieldObj"
+    | SetFieldField _ -> "SetFieldField"
+    | SetFieldNewval _ -> "SetFieldNewval"
+    | SetFieldArgs _ -> "SetFieldArgs"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -178,6 +183,38 @@ struct
       Env.compare env env'
     | RestoreEnv _, _ -> 1
     | _, RestoreEnv _ -> -1
+    | SetFieldObj (field, newval, body, env),
+      SetFieldObj (field', newval', body', env') ->
+      order_concat [lazy (Pervasives.compare field field');
+                    lazy (Pervasives.compare newval newval');
+                    lazy (Pervasives.compare body body');
+                    lazy (Env.compare env env')]
+    | SetFieldObj _, _ -> 1
+    | _, SetFieldObj _ -> -1
+    | SetFieldField (obj, newval, body, env),
+      SetFieldField (obj', newval', body', env') ->
+      order_concat [lazy (AValue.compare obj obj');
+                    lazy (Pervasives.compare newval newval');
+                    lazy (Pervasives.compare body body');
+                    lazy (Env.compare env env')]
+    | SetFieldField _, _ -> 1
+    | _, SetFieldField _ -> -1
+    | SetFieldNewval (obj, field, body, env),
+      SetFieldNewval (obj', field', body', env') ->
+      order_concat [lazy (AValue.compare obj obj');
+                    lazy (AValue.compare field field');
+                    lazy (Pervasives.compare body body');
+                    lazy (Env.compare env env')]
+    | SetFieldNewval _, _ -> 1
+    | _, SetFieldNewval _ -> -1
+    | SetFieldArgs (obj, field, newval, env),
+      SetFieldArgs (obj', field', newval', env') ->
+      order_concat [lazy (AValue.compare obj obj');
+                    lazy (AValue.compare field field');
+                    lazy (AValue.compare newval newval');
+                    lazy (Env.compare env env')]
+    | SetFieldArgs _, _ -> 1
+    | _, SetFieldArgs _ -> -1
 
   type control =
     | Exp of S.exp
@@ -256,6 +293,19 @@ struct
   let unch conf = [(StackUnchanged, conf)]
   let push frame conf = [(StackPush frame, conf)]
 
+  let rec get_prop obj prop ostore = match obj with
+    | `Obj a ->
+      begin match ObjectStore.lookup a ostore with
+        | `Obj ({O.proto = pvalue; _}, props) ->
+          begin try Some (IdMap.find prop props)
+            with Not_found -> get_prop pvalue prop ostore
+          end
+        | `ObjT -> failwith "get_prop: too abstracted"
+      end
+    | `ObjT -> failwith "get_prop: too abstracted"
+    | `Null -> None
+    | _ -> failwith ("get_prop on non-object: " ^ (AValue.to_string obj))
+
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
   let step_exp exp ((_, env, vstore, ostore) as state) = match exp with
     | S.Null _ -> unch (Val `Null, env, vstore, ostore)
@@ -285,7 +335,7 @@ struct
                   opt_add "prim" pexp in
       let obj = ({ O.code=`Undef; O.proto=`Undef; O.primval=`Undef;
                    O.klass=(`Str kls);
-                   O.extensible = bool_to_val ext },
+                   O.extensible = AValue.bool ext },
                  IdMap.empty) in
       begin match attrs, props with
         | [], [] ->
@@ -314,9 +364,8 @@ struct
       push (If (cons, alt, env)) (Exp pred, env, vstore, ostore)
     | S.GetField (_, obj, field, body) ->
       push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore)
-    (*    | S.SetField (_, obj, field, newval, args) ->
-          push (SetFieldObj (field, newval, arg, env)) (Exp obj, env, vstore, ostore)
-    *)
+    | S.SetField (_, obj, field, newval, body) ->
+      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args ((_, _, vstore, ostore) as state) = match f with
@@ -398,17 +447,6 @@ struct
       let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
-          let rec get_prop obj prop ostore = match obj with
-            | `Obj a ->
-              begin match ObjectStore.lookup a ostore with
-                | `Obj ({O.proto = pvalue; _}, props) ->
-                  begin try Some (IdMap.find prop props)
-                    with Not_found -> get_prop pvalue prop ostore
-                  end
-                | `ObjT -> failwith "get_prop: too abstracted"
-              end
-            | `ObjT -> failwith "get_prop: too abstracted"
-            | _ -> failwith ("get_prop on non-object: " ^ (AValue.to_string obj)) in
           begin match get_prop (`Obj a) s ostore with
             | Some (O.Data ({O.value = v; _}, _, _)) -> (Val v, env', vstore, ostore)
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
@@ -420,15 +458,52 @@ struct
         | `ObjT, _ -> failwith "TODO"
         | _ -> failwith "TODO"
       end
-    (*    | SetFieldObj (field, newval, args, env') ->
-          (Frame (Exp field, SetFieldField (v, newval, args, env')), env', vstore, ostore)
-          | SetFieldField (obj, newval, args, env') ->
-          (Frame (Exp newval, SetFieldNewval (obj, v, args, env')), env', vstore, ostore)
-          | SetFieldNewval (obj, field, args, env') ->
-          (Frame (Exp args, SetFieldArgs (obj, field, v, env')), env', vstore, ostore)
-          | SetFieldArgs (obj, field, newval, args, env') ->
-          TODO
-    *)
+    | SetFieldObj (field, newval, body, env') ->
+      (Frame (Exp field, SetFieldField (v, newval, body, env')), env', vstore, ostore)
+    | SetFieldField (obj, newval, body, env') ->
+      (Frame (Exp newval, SetFieldNewval (obj, v, body, env')), env', vstore, ostore)
+    | SetFieldNewval (obj, field, body, env') ->
+      (Frame (Exp body, SetFieldArgs (obj, field, v, env')), env', vstore, ostore)
+    | SetFieldArgs (obj, field, newval, env') ->
+      let body = v in
+      begin match obj, field with
+        | `Obj a, `Str s ->
+          begin match ObjectStore.lookup a ostore with
+            | `Obj ({O.extensible = extensible; _} as attrs, props) ->
+              begin match get_prop obj s ostore with
+                | Some (O.Data ({ O.writable = `True; _}, enum, config)) ->
+                  let (enum, config) = if O.has_prop (attrs, props) (`Str s) then
+                      (enum, config)
+                    else
+                      (`True, `True) in
+                  let newobj = O.set_prop (attrs, props) s
+                      (O.Data ({O.value = newval; O.writable = `True},
+                               enum, config)) in
+                  let ostore' = ObjectStore.set a (`Obj newobj) ostore in
+                  (Val newval, env', vstore, ostore')
+                | Some (O.Data _)
+                | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
+                  failwith "unwritable" (* TODO: throw *)
+                | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
+                  let (exp, env'', vstore', ostore') =
+                    apply_fun setter [obj; body] state in
+                  (Frame (Exp exp, RestoreEnv env'), env'', vstore', ostore')
+                | None ->
+                  match extensible with
+                  | `True ->
+                    let newobj = O.set_prop (attrs, props) s
+                        (O.Data ({O.value = newval; O.writable = `True},
+                                 `True, `True)) in
+                    let ostore' = ObjectStore.set a (`Obj newobj) ostore in
+                    (Val newval, env', vstore, ostore')
+                  | `False ->
+                    (Val `Undef, env, vstore, ostore)
+                  | _ -> failwith "TODO"
+              end
+            | `ObjT -> failwith "TODO"
+          end
+        | _ -> failwith "update field"
+      end
     | _ -> failwith "Not implemented"
 
   let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
@@ -444,32 +519,32 @@ struct
     | _ -> failwith "Not implemented"
 
   let step_prop p (_, env, vstore, ostore) = match p with
-  | S.Data ({ S.value = v; S.writable = w }, enum, config) ->
-    push (PropData (({ O.value = `Undef; O.writable = bool_to_val w },
-                     bool_to_val enum, bool_to_val config),
-                    env))
-      (Exp v, env, vstore, ostore)
-  | S.Accessor ({ S.getter = g; S.setter = s }, enum, config) ->
-    push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
-                                 bool_to_val enum, bool_to_val config),
-                        env))
-      (Exp g, env, vstore, ostore)
+    | S.Data ({ S.value = v; S.writable = w }, enum, config) ->
+      push (PropData (({ O.value = `Undef; O.writable = AValue.bool w },
+                       AValue.bool enum, AValue.bool config),
+                      env))
+        (Exp v, env, vstore, ostore)
+    | S.Accessor ({ S.getter = g; S.setter = s }, enum, config) ->
+      push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
+                                   AValue.bool enum, AValue.bool config),
+                          env))
+        (Exp g, env, vstore, ostore)
 
-let step ((control, env, vstore, ostore) as state) frames = match control with
-  | Exp e -> step_exp e state
-  | Prop p -> step_prop p state
-  | Val v ->
-    List.map
-      (fun (state', frame) ->
-         (StackPop frame, apply_frame v frame state state'))
-      frames
-  | Frame (control', frame) ->
-    [(StackPush frame, (control', env, vstore, ostore))]
-  | PropVal prop ->
-    List.map
-      (fun (state', frame) ->
-         (StackPop frame, apply_frame_prop prop frame state state'))
-      frames
+  let step ((control, env, vstore, ostore) as state) frames = match control with
+    | Exp e -> step_exp e state
+    | Prop p -> step_prop p state
+    | Val v ->
+      List.map
+        (fun (state', frame) ->
+           (StackPop frame, apply_frame v frame state state'))
+        frames
+    | Frame (control', frame) ->
+      [(StackPush frame, (control', env, vstore, ostore))]
+    | PropVal prop ->
+      List.map
+        (fun (state', frame) ->
+           (StackPop frame, apply_frame_prop prop frame state state'))
+        frames
 
 
 end
