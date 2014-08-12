@@ -28,9 +28,10 @@ type prop =
 (* TODO: use a PropMap that is keyed on AValue.t instead of an IdMap *)
 type t = attrs * (prop IdMap.t)
 
-let compare x y = failwith "not implemented: Obj_val.compare"
+ (* TODO: should use AValue.compare, as its definition could change *)
+let compare = Pervasives.compare
 
-let to_string o = failwith "not implemented: Obj_val.to_string"
+let to_string o = "Obj"
 
 let set_attr_str (attrs, props) attr value = match attr with
   | "proto" -> ({ attrs with proto = value }, props)
@@ -91,8 +92,8 @@ let set_attr ({extensible = ext; _} as attrs, props) attr field value =
                               `True, value)
         end
       | `False -> failwith "extending inextensible object"
-      | `BoolT -> failwith "TODO"
-      | _ -> failwith "TODO"
+      | `BoolT -> failwith "set_attr: TODO"
+      | _ -> failwith "set_attr: TODO"
     else
       match (IdMap.find field props), attr with
       | Data ({writable = `True; _} as d, enum, config), S.Writable

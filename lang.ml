@@ -491,7 +491,7 @@ struct
       (Val (D.op2 ostore op arg1 v), env', vstore, ostore)
     | If (cons, alt, env') -> begin match v with
         | `True -> (Exp cons, env', vstore, ostore)
-        | `BoolT | `Top -> failwith "TODO: two if possibilities"
+        | `BoolT | `Top -> failwith "TODO: two if possibilities (If frame)"
         | _ -> (Exp alt, env', vstore, ostore)
       end
     | GetFieldObj (field, body, env') ->
@@ -509,9 +509,9 @@ struct
               (Frame (Exp body, RestoreEnv env'), env'', vstore', ostore)
             | None -> (Val `Undef, env', vstore, ostore)
           end
-        | `Obj _, `StrT -> failwith "TODO"
-        | `ObjT, _ -> failwith "TODO"
-        | _ -> failwith "TODO"
+        | `Obj _, `StrT -> failwith "TODO: GetFieldBody frame"
+        | `ObjT, _ -> failwith "TODO: GetFieldBody frame"
+        | _ -> failwith "TODO: GetFieldBody frame"
       end
     | SetFieldObj (field, newval, body, env') ->
       (Frame (Exp field, SetFieldField (v, newval, body, env')), env', vstore, ostore)
@@ -553,9 +553,9 @@ struct
                     (Val newval, env', vstore, ostore')
                   | `False ->
                     (Val `Undef, env, vstore, ostore)
-                  | _ -> failwith "TODO"
+                  | _ -> failwith "TODO: SetFieldArgs frame"
               end
-            | `ObjT -> failwith "TODO"
+            | `ObjT -> failwith "TODO: SetFieldArgs frame"
           end
         | _ -> failwith "update field"
       end
@@ -568,9 +568,9 @@ struct
           begin match ObjectStore.lookup a ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
               (Val attr, env', vstore, ostore)
-            | `ObjT -> failwith "TODO"
+            | `ObjT -> failwith "TODO: GetAttrField frame"
           end
-        | _ -> failwith "TODO"
+        | _ -> failwith "TODO: GetAttrField frame"
       end
     | SetAttrObj (pattr, field, newval, env') ->
       (Frame (Exp field, SetAttrField (pattr, v, newval, env')), env', vstore, ostore)
@@ -585,9 +585,9 @@ struct
               let newobj = O.set_attr o pattr s newval in
               let ostore' = ObjectStore.set a (`Obj newobj) ostore in
               (Val `True, env', vstore, ostore')
-            | `ObjT -> failwith "TODO"
+            | `ObjT -> failwith "TODO: SetAttrNewval frame"
           end
-        | _ -> failwith "TODO"
+        | _ -> failwith "TODO: SetAttrNewval frame"
       end
     | _ -> failwith "Not implemented"
 
