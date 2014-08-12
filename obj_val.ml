@@ -1,6 +1,8 @@
 open Prelude
 open Lattice
 
+module S = Ljs_syntax
+
 type attrs = {
   code : AValue.t;
   proto : AValue.t;
@@ -48,3 +50,22 @@ let lookup_prop (attrs, props) = function
   | `Str prop -> IdMap.find prop props
   | `StrT -> failwith "lookup_prop on abstract string"
   | _ -> failwith "lookup_prop: invalid field name"
+
+let get_attr (attrs, props) attr = function
+  | `Str field ->
+    if not (IdMap.mem field props) then
+      `Undef
+    else
+      begin match (IdMap.find field props), attr with
+      | Data (_, _, config), S.Config
+      | Accessor (_, _, config), S.Config -> config
+      | Data (_, enum, _), S.Enum
+      | Accessor (_, enum, _), S.Enum -> enum
+      | Data ({writable = w; _}, _, _), S.Writable -> w
+      | Data ({value = v; _}, _, _), S.Value -> v
+      | Accessor ({ getter = g; _}, _, _), S.Getter -> g
+      | Accessor ({ setter = s; _}, _, _), S.Setter -> s
+      | _ -> failwith "bad access of attriubte"
+      end
+  | `StrT -> failwith "get_attr on abstract string"
+  | _ -> failwith "get_attr: invalid field name"

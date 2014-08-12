@@ -64,6 +64,9 @@ struct
     | SetFieldField of AValue.t * S.exp * S.exp * Env.t
     | SetFieldNewval of AValue.t * AValue.t * S.exp * Env.t
     | SetFieldArgs of AValue.t * AValue.t * AValue.t * Env.t
+    (* syntax? *)
+    | GetAttrObj of S.pattr * S.exp * Env.t
+    | GetAttrField of S.pattr * AValue.t * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -86,6 +89,8 @@ struct
     | SetFieldField _ -> "SetFieldField"
     | SetFieldNewval _ -> "SetFieldNewval"
     | SetFieldArgs _ -> "SetFieldArgs"
+    | GetAttrObj _ -> "GetAttrObj"
+    | GetAttrField _ -> "GetAttrField"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -131,6 +136,8 @@ struct
     | AppFun (args, env), AppFun (args', env') ->
       order_concat [lazy (Pervasives.compare args args');
                     lazy (Env.compare env env')]
+    | AppFun _, _ -> 1
+    | _, AppFun _ -> -1
     | AppArgs (f, vals, args, env), AppArgs (f', vals', args', env') ->
       order_concat [lazy (AValue.compare f f');
                     lazy (compare_list AValue.compare vals vals');
@@ -215,6 +222,18 @@ struct
                     lazy (Env.compare env env')]
     | SetFieldArgs _, _ -> 1
     | _, SetFieldArgs _ -> -1
+    | GetAttrObj (pattr, field, env), GetAttrObj (pattr', field', env') ->
+      order_concat [lazy (Pervasives.compare pattr pattr');
+                    lazy (Pervasives.compare field field');
+                    lazy (Env.compare env env')]
+    | GetAttrObj _, _ -> 1
+    | _, GetAttrObj _ -> -1
+    | GetAttrField (pattr, obj, env), GetAttrField (pattr', obj', env') ->
+      order_concat [lazy (Pervasives.compare pattr pattr');
+                    lazy (AValue.compare obj obj');
+                    lazy (Env.compare env env')]
+    | GetAttrField _, _ -> 1
+    | _, GetAttrField _ -> -1
 
   type control =
     | Exp of S.exp
@@ -366,6 +385,8 @@ struct
       push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore)
     | S.SetField (_, obj, field, newval, body) ->
       push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore)
+    | S.GetAttr (_, pattr, obj, field) ->
+      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args ((_, _, vstore, ostore) as state) = match f with
@@ -503,6 +524,19 @@ struct
             | `ObjT -> failwith "TODO"
           end
         | _ -> failwith "update field"
+      end
+    | GetAttrObj (pattr, field, env') ->
+      (Frame (Exp field, GetAttrField (pattr, v, env')), env', vstore, ostore)
+    | GetAttrField (pattr, obj, env') ->
+      let field = v in
+      begin match obj with
+        | `Obj a ->
+          begin match ObjectStore.lookup a ostore with
+            | `Obj o -> let attr = O.get_attr o pattr field in
+              (Val attr, env', vstore, ostore)
+            | `ObjT -> failwith "TODO"
+          end
+        | _ -> failwith "TODO"
       end
     | _ -> failwith "Not implemented"
 
