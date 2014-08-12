@@ -67,6 +67,10 @@ struct
     (* syntax? *)
     | GetAttrObj of S.pattr * S.exp * Env.t
     | GetAttrField of S.pattr * AValue.t * Env.t
+    (* syntax? *)
+    | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
+    | SetAttrField of S.pattr * AValue.t * S.exp * Env.t
+    | SetAttrNewval of S.pattr * AValue.t * AValue.t * Env.t
 
   let string_of_frame = function
     | Let (id, _, _) -> "Let-" ^ id
@@ -91,6 +95,9 @@ struct
     | SetFieldArgs _ -> "SetFieldArgs"
     | GetAttrObj _ -> "GetAttrObj"
     | GetAttrField _ -> "GetAttrField"
+    | SetAttrObj _ -> "SetAttrObj"
+    | SetAttrField _ -> "SetAttrField"
+    | SetAttrNewval _ -> "SetAttrNewval"
 
   (* TODO: use ppx_deriving? *)
   let compare_frame f f' = match f, f' with
@@ -234,6 +241,28 @@ struct
                     lazy (Env.compare env env')]
     | GetAttrField _, _ -> 1
     | _, GetAttrField _ -> -1
+    | SetAttrObj (pattr, field, newval, env),
+      SetAttrObj (pattr', field', newval', env') ->
+      order_concat [lazy (Pervasives.compare pattr pattr');
+                    lazy (Pervasives.compare field field');
+                    lazy (Pervasives.compare newval newval');
+                    lazy (Env.compare env env')]
+    | SetAttrObj _, _ -> 1
+    | _, SetAttrObj _ -> -1
+    | SetAttrField (pattr, obj, newval, env),
+      SetAttrField (pattr', obj', newval', env') ->
+      order_concat [lazy (Pervasives.compare pattr pattr');
+                    lazy (AValue.compare obj obj');
+                    lazy (Pervasives.compare newval newval');
+                    lazy (Env.compare env env')]
+    | SetAttrNewval (pattr, obj, field, env),
+      SetAttrNewval (pattr', obj', field', env') ->
+      order_concat [lazy (Pervasives.compare pattr pattr');
+                    lazy (AValue.compare obj obj');
+                    lazy (AValue.compare field field');
+                    lazy (Env.compare env env')]
+    | SetAttrNewval _, _ -> 1
+    | _, SetAttrNewval _ -> -1
 
   type control =
     | Exp of S.exp
@@ -387,6 +416,8 @@ struct
       push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore)
     | S.GetAttr (_, pattr, obj, field) ->
       push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore)
+    | S.SetAttr (_, pattr, obj, field, newval) ->
+      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args ((_, _, vstore, ostore) as state) = match f with
@@ -418,15 +449,15 @@ struct
       (Exp body, env'', vstore', ostore)
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | ObjectAttrs (name, obj, [], [], env') ->
-      let obj' = O.set_attr obj name v in
+      let obj' = O.set_attr_str obj name v in
       let a = alloc_obj obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') ostore in
       (Val (`Obj a), env', vstore, ostore')
     | ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
-      let obj' = O.set_attr obj name v in
+      let obj' = O.set_attr_str obj name v in
       (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
     | ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
-      let obj' = O.set_attr obj name v in
+      let obj' = O.set_attr_str obj name v in
       (Frame (Exp attr, ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore)
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | PropData ((data, enum, config), env') ->
@@ -534,6 +565,23 @@ struct
           begin match ObjectStore.lookup a ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
               (Val attr, env', vstore, ostore)
+            | `ObjT -> failwith "TODO"
+          end
+        | _ -> failwith "TODO"
+      end
+    | SetAttrObj (pattr, field, newval, env') ->
+      (Frame (Exp field, SetAttrField (pattr, v, newval, env')), env', vstore, ostore)
+    | SetAttrField (pattr, obj, newval, env') ->
+      (Frame (Exp newval, SetAttrNewval (pattr, obj, v, env')), env', vstore, ostore)
+    | SetAttrNewval (pattr, obj, field, env') ->
+      let newval = v in
+      begin match obj, field with
+        | `Obj a, `Str s ->
+          begin match ObjectStore.lookup a ostore with
+            | `Obj o ->
+              let newobj = O.set_attr o pattr s newval in
+              let ostore' = ObjectStore.set a (`Obj newobj) ostore in
+              (Val `True, env', vstore, ostore')
             | `ObjT -> failwith "TODO"
           end
         | _ -> failwith "TODO"
