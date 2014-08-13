@@ -46,7 +46,7 @@ type t =
   | SetAttrNewval of S.pattr * AValue.t * AValue.t * Env.t
 
 let touch = function
-  | _ -> failwith "Not yet implemented: touch"
+  | _ -> AddressSet.empty (* TODO *)
 
 let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
