@@ -117,9 +117,13 @@ module BuildDSG =
        EdgeSet.filter (fun c -> not (G.mem_edge_e dsg.g c)) de,
        EpsSet.filter (fun (c1, c2) -> not (G.mem_edge dsg.ecg c1 c2)) dh)
 
-    let add_edge dsg c g c' = match g with
+    let add_edge dsg c g c' =
+      (* print_endline ("add_edge " ^ (L.string_of_conf c) ^ " ->" ^ (L.string_of_stack_change g) ^ " " ^ (L.string_of_conf c')); *)
+      match g with
       | L.StackUnchanged ->
-        add_short { dsg with ecg = G.add_edge dsg.ecg c c' } c c'
+        (* print_endline ("Adding edge when calling add_short " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
+        let (ds, de, dh) = add_short { dsg with ecg = G.add_edge dsg.ecg c c' } c c' in
+        (ds, de, EpsSet.add (c, c') dh)
       | L.StackPush k ->
         let de = G.fold_edges
             (fun c_ c1 acc ->
