@@ -16,7 +16,7 @@ let to_int v = match v with
   | `Num x -> int_of_float x
   | _ -> raise (PrimErr "to-int")
 
-let typeof ostore v = 
+let typeof ostore v =
   let res = match v with
   | `Undef -> AValue.str "undefined"
   | `Null -> AValue.str "null"

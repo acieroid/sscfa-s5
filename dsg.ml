@@ -194,7 +194,6 @@ module BuildDSG =
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;
-        print_string "\r"; print_int !i; flush_all ();
         (* print_endline ("ΔS = " ^ (string_of_list (ConfSet.to_list ds)
                                      L.string_of_conf));
         print_endline ("ΔE = " ^ (string_of_list (EdgeSet.to_list de)

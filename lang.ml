@@ -407,25 +407,25 @@ struct
             (Exp exp, env, vstore, ostore, time)
       end
     | S.Let (p, id, exp, body) ->
-      push (Let (id, body, env)) (Exp exp, env, vstore, ostore, time)
+      push (Let (id, body, env)) (Exp exp, env, vstore, ostore, Time.tick p time)
     | S.Seq (p, left, right) ->
-      push (Seq (right, env)) (Exp left, env, vstore, ostore, time)
+      push (Seq (right, env)) (Exp left, env, vstore, ostore, Time.tick p time)
     | S.App (p, f, args) ->
-      push (AppFun (args, env)) (Exp f, env, vstore, ostore, time)
+      push (AppFun (args, env)) (Exp f, env, vstore, ostore, Time.tick p time)
     | S.Op1 (p, op, arg) ->
-      push (Op1App (op, env)) (Exp arg, env, vstore, ostore, time)
+      push (Op1App (op, env)) (Exp arg, env, vstore, ostore, Time.tick p time)
     | S.Op2 (p, op, arg1, arg2) ->
-      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore, time)
+      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore, Time.tick p time)
     | S.If (p, pred, cons, alt) ->
-      push (If (cons, alt, env)) (Exp pred, env, vstore, ostore, time)
+      push (If (cons, alt, env)) (Exp pred, env, vstore, ostore, Time.tick p time)
     | S.GetField (p, obj, field, body) ->
-      push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore, time)
+      push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.SetField (p, obj, field, newval, body) ->
-      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore, time)
+      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.GetAttr (p, pattr, obj, field) ->
-      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore, time)
+      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.SetAttr (p, pattr, obj, field, newval) ->
-      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore, time)
+      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args ((_, _, vstore, ostore, time) as state : state)
@@ -632,7 +632,6 @@ struct
           | Some (state', frame) ->
             [StackPop frame, apply_frame v frame state state']
           | None ->
-            print_endline "No frame when popping";
             []
         end
       | Frame (control', frame) ->
@@ -641,7 +640,6 @@ struct
           | Some (state', frame) ->
             [StackPop frame, apply_frame_prop prop frame state state']
           | None ->
-            print_endline "No frame when popping";
             []
         end in
     (* print_endline ((string_of_state state) ^ " -> " ^

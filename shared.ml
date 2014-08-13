@@ -13,11 +13,13 @@ let order_concat l =
   in aux 0 l
 
 let compare_list cmp l1 l2 =
-  order_concat
-    (lazy (Pervasives.compare (BatList.length l1) (BatList.length l2))
-     :: (BatList.map
-           (fun (el1, el2) -> lazy (cmp el1 el2))
-           (BatList.combine l1 l2)))
+  let l = Pervasives.compare (BatList.length l1) (BatList.length l2) in
+  if l == 0 then
+    order_concat (BatList.map
+                    (fun (el1, el2) -> lazy (cmp el1 el2))
+                    (BatList.combine l1 l2))
+  else
+    l
 
 let string_of_list l s_o_elt =
   if List.length l > 0 then
