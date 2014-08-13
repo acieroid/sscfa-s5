@@ -281,15 +281,16 @@ struct
     | PropVal v -> "PropVal"
     | Frame (exp, f) -> "Frame(" ^ (string_of_frame f) ^ ")"
 
-  type state = control * Env.t * ValueStore.t * ObjectStore.t
+  type state = control * Env.t * ValueStore.t * ObjectStore.t * Time.t
 
-  let string_of_state (control, _, _, _) = string_of_control control
+  let string_of_state (control, _, _, _, t) = string_of_control control
 
-  let compare_state (state, env, vstore, ostore) (state', env', vstore', ostore') =
+  let compare_state (state, env, vstore, ostore, time) (state', env', vstore', ostore', time') =
     order_concat [lazy (Pervasives.compare state state');
                   lazy (Env.compare env env');
                   lazy (ValueStore.compare vstore vstore');
-                  lazy (ObjectStore.compare ostore ostore')]
+                  lazy (ObjectStore.compare ostore ostore');
+                  lazy (Time.compare time time')]
 
   (* TODO: add stack summary *)
   type conf = state
@@ -333,13 +334,14 @@ struct
   end
 
   (* TODO: put that somewhere else? *)
-  let alloc_val _ state = match state with
-    | (_, _, vstore, _) -> Address.alloc (ValueStore.size vstore + 1)
+  let alloc_val id _ (state : state) = match state with
+    | (_, _, vstore, _, t) -> Address.alloc id t
 
-  let alloc_obj _ state = match state with
-    | (_, _, _, ostore) -> Address.alloc (ObjectStore.size ostore + 1)
+  let alloc_obj id _ (state : state) = match state with
+    | (_, _, _, ostore, t) -> Address.alloc id t
 
-  let inject (exp : S.exp) = (Exp exp, Env.empty, ValueStore.empty, ObjectStore.empty)
+  let inject (exp : S.exp) : state =
+    (Exp exp, Env.empty, ValueStore.empty, ObjectStore.empty, Time.initial)
 
   let unch conf = [(StackUnchanged, conf)]
   let push frame conf = [(StackPush frame, conf)]
@@ -358,19 +360,23 @@ struct
     | _ -> failwith ("get_prop on non-object: " ^ (AValue.to_string obj))
 
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
-  let step_exp exp ((_, env, vstore, ostore) as state) = match exp with
-    | S.Null _ -> unch (Val `Null, env, vstore, ostore)
-    | S.Undefined _ -> unch (Val `Undef, env, vstore, ostore)
-    | S.String (_, s) -> unch (Val (`Str s), env, vstore, ostore)
-    | S.Num (_, n) -> unch (Val (`Num n), env, vstore, ostore)
-    | S.True _ -> unch (Val `True, env, vstore, ostore)
-    | S.False _ -> unch (Val `False, env, vstore, ostore)
+  (* TODO: currently, we call Time.tick only when an application takes place
+     (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
+     etc.) *)
+  let step_exp (exp : S.exp) ((_, env, vstore, ostore, time) as state : state)
+    : (stack_change * conf) list = match exp with
+    | S.Null _ -> unch (Val `Null, env, vstore, ostore, time)
+    | S.Undefined _ -> unch (Val `Undef, env, vstore, ostore, time)
+    | S.String (_, s) -> unch (Val (`Str s), env, vstore, ostore, time)
+    | S.Num (_, n) -> unch (Val (`Num n), env, vstore, ostore, time)
+    | S.True _ -> unch (Val `True, env, vstore, ostore, time)
+    | S.False _ -> unch (Val `False, env, vstore, ostore, time)
     | S.Id (_, id) -> unch (Val (ValueStore.lookup (Env.lookup id env) vstore), env,
-                            vstore, ostore)
+                            vstore, ostore, time)
     | S.Lambda (_, args, body) ->
       let free = S.free_vars body in
       let env' = Env.keep free env in
-      unch (Val (`Clos (env', args, body)), env, vstore, ostore)
+      unch (Val (`Clos (env', args, body)), env, vstore, ostore, time)
     | S.Object (_, attrs, props) ->
       let { S.primval = pexp;
             S.code = cexp;
@@ -390,135 +396,135 @@ struct
                  IdMap.empty) in
       begin match attrs, props with
         | [], [] ->
-          let a = alloc_obj obj state in
+          let a = alloc_obj "obj" obj state in
           let ostore' = ObjectStore.join a (`Obj obj) ostore in
-          unch (Val (`Obj a), env, vstore, ostore')
+          unch (Val (`Obj a), env, vstore, ostore', time)
         | [], (prop, exp)::props ->
           push (ObjectProps (prop, obj, props, env))
-            (Prop exp, env, vstore, ostore)
+            (Prop exp, env, vstore, ostore, time)
         | (attr, exp)::attrs, props ->
           push (ObjectAttrs (attr, obj, attrs, props, env))
-            (Exp exp, env, vstore, ostore)
+            (Exp exp, env, vstore, ostore, time)
       end
-    | S.Let (_, id, exp, body) ->
-      push (Let (id, body, env)) (Exp exp, env, vstore, ostore)
-    | S.Seq (_, left, right) ->
-      push (Seq (right, env)) (Exp left, env, vstore, ostore)
-    | S.App (_, f, args) ->
-      print_endline ("------ apply " ^ (string_of_exp f));
-      push (AppFun (args, env)) (Exp f, env, vstore, ostore)
-    | S.Op1 (_, op, arg) ->
-      push (Op1App (op, env)) (Exp arg, env, vstore, ostore)
-    | S.Op2 (_, op, arg1, arg2) ->
-      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore)
-    | S.If (_, pred, cons, alt) ->
-      push (If (cons, alt, env)) (Exp pred, env, vstore, ostore)
-    | S.GetField (_, obj, field, body) ->
-      push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore)
-    | S.SetField (_, obj, field, newval, body) ->
-      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore)
-    | S.GetAttr (_, pattr, obj, field) ->
-      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore)
-    | S.SetAttr (_, pattr, obj, field, newval) ->
-      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore)
+    | S.Let (p, id, exp, body) ->
+      push (Let (id, body, env)) (Exp exp, env, vstore, ostore, time)
+    | S.Seq (p, left, right) ->
+      push (Seq (right, env)) (Exp left, env, vstore, ostore, time)
+    | S.App (p, f, args) ->
+      push (AppFun (args, env)) (Exp f, env, vstore, ostore, time)
+    | S.Op1 (p, op, arg) ->
+      push (Op1App (op, env)) (Exp arg, env, vstore, ostore, time)
+    | S.Op2 (p, op, arg1, arg2) ->
+      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore, time)
+    | S.If (p, pred, cons, alt) ->
+      push (If (cons, alt, env)) (Exp pred, env, vstore, ostore, time)
+    | S.GetField (p, obj, field, body) ->
+      push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore, time)
+    | S.SetField (p, obj, field, newval, body) ->
+      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore, time)
+    | S.GetAttr (p, pattr, obj, field) ->
+      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore, time)
+    | S.SetAttr (p, pattr, obj, field, newval) ->
+      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore, time)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
-  let rec apply_fun f args ((_, _, vstore, ostore) as state) = match f with
+  let rec apply_fun f args ((_, _, vstore, ostore, time) as state : state)
+    : (S.exp * Env.t * ValueStore.t * ObjectStore.t * Time.t) = match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
         failwith "Arity mismatch"
       else
         let alloc_arg v name (vstore, env) =
-          let a = alloc_val v state in
+          let a = alloc_val name v state in
           (ValueStore.join a v vstore,
            Env.extend name a env) in
         let (vstore', env') =
           BatList.fold_right2 alloc_arg args args' (vstore, env') in
-        (body, env', vstore', ostore)
+        (body, env', vstore', ostore, Time.tick (S.pos_of body) time)
     | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
     | `Obj a -> begin match ObjectStore.lookup a ostore with
         | `Obj ({ O.code = `Clos f; _ }, _) ->
-          let (exp, env, vstore, ostore) = apply_fun (`Clos f) args state in
-          (exp, env, vstore, ostore)
+          apply_fun (`Clos f) args state
         | _ -> failwith "Applied object without code attribute"
       end
     | _ -> failwith "Applied non-function"
 
-  let apply_frame v frame ((control, env, vstore, ostore) as state) _ = match frame with
+  let apply_frame v frame ((control, env, vstore, ostore, time) as state : state) _
+    : conf = match frame with
     | Let (id, body, env') ->
-      let a = alloc_val id state in
+      let a = alloc_val id id state in
       let env'' = Env.extend id a env' in
       let vstore' = ValueStore.join a v vstore in
-      (Exp body, env'', vstore', ostore)
+      (Exp body, env'', vstore', ostore, time)
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | ObjectAttrs (name, obj, [], [], env') ->
       let obj' = O.set_attr_str obj name v in
-      let a = alloc_obj obj' state in
+      let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') ostore in
-      (Val (`Obj a), env', vstore, ostore')
+      (Val (`Obj a), env', vstore, ostore', time)
     | ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
       let obj' = O.set_attr_str obj name v in
-      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
+      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
     | ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
       let obj' = O.set_attr_str obj name v in
-      (Frame (Exp attr, ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore)
+      (Frame (Exp attr, ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore, time)
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | PropData ((data, enum, config), env') ->
-      (PropVal (O.Data ({data with O.value = v}, enum, config)), env', vstore, ostore)
+      (PropVal (O.Data ({data with O.value = v}, enum, config)), env', vstore, ostore, time)
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
     | PropAccessor (None, (accessor, enum, config), env') ->
-      (PropVal (O.Accessor ({accessor with O.setter = v}, enum, config)), env', vstore, ostore)
+      (PropVal (O.Accessor ({accessor with O.setter = v}, enum, config)), env', vstore, ostore, time)
     | PropAccessor (Some exp, (accessor, enum, config), env') ->
       (Frame (Exp exp, (PropAccessor (None, ({accessor with O.getter = v}, enum, config), env'))),
-       env', vstore, ostore)
+       env', vstore, ostore, time)
     | Seq (exp, env') ->
-      (Exp exp, env', vstore, ostore)
+      (Exp exp, env', vstore, ostore, time)
     | AppFun ([], env') ->
-      let (exp, env, vstore, ostore) = apply_fun v [] state in
-      (Exp exp, env, vstore, ostore)
+      let (exp, env, vstore, ostore, time) = apply_fun v [] state in
+      (Exp exp, env, vstore, ostore, time)
     | AppFun (arg :: args, env') ->
-      (Frame (Exp arg, (AppArgs (v, [], args, env'))), env', vstore, ostore)
+      (Frame (Exp arg, (AppArgs (v, [], args, env'))), env', vstore, ostore, time)
     | AppArgs (f, vals, [], env') ->
-      let (exp, env, vstore, ostore) = apply_fun f (BatList.rev (v :: vals)) state in
-      (Exp exp, env, vstore, ostore)
+      let (exp, env, vstore, ostore, time) = apply_fun f (BatList.rev (v :: vals)) state in
+      (Exp exp, env, vstore, ostore, time)
     | AppArgs (f, vals, arg :: args, env') ->
-      (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore)
+      (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore, time)
     | Op1App (op, env') ->
-      (Val (D.op1 ostore op v), env', vstore, ostore)
+      (Val (D.op1 ostore op v), env', vstore, ostore, time)
     | Op2Arg (op, arg2, env') ->
-      (Frame (Exp arg2, (Op2App (op, v, env'))), env', vstore, ostore)
+      (Frame (Exp arg2, (Op2App (op, v, env'))), env', vstore, ostore, time)
     | Op2App (op, arg1, env') ->
-      (Val (D.op2 ostore op arg1 v), env', vstore, ostore)
+      (Val (D.op2 ostore op arg1 v), env', vstore, ostore, time)
     | If (cons, alt, env') -> begin match v with
-        | `True -> (Exp cons, env', vstore, ostore)
+        | `True -> (Exp cons, env', vstore, ostore, time)
         | `BoolT | `Top -> failwith "TODO: two if possibilities (If frame)"
-        | _ -> (Exp alt, env', vstore, ostore)
+        | _ -> (Exp alt, env', vstore, ostore, time)
       end
     | GetFieldObj (field, body, env') ->
-      (Frame (Exp field, GetFieldField (v, body, env')), env', vstore, ostore)
+      (Frame (Exp field, GetFieldField (v, body, env')), env', vstore, ostore, time)
     | GetFieldField (obj, body, env') ->
-      (Frame (Exp body, GetFieldBody (obj, v, env')), env', vstore, ostore)
+      (Frame (Exp body, GetFieldBody (obj, v, env')), env', vstore, ostore, time)
     | GetFieldBody (obj, field, env') ->
       let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
           begin match get_prop (`Obj a) s ostore with
-            | Some (O.Data ({O.value = v; _}, _, _)) -> (Val v, env', vstore, ostore)
+            | Some (O.Data ({O.value = v; _}, _, _)) -> (Val v, env', vstore, ostore, time)
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, env'', vstore', ostore) = apply_fun g [obj; body] state in
-              (Frame (Exp body, RestoreEnv env'), env'', vstore', ostore)
-            | None -> (Val `Undef, env', vstore, ostore)
+              let (body, env'', vstore', ostore, time') = apply_fun g [obj; body] state in
+              (Frame (Exp body, RestoreEnv env'), env'', vstore', ostore, time')
+            | None -> (Val `Undef, env', vstore, ostore, time)
           end
         | `Obj _, `StrT -> failwith "TODO: GetFieldBody frame"
         | `ObjT, _ -> failwith "TODO: GetFieldBody frame"
         | _ -> failwith "TODO: GetFieldBody frame"
       end
     | SetFieldObj (field, newval, body, env') ->
-      (Frame (Exp field, SetFieldField (v, newval, body, env')), env', vstore, ostore)
+      (Frame (Exp field, SetFieldField (v, newval, body, env')), env', vstore, ostore, time)
     | SetFieldField (obj, newval, body, env') ->
-      (Frame (Exp newval, SetFieldNewval (obj, v, body, env')), env', vstore, ostore)
+      (Frame (Exp newval, SetFieldNewval (obj, v, body, env')), env', vstore, ostore, time)
     | SetFieldNewval (obj, field, body, env') ->
-      (Frame (Exp body, SetFieldArgs (obj, field, v, env')), env', vstore, ostore)
+      (Frame (Exp body, SetFieldArgs (obj, field, v, env')), env', vstore, ostore, time)
     | SetFieldArgs (obj, field, newval, env') ->
       let body = v in
       begin match obj, field with
@@ -535,14 +541,14 @@ struct
                       (O.Data ({O.value = newval; O.writable = `True},
                                enum, config)) in
                   let ostore' = ObjectStore.set a (`Obj newobj) ostore in
-                  (Val newval, env', vstore, ostore')
+                  (Val newval, env', vstore, ostore', time)
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
                   failwith "unwritable" (* TODO: throw *)
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, env'', vstore', ostore') =
+                  let (exp, env'', vstore', ostore', time') =
                     apply_fun setter [obj; body] state in
-                  (Frame (Exp exp, RestoreEnv env'), env'', vstore', ostore')
+                  (Frame (Exp exp, RestoreEnv env'), env'', vstore', ostore', time')
                 | None ->
                   match extensible with
                   | `True ->
@@ -550,9 +556,9 @@ struct
                         (O.Data ({O.value = newval; O.writable = `True},
                                  `True, `True)) in
                     let ostore' = ObjectStore.set a (`Obj newobj) ostore in
-                    (Val newval, env', vstore, ostore')
+                    (Val newval, env', vstore, ostore', time)
                   | `False ->
-                    (Val `Undef, env, vstore, ostore)
+                    (Val `Undef, env, vstore, ostore, time)
                   | _ -> failwith "TODO: SetFieldArgs frame"
               end
             | `ObjT -> failwith "TODO: SetFieldArgs frame"
@@ -560,22 +566,22 @@ struct
         | _ -> failwith "update field"
       end
     | GetAttrObj (pattr, field, env') ->
-      (Frame (Exp field, GetAttrField (pattr, v, env')), env', vstore, ostore)
+      (Frame (Exp field, GetAttrField (pattr, v, env')), env', vstore, ostore, time)
     | GetAttrField (pattr, obj, env') ->
       let field = v in
       begin match obj with
         | `Obj a ->
           begin match ObjectStore.lookup a ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
-              (Val attr, env', vstore, ostore)
+              (Val attr, env', vstore, ostore, time)
             | `ObjT -> failwith "TODO: GetAttrField frame"
           end
         | _ -> failwith "TODO: GetAttrField frame"
       end
     | SetAttrObj (pattr, field, newval, env') ->
-      (Frame (Exp field, SetAttrField (pattr, v, newval, env')), env', vstore, ostore)
+      (Frame (Exp field, SetAttrField (pattr, v, newval, env')), env', vstore, ostore, time)
     | SetAttrField (pattr, obj, newval, env') ->
-      (Frame (Exp newval, SetAttrNewval (pattr, obj, v, env')), env', vstore, ostore)
+      (Frame (Exp newval, SetAttrNewval (pattr, obj, v, env')), env', vstore, ostore, time)
     | SetAttrNewval (pattr, obj, field, env') ->
       let newval = v in
       begin match obj, field with
@@ -584,52 +590,63 @@ struct
             | `Obj o ->
               let newobj = O.set_attr o pattr s newval in
               let ostore' = ObjectStore.set a (`Obj newobj) ostore in
-              (Val `True, env', vstore, ostore')
+              (Val `True, env', vstore, ostore', time)
             | `ObjT -> failwith "TODO: SetAttrNewval frame"
           end
         | _ -> failwith "TODO: SetAttrNewval frame"
       end
     | _ -> failwith "Not implemented"
 
-  let apply_frame_prop v frame ((_, env, vstore, ostore) as state) _ = match frame with
+  let apply_frame_prop v frame ((_, env, vstore, ostore, time) as state : state) _
+    : conf = match frame with
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
     | ObjectProps (name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
-      let a = alloc_obj obj' state in
+      let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') ostore in
-      (Val (`Obj a), env', vstore, ostore')
+      (Val (`Obj a), env', vstore, ostore', time)
     | ObjectProps (name, obj, (name', prop) :: props, env') ->
       let obj' = O.set_prop obj name v in
-      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore)
+      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
     | _ -> failwith "Not implemented"
 
-  let step_prop p (_, env, vstore, ostore) = match p with
+  let step_prop p ((_, env, vstore, ostore, time) : state)
+      : (stack_change * conf) list = match p with
     | S.Data ({ S.value = v; S.writable = w }, enum, config) ->
       push (PropData (({ O.value = `Undef; O.writable = AValue.bool w },
                        AValue.bool enum, AValue.bool config),
                       env))
-        (Exp v, env, vstore, ostore)
+        (Exp v, env, vstore, ostore, time)
     | S.Accessor ({ S.getter = g; S.setter = s }, enum, config) ->
       push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
                                    AValue.bool enum, AValue.bool config),
                           env))
-        (Exp g, env, vstore, ostore)
+        (Exp g, env, vstore, ostore, time)
 
-  let step ((control, env, vstore, ostore) as state) frame = match control with
-    | Exp e -> step_exp e state
-    | Prop p -> step_prop p state
-    | Val v -> begin match frame with
-        | Some (state', frame) ->
-          [StackPop frame, apply_frame v frame state state']
-        | None ->
-          []
-      end
-    | Frame (control', frame) ->
-      [(StackPush frame, (control', env, vstore, ostore))]
-    | PropVal prop -> begin match frame with
-        | Some (state', frame) ->
-          [StackPop frame, apply_frame_prop prop frame state state']
-        | None ->
-          []
-      end
+  let step ((control, env, vstore, ostore, time) as state : state)
+      (frame : (state * frame) option) : (stack_change * conf) list =
+    let res = match control with
+      | Exp e -> step_exp e state
+      | Prop p -> step_prop p state
+      | Val v -> begin match frame with
+          | Some (state', frame) ->
+            [StackPop frame, apply_frame v frame state state']
+          | None ->
+            print_endline "No frame when popping";
+            []
+        end
+      | Frame (control', frame) ->
+        [(StackPush frame, (control', env, vstore, ostore, time))]
+      | PropVal prop -> begin match frame with
+          | Some (state', frame) ->
+            [StackPop frame, apply_frame_prop prop frame state state']
+          | None ->
+            print_endline "No frame when popping";
+            []
+        end in
+    (* print_endline ((string_of_state state) ^ " -> " ^
+                   (string_of_list res
+                      (fun (g, c) -> (string_of_stack_change g) ^ " -> " ^
+                                     (string_of_state c)))); *)
+    res
 end

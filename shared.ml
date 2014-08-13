@@ -1,3 +1,4 @@
+open Prelude
 open Ljs_syntax
 
 (* Some functions to simplify the writing of comparison functions *)
@@ -18,29 +19,6 @@ let compare_list cmp l1 l2 =
            (fun (el1, el2) -> lazy (cmp el1 el2))
            (BatList.combine l1 l2)))
 
-module StringSet = BatSet.Make(struct
-    type t = string
-    let compare = Pervasives.compare
-  end)
-
-module type Address_signature =
-sig
-  type t
-  val compare : t -> t -> int
-  val to_string : t -> string
-  val alloc : int -> t (* TODO: find a place where it belongs *)
-end
-
-(* S5 uses Store.Loc module (util/store.ml) *)
-module Address : Address_signature =
-struct
-  type t = int
-  let compare = Pervasives.compare
-  let to_string = string_of_int
-  let counter = ref 0
-  let alloc x = counter := !counter+1; !counter
-end
-
 let string_of_list l s_o_elt =
   if List.length l > 0 then
     let elts = List.fold_right (fun elt a -> (s_o_elt elt)^", "^a) l "" in
@@ -49,6 +27,70 @@ let string_of_list l s_o_elt =
 
 let string_of_map fold k v m =
   "{" ^ (fold (fun k' v' a -> (k k')^" --> "^(v v')^"\n"^a) m " }")
+
+module StringSet = BatSet.Make(struct
+    type t = string
+    let compare = Pervasives.compare
+  end)
+
+module type Time_signature =
+sig
+  type t
+  val initial : t
+  val compare : t -> t -> int
+  val to_string : t -> string
+  val tick : Pos.t -> t -> t
+end
+
+module OneCFA : Time_signature =
+struct
+  type t = Pos.t option
+  let initial = None
+  let compare = Pervasives.compare
+  let to_string = function
+    | Some p -> "[" ^ (Pos.string_of_pos p) ^ "]"
+    | None -> "[]"
+  let tick p = function
+    | None -> Some p
+    | Some _ -> Some p
+end
+
+module type KCFA_arg = sig val k : int end
+
+module KCFA : functor (K : KCFA_arg) -> Time_signature =
+  functor (K : sig val k : int end) ->
+  struct
+    type t = Pos.t list
+    let initial = []
+    let compare = Pervasives.compare
+    let to_string t = string_of_list t Pos.string_of_pos
+    let tick p t = BatList.take K.k (p :: t)
+  end
+
+module type Address_signature =
+  functor (T : Time_signature) ->
+  sig
+    type t
+    val compare : t -> t -> int
+    val to_string : t -> string
+    val alloc : string -> T.t -> t
+  end
+
+(* S5 uses Store.Loc module (util/store.ml) *)
+module MakeAddress : Address_signature =
+  functor (T : Time_signature) ->
+struct
+  type t = string * T.t
+  let compare (id, t) (id', t') =
+    order_comp (Pervasives.compare id id') (T.compare t t')
+  let to_string (id, t) =
+    "@" ^ id ^ "-" ^ (T.to_string t)
+  let alloc id t = (id, t)
+end
+
+module K1 = struct let k = 1 end
+module Time = KCFA(K1)
+module Address = MakeAddress(Time)
 
 let rec string_of_exp exp = match exp with
   | Null p -> "null"
