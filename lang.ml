@@ -7,6 +7,7 @@ open Lattice
 module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
+module F = Frame
 
 module type Lang_signature =
 sig
@@ -35,251 +36,24 @@ struct
   type exp = S.exp
   let string_of_exp = string_of_exp
 
+  type frame = F.t
+  let string_of_frame = F.to_string
+
   (* type clo = [`Clos of Env.t * id list * S.exp ] *)
-
-  type frame =
-    (* {let (id = exp) body}, where the exp in the frame is body *)
-    | Let of id * S.exp * Env.t
-    (* {[field1: val1, ...]} *)
-    | ObjectAttrs of string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
-    | ObjectProps of string * O.t * (string * S.prop) list * Env.t
-    | PropData of (O.data * AValue.t * AValue.t) * Env.t
-    | PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
-    (* left; right *)
-    | Seq of S.exp * Env.t
-    (* f(arg1, ...) *)
-    | AppFun of S.exp list * Env.t
-    | AppArgs of AValue.t * AValue.t list * S.exp list * Env.t
-    (* op arg *)
-    | Op1App of string * Env.t
-    (* arg1 op arg2 *)
-    | Op2Arg of string * S.exp * Env.t
-    | Op2App of string * AValue.t * Env.t
-    (* if pred then cons else alt *)
-    | If of S.exp * S.exp * Env.t
-    (* obj[field] *)
-    | GetFieldObj of S.exp * S.exp * Env.t
-    | GetFieldField of AValue.t * S.exp * Env.t
-    | GetFieldBody of AValue.t * AValue.t * Env.t
-    | RestoreEnv of Env.t
-    (* obj[field] = val *)
-    | SetFieldObj of S.exp * S.exp * S.exp * Env.t
-    | SetFieldField of AValue.t * S.exp * S.exp * Env.t
-    | SetFieldNewval of AValue.t * AValue.t * S.exp * Env.t
-    | SetFieldArgs of AValue.t * AValue.t * AValue.t * Env.t
-    (* syntax? *)
-    | GetAttrObj of S.pattr * S.exp * Env.t
-    | GetAttrField of S.pattr * AValue.t * Env.t
-    (* syntax? *)
-    | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
-    | SetAttrField of S.pattr * AValue.t * S.exp * Env.t
-    | SetAttrNewval of S.pattr * AValue.t * AValue.t * Env.t
-
-  let string_of_frame = function
-    | Let (id, _, _) -> "Let-" ^ id
-    | ObjectProps _ -> "ObjectProps"
-    | ObjectAttrs _ -> "ObjectAttrs"
-    | PropData _ -> "PropData"
-    | PropAccessor _ -> "PropAccessor"
-    | Seq _ -> "Seq"
-    | AppFun _ -> "AppFun"
-    | AppArgs _ -> "AppArgs"
-    | Op1App _ -> "Op1App"
-    | Op2Arg _ -> "Op2Arg"
-    | Op2App _ -> "Op2App"
-    | If _ -> "If"
-    | GetFieldObj _ -> "GetFieldObj"
-    | GetFieldField _ -> "GetFieldField"
-    | GetFieldBody _ -> "GetFieldBody"
-    | RestoreEnv _ -> "RestoreEnv"
-    | SetFieldObj _ -> "SetFieldObj"
-    | SetFieldField _ -> "SetFieldField"
-    | SetFieldNewval _ -> "SetFieldNewval"
-    | SetFieldArgs _ -> "SetFieldArgs"
-    | GetAttrObj _ -> "GetAttrObj"
-    | GetAttrField _ -> "GetAttrField"
-    | SetAttrObj _ -> "SetAttrObj"
-    | SetAttrField _ -> "SetAttrField"
-    | SetAttrNewval _ -> "SetAttrNewval"
-
-  (* TODO: use ppx_deriving? *)
-  let compare_frame f f' = match f, f' with
-    | Let (id, exp, env), Let (id', exp', env') ->
-      order_concat [lazy (Pervasives.compare id id');
-                    lazy (Pervasives.compare exp exp');
-                    lazy (Env.compare env env')]
-    | Let _, _ -> 1
-    | _, Let _ -> -1
-    | ObjectAttrs (attr, obj, attrs, props, env),
-      ObjectAttrs (attr', obj', attrs', props', env') ->
-      order_concat [lazy (Pervasives.compare attr attr');
-                    lazy (O.compare obj obj');
-                    lazy (Pervasives.compare attrs attrs');
-                    lazy (Pervasives.compare props props');
-                    lazy (Env.compare env env')];
-    | ObjectAttrs _, _ -> 1
-    | _, ObjectAttrs _ -> -1
-    | ObjectProps (prop, obj, props, env),
-      ObjectProps (prop', obj', props', env') ->
-      order_concat [lazy (Pervasives.compare prop prop');
-                    lazy (O.compare obj obj');
-                    lazy (Pervasives.compare props props');
-                    lazy (Env.compare env env')];
-    | ObjectProps _, _ -> 1
-    | _, ObjectProps _ -> -1
-    | PropData (prop, env), PropData (prop', env') ->
-      order_concat [lazy (Pervasives.compare prop prop');
-                    lazy (Env.compare env env')]
-    | PropData _, _ -> 1
-    | _, PropData _ -> -1
-    | PropAccessor (exp, acc, env), PropAccessor (exp', acc', env') ->
-      order_concat [lazy (Pervasives.compare exp exp');
-                    lazy (Pervasives.compare acc acc');
-                    lazy (Env.compare env env')]
-    | PropAccessor _, _ -> 1
-    | _, PropAccessor _ -> -1
-    | Seq (right, env), Seq (right', env') ->
-      order_concat [lazy (Pervasives.compare right right');
-                    lazy (Env.compare env env')]
-    | Seq _, _ -> 1
-    | _, Seq _ -> -1
-    | AppFun (args, env), AppFun (args', env') ->
-      order_concat [lazy (Pervasives.compare args args');
-                    lazy (Env.compare env env')]
-    | AppFun _, _ -> 1
-    | _, AppFun _ -> -1
-    | AppArgs (f, vals, args, env), AppArgs (f', vals', args', env') ->
-      order_concat [lazy (AValue.compare f f');
-                    lazy (compare_list AValue.compare vals vals');
-                    lazy (Pervasives.compare args args');
-                    lazy (Env.compare env env')]
-    | AppArgs _, _ -> 1
-    | _, AppArgs _ -> -1
-    | Op1App (op, env), Op1App (op', env') ->
-      order_concat [lazy (Pervasives.compare op op');
-                    lazy (Env.compare env env')]
-    | Op1App _, _ -> 1
-    | _, Op1App _ -> -1
-    | Op2Arg (op, arg2, env), Op2Arg (op', arg2', env') ->
-      order_concat [lazy (Pervasives.compare op op');
-                    lazy (Pervasives.compare arg2 arg2');
-                    lazy (Env.compare env env')]
-    | Op2Arg _, _ -> 1
-    | _, Op2Arg _ -> -1
-    | Op2App (op, arg1, env), Op2App (op', arg1', env') ->
-      order_concat [lazy (Pervasives.compare op op');
-                    lazy (AValue.compare arg1 arg1');
-                    lazy (Env.compare env env')]
-    | Op2App _, _ -> 1
-    | _, Op2App _ -> -1
-    | If (cons, alt, env), If (cons', alt', env') ->
-      order_concat [lazy (Pervasives.compare cons cons');
-                    lazy (Pervasives.compare alt alt');
-                    lazy (Env.compare env env')]
-    | If _, _ -> 1
-    | _, If _ -> -1
-    | GetFieldObj (field, body, env), GetFieldObj (field', body', env') ->
-      order_concat [lazy (Pervasives.compare field field');
-                    lazy (Pervasives.compare body body');
-                    lazy (Env.compare env env')]
-    | GetFieldObj _, _ -> 1
-    | _, GetFieldObj _ -> -1
-    | GetFieldField (obj, body, env), GetFieldField (obj', body', env') ->
-      order_concat [lazy (AValue.compare obj obj');
-                    lazy (Pervasives.compare body body');
-                    lazy (Env.compare env env')]
-    | GetFieldField _, _ -> 1
-    | _, GetFieldField _ -> -1
-    | GetFieldBody (obj, field, env), GetFieldBody (obj', field', env') ->
-      order_concat [lazy (AValue.compare obj obj');
-                    lazy (AValue.compare field field');
-                    lazy (Env.compare env env')]
-    | GetFieldBody _, _ -> 1
-    | _, GetFieldBody _ -> -1
-    | RestoreEnv env, RestoreEnv env' ->
-      Env.compare env env'
-    | RestoreEnv _, _ -> 1
-    | _, RestoreEnv _ -> -1
-    | SetFieldObj (field, newval, body, env),
-      SetFieldObj (field', newval', body', env') ->
-      order_concat [lazy (Pervasives.compare field field');
-                    lazy (Pervasives.compare newval newval');
-                    lazy (Pervasives.compare body body');
-                    lazy (Env.compare env env')]
-    | SetFieldObj _, _ -> 1
-    | _, SetFieldObj _ -> -1
-    | SetFieldField (obj, newval, body, env),
-      SetFieldField (obj', newval', body', env') ->
-      order_concat [lazy (AValue.compare obj obj');
-                    lazy (Pervasives.compare newval newval');
-                    lazy (Pervasives.compare body body');
-                    lazy (Env.compare env env')]
-    | SetFieldField _, _ -> 1
-    | _, SetFieldField _ -> -1
-    | SetFieldNewval (obj, field, body, env),
-      SetFieldNewval (obj', field', body', env') ->
-      order_concat [lazy (AValue.compare obj obj');
-                    lazy (AValue.compare field field');
-                    lazy (Pervasives.compare body body');
-                    lazy (Env.compare env env')]
-    | SetFieldNewval _, _ -> 1
-    | _, SetFieldNewval _ -> -1
-    | SetFieldArgs (obj, field, newval, env),
-      SetFieldArgs (obj', field', newval', env') ->
-      order_concat [lazy (AValue.compare obj obj');
-                    lazy (AValue.compare field field');
-                    lazy (AValue.compare newval newval');
-                    lazy (Env.compare env env')]
-    | SetFieldArgs _, _ -> 1
-    | _, SetFieldArgs _ -> -1
-    | GetAttrObj (pattr, field, env), GetAttrObj (pattr', field', env') ->
-      order_concat [lazy (Pervasives.compare pattr pattr');
-                    lazy (Pervasives.compare field field');
-                    lazy (Env.compare env env')]
-    | GetAttrObj _, _ -> 1
-    | _, GetAttrObj _ -> -1
-    | GetAttrField (pattr, obj, env), GetAttrField (pattr', obj', env') ->
-      order_concat [lazy (Pervasives.compare pattr pattr');
-                    lazy (AValue.compare obj obj');
-                    lazy (Env.compare env env')]
-    | GetAttrField _, _ -> 1
-    | _, GetAttrField _ -> -1
-    | SetAttrObj (pattr, field, newval, env),
-      SetAttrObj (pattr', field', newval', env') ->
-      order_concat [lazy (Pervasives.compare pattr pattr');
-                    lazy (Pervasives.compare field field');
-                    lazy (Pervasives.compare newval newval');
-                    lazy (Env.compare env env')]
-    | SetAttrObj _, _ -> 1
-    | _, SetAttrObj _ -> -1
-    | SetAttrField (pattr, obj, newval, env),
-      SetAttrField (pattr', obj', newval', env') ->
-      order_concat [lazy (Pervasives.compare pattr pattr');
-                    lazy (AValue.compare obj obj');
-                    lazy (Pervasives.compare newval newval');
-                    lazy (Env.compare env env')]
-    | SetAttrNewval (pattr, obj, field, env),
-      SetAttrNewval (pattr', obj', field', env') ->
-      order_concat [lazy (Pervasives.compare pattr pattr');
-                    lazy (AValue.compare obj obj');
-                    lazy (AValue.compare field field');
-                    lazy (Env.compare env env')]
-    | SetAttrNewval _, _ -> 1
-    | _, SetAttrNewval _ -> -1
 
   type control =
     | Exp of S.exp
     | Prop of S.prop
     | PropVal of O.prop
     | Val of AValue.t
-    | Frame of (control * frame)
+    | Frame of (control * F.t)
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
     | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
     | Val v -> "Val(" ^ (AValue.to_string v) ^ ")"
     | PropVal v -> "PropVal"
-    | Frame (exp, f) -> "Frame(" ^ (string_of_frame f) ^ ")"
+    | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
 
   type state = control * Env.t * ValueStore.t * ObjectStore.t * Time.t
 
@@ -292,7 +66,6 @@ struct
                   lazy (ObjectStore.compare ostore ostore');
                   lazy (Time.compare time time')]
 
-  (* TODO: add stack summary *)
   type conf = state
 
   let string_of_conf = string_of_state
@@ -300,13 +73,13 @@ struct
   let compare_conf = compare_state
 
   type stack_change =
-    | StackPop of frame
-    | StackPush of frame
+    | StackPop of F.t
+    | StackPush of F.t
     | StackUnchanged
 
   let compare_stack_change g1 g2 = match (g1, g2) with
-    | StackPop f1, StackPop f2 -> compare_frame f1 f2
-    | StackPush f1, StackPush f2 -> compare_frame f1 f2
+    | StackPop f1, StackPop f2 -> F.compare f1 f2
+    | StackPush f1, StackPush f2 -> F.compare f1 f2
     | StackUnchanged, StackUnchanged -> 0
     | StackPop _, _ -> 1
     | _, StackPop _ -> -1
@@ -314,14 +87,11 @@ struct
     | StackUnchanged, _ -> -1
 
   let string_of_stack_change = function
-    | StackPush f -> "+" ^ (string_of_frame f)
-    | StackPop f -> "-" ^ (string_of_frame f)
+    | StackPush f -> "+" ^ (F.to_string f)
+    | StackPop f -> "-" ^ (F.to_string f)
     | StackUnchanged -> "e"
 
-  module FrameOrdering = struct
-    type t = frame
-    let compare = compare_frame
-  end
+  module FrameOrdering = F
 
   module ConfOrdering = struct
     type t = conf
@@ -400,32 +170,32 @@ struct
           let ostore' = ObjectStore.join a (`Obj obj) ostore in
           unch (Val (`Obj a), env, vstore, ostore', time)
         | [], (prop, exp)::props ->
-          push (ObjectProps (prop, obj, props, env))
+          push (F.ObjectProps (prop, obj, props, env))
             (Prop exp, env, vstore, ostore, time)
         | (attr, exp)::attrs, props ->
-          push (ObjectAttrs (attr, obj, attrs, props, env))
+          push (F.ObjectAttrs (attr, obj, attrs, props, env))
             (Exp exp, env, vstore, ostore, time)
       end
     | S.Let (p, id, exp, body) ->
-      push (Let (id, body, env)) (Exp exp, env, vstore, ostore, Time.tick p time)
+      push (F.Let (id, body, env)) (Exp exp, env, vstore, ostore, Time.tick p time)
     | S.Seq (p, left, right) ->
-      push (Seq (right, env)) (Exp left, env, vstore, ostore, Time.tick p time)
+      push (F.Seq (right, env)) (Exp left, env, vstore, ostore, Time.tick p time)
     | S.App (p, f, args) ->
-      push (AppFun (args, env)) (Exp f, env, vstore, ostore, Time.tick p time)
+      push (F.AppFun (args, env)) (Exp f, env, vstore, ostore, Time.tick p time)
     | S.Op1 (p, op, arg) ->
-      push (Op1App (op, env)) (Exp arg, env, vstore, ostore, Time.tick p time)
+      push (F.Op1App (op, env)) (Exp arg, env, vstore, ostore, Time.tick p time)
     | S.Op2 (p, op, arg1, arg2) ->
-      push (Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore, Time.tick p time)
+      push (F.Op2Arg (op, arg2, env)) (Exp arg1, env, vstore, ostore, Time.tick p time)
     | S.If (p, pred, cons, alt) ->
-      push (If (cons, alt, env)) (Exp pred, env, vstore, ostore, Time.tick p time)
+      push (F.If (cons, alt, env)) (Exp pred, env, vstore, ostore, Time.tick p time)
     | S.GetField (p, obj, field, body) ->
-      push (GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
+      push (F.GetFieldObj (field, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.SetField (p, obj, field, newval, body) ->
-      push (SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
+      push (F.SetFieldObj (field, newval, body, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.GetAttr (p, pattr, obj, field) ->
-      push (GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
+      push (F.GetAttrObj (pattr, field, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | S.SetAttr (p, pattr, obj, field, newval) ->
-      push (SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
+      push (F.SetAttrObj (pattr, field, newval, env)) (Exp obj, env, vstore, ostore, Time.tick p time)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args ((_, _, vstore, ostore, time) as state : state)
@@ -451,60 +221,60 @@ struct
 
   let apply_frame v frame ((control, env, vstore, ostore, time) as state : state) _
     : conf = match frame with
-    | Let (id, body, env') ->
+    | F.Let (id, body, env') ->
       let a = alloc_val id id state in
       let env'' = Env.extend id a env' in
       let vstore' = ValueStore.join a v vstore in
       (Exp body, env'', vstore', ostore, time)
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
-    | ObjectAttrs (name, obj, [], [], env') ->
+    | F.ObjectAttrs (name, obj, [], [], env') ->
       let obj' = O.set_attr_str obj name v in
       let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') ostore in
       (Val (`Obj a), env', vstore, ostore', time)
-    | ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
+    | F.ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
       let obj' = O.set_attr_str obj name v in
-      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
-    | ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
+      (Frame (Prop prop, F.ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
+    | F.ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
       let obj' = O.set_attr_str obj name v in
-      (Frame (Exp attr, ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore, time)
+      (Frame (Exp attr, F.ObjectAttrs (name', obj', attrs, props, env')), env', vstore, ostore, time)
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
-    | PropData ((data, enum, config), env') ->
+    | F.PropData ((data, enum, config), env') ->
       (PropVal (O.Data ({data with O.value = v}, enum, config)), env', vstore, ostore, time)
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
-    | PropAccessor (None, (accessor, enum, config), env') ->
+    | F.PropAccessor (None, (accessor, enum, config), env') ->
       (PropVal (O.Accessor ({accessor with O.setter = v}, enum, config)), env', vstore, ostore, time)
-    | PropAccessor (Some exp, (accessor, enum, config), env') ->
-      (Frame (Exp exp, (PropAccessor (None, ({accessor with O.getter = v}, enum, config), env'))),
+    | F.PropAccessor (Some exp, (accessor, enum, config), env') ->
+      (Frame (Exp exp, (F.PropAccessor (None, ({accessor with O.getter = v}, enum, config), env'))),
        env', vstore, ostore, time)
-    | Seq (exp, env') ->
+    | F.Seq (exp, env') ->
       (Exp exp, env', vstore, ostore, time)
-    | AppFun ([], env') ->
+    | F.AppFun ([], env') ->
       let (exp, env, vstore, ostore, time) = apply_fun v [] state in
       (Exp exp, env, vstore, ostore, time)
-    | AppFun (arg :: args, env') ->
-      (Frame (Exp arg, (AppArgs (v, [], args, env'))), env', vstore, ostore, time)
-    | AppArgs (f, vals, [], env') ->
+    | F.AppFun (arg :: args, env') ->
+      (Frame (Exp arg, (F.AppArgs (v, [], args, env'))), env', vstore, ostore, time)
+    | F.AppArgs (f, vals, [], env') ->
       let (exp, env, vstore, ostore, time) = apply_fun f (BatList.rev (v :: vals)) state in
       (Exp exp, env, vstore, ostore, time)
-    | AppArgs (f, vals, arg :: args, env') ->
-      (Frame (Exp arg, (AppArgs (f, v :: vals, args, env'))), env', vstore, ostore, time)
-    | Op1App (op, env') ->
+    | F.AppArgs (f, vals, arg :: args, env') ->
+      (Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env'))), env', vstore, ostore, time)
+    | F.Op1App (op, env') ->
       (Val (D.op1 ostore op v), env', vstore, ostore, time)
-    | Op2Arg (op, arg2, env') ->
-      (Frame (Exp arg2, (Op2App (op, v, env'))), env', vstore, ostore, time)
-    | Op2App (op, arg1, env') ->
+    | F.Op2Arg (op, arg2, env') ->
+      (Frame (Exp arg2, (F.Op2App (op, v, env'))), env', vstore, ostore, time)
+    | F.Op2App (op, arg1, env') ->
       (Val (D.op2 ostore op arg1 v), env', vstore, ostore, time)
-    | If (cons, alt, env') -> begin match v with
+    | F.If (cons, alt, env') -> begin match v with
         | `True -> (Exp cons, env', vstore, ostore, time)
         | `BoolT | `Top -> failwith "TODO: two if possibilities (If frame)"
         | _ -> (Exp alt, env', vstore, ostore, time)
       end
-    | GetFieldObj (field, body, env') ->
-      (Frame (Exp field, GetFieldField (v, body, env')), env', vstore, ostore, time)
-    | GetFieldField (obj, body, env') ->
-      (Frame (Exp body, GetFieldBody (obj, v, env')), env', vstore, ostore, time)
-    | GetFieldBody (obj, field, env') ->
+    | F.GetFieldObj (field, body, env') ->
+      (Frame (Exp field, F.GetFieldField (v, body, env')), env', vstore, ostore, time)
+    | F.GetFieldField (obj, body, env') ->
+      (Frame (Exp body, F.GetFieldBody (obj, v, env')), env', vstore, ostore, time)
+    | F.GetFieldBody (obj, field, env') ->
       let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
@@ -512,20 +282,20 @@ struct
             | Some (O.Data ({O.value = v; _}, _, _)) -> (Val v, env', vstore, ostore, time)
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
               let (body, env'', vstore', ostore, time') = apply_fun g [obj; body] state in
-              (Frame (Exp body, RestoreEnv env'), env'', vstore', ostore, time')
+              (Frame (Exp body, F.RestoreEnv env'), env'', vstore', ostore, time')
             | None -> (Val `Undef, env', vstore, ostore, time)
           end
         | `Obj _, `StrT -> failwith "TODO: GetFieldBody frame"
         | `ObjT, _ -> failwith "TODO: GetFieldBody frame"
         | _ -> failwith "TODO: GetFieldBody frame"
       end
-    | SetFieldObj (field, newval, body, env') ->
-      (Frame (Exp field, SetFieldField (v, newval, body, env')), env', vstore, ostore, time)
-    | SetFieldField (obj, newval, body, env') ->
-      (Frame (Exp newval, SetFieldNewval (obj, v, body, env')), env', vstore, ostore, time)
-    | SetFieldNewval (obj, field, body, env') ->
-      (Frame (Exp body, SetFieldArgs (obj, field, v, env')), env', vstore, ostore, time)
-    | SetFieldArgs (obj, field, newval, env') ->
+    | F.SetFieldObj (field, newval, body, env') ->
+      (Frame (Exp field, F.SetFieldField (v, newval, body, env')), env', vstore, ostore, time)
+    | F.SetFieldField (obj, newval, body, env') ->
+      (Frame (Exp newval, F.SetFieldNewval (obj, v, body, env')), env', vstore, ostore, time)
+    | F.SetFieldNewval (obj, field, body, env') ->
+      (Frame (Exp body, F.SetFieldArgs (obj, field, v, env')), env', vstore, ostore, time)
+    | F.SetFieldArgs (obj, field, newval, env') ->
       let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
@@ -548,7 +318,7 @@ struct
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
                   let (exp, env'', vstore', ostore', time') =
                     apply_fun setter [obj; body] state in
-                  (Frame (Exp exp, RestoreEnv env'), env'', vstore', ostore', time')
+                  (Frame (Exp exp, F.RestoreEnv env'), env'', vstore', ostore', time')
                 | None ->
                   match extensible with
                   | `True ->
@@ -565,9 +335,9 @@ struct
           end
         | _ -> failwith "update field"
       end
-    | GetAttrObj (pattr, field, env') ->
-      (Frame (Exp field, GetAttrField (pattr, v, env')), env', vstore, ostore, time)
-    | GetAttrField (pattr, obj, env') ->
+    | F.GetAttrObj (pattr, field, env') ->
+      (Frame (Exp field, F.GetAttrField (pattr, v, env')), env', vstore, ostore, time)
+    | F.GetAttrField (pattr, obj, env') ->
       let field = v in
       begin match obj with
         | `Obj a ->
@@ -578,11 +348,11 @@ struct
           end
         | _ -> failwith "TODO: GetAttrField frame"
       end
-    | SetAttrObj (pattr, field, newval, env') ->
-      (Frame (Exp field, SetAttrField (pattr, v, newval, env')), env', vstore, ostore, time)
-    | SetAttrField (pattr, obj, newval, env') ->
-      (Frame (Exp newval, SetAttrNewval (pattr, obj, v, env')), env', vstore, ostore, time)
-    | SetAttrNewval (pattr, obj, field, env') ->
+    | F.SetAttrObj (pattr, field, newval, env') ->
+      (Frame (Exp field, F.SetAttrField (pattr, v, newval, env')), env', vstore, ostore, time)
+    | F.SetAttrField (pattr, obj, newval, env') ->
+      (Frame (Exp newval, F.SetAttrNewval (pattr, obj, v, env')), env', vstore, ostore, time)
+    | F.SetAttrNewval (pattr, obj, field, env') ->
       let newval = v in
       begin match obj, field with
         | `Obj a, `Str s ->
@@ -600,31 +370,31 @@ struct
   let apply_frame_prop v frame ((_, env, vstore, ostore, time) as state : state) _
     : conf = match frame with
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
-    | ObjectProps (name, obj, [], env') ->
+    | F.ObjectProps (name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
       let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') ostore in
       (Val (`Obj a), env', vstore, ostore', time)
-    | ObjectProps (name, obj, (name', prop) :: props, env') ->
+    | F.ObjectProps (name, obj, (name', prop) :: props, env') ->
       let obj' = O.set_prop obj name v in
-      (Frame (Prop prop, ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
+      (Frame (Prop prop, F.ObjectProps (name', obj', props, env')), env', vstore, ostore, time)
     | _ -> failwith "Not implemented"
 
   let step_prop p ((_, env, vstore, ostore, time) : state)
       : (stack_change * conf) list = match p with
     | S.Data ({ S.value = v; S.writable = w }, enum, config) ->
-      push (PropData (({ O.value = `Undef; O.writable = AValue.bool w },
+      push (F.PropData (({ O.value = `Undef; O.writable = AValue.bool w },
                        AValue.bool enum, AValue.bool config),
                       env))
         (Exp v, env, vstore, ostore, time)
     | S.Accessor ({ S.getter = g; S.setter = s }, enum, config) ->
-      push (PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
+      push (F.PropAccessor (Some g, ({ O.getter = `Undef; O.setter = `Undef },
                                    AValue.bool enum, AValue.bool config),
                           env))
         (Exp g, env, vstore, ostore, time)
 
   let step ((control, env, vstore, ostore, time) as state : state)
-      (frame : (state * frame) option) : (stack_change * conf) list =
+      (frame : (state * F.t) option) : (stack_change * conf) list =
     let res = match control with
       | Exp e -> step_exp e state
       | Prop p -> step_prop p state

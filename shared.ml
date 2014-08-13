@@ -93,6 +93,7 @@ end
 module K1 = struct let k = 1 end
 module Time = KCFA(K1)
 module Address = MakeAddress(Time)
+module AddressSet = BatSet.Make(Address)
 
 let rec string_of_exp exp = match exp with
   | Null p -> "null"
