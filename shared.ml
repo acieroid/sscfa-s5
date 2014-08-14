@@ -1,6 +1,8 @@
 open Prelude
 open Ljs_syntax
 
+let debug = ref false
+
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =
   if x = 0 then y else x
@@ -86,7 +88,7 @@ struct
   let compare (id, t) (id', t') =
     order_comp (Pervasives.compare id id') (T.compare t t')
   let to_string (id, t) =
-    "@" ^ id ^ "-" ^ (T.to_string t)
+    "@" ^ id
   let alloc id t = (id, t)
 end
 

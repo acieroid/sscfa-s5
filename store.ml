@@ -52,13 +52,12 @@ module Make =
 
     let restrict addrs =
       AddrMap.filter (fun a _ ->
-          if (AddressSet.mem a addrs) then begin
-            print_string ("reclaim(" ^ (Address.to_string a) ^ ")");
-            print_newline ();
+          if (AddressSet.mem a addrs) then
             true
-          end
-          else
-            false)
+          else begin
+            print_endline ("reclaim(" ^ (Address.to_string a) ^ ")");
+            false
+          end)
 
     let compare = AddrMap.compare Elt.compare
 

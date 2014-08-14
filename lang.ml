@@ -101,26 +101,18 @@ struct
            investigating it on the the object store as well?
     *)
 
-    let rec control_root control env : AddressSet.t = match control with
-      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
-      | Prop (S.Data ({S.value = v; _}, _, _)) -> Frame.addresses_of_vars (S.free_vars v) env
-      | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
-        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s)) env
-      | Frame (control, frame) ->
-        AddressSet.union (control_root control env) (Frame.touch frame)
-      | Val _ | PropVal _ -> AddressSet.empty
-
-    let root (state, ss) : AddressSet.t =
-      AddressSet.union ss (control_root state.control state.env)
 
     let touch (vstore : ValueStore.t) (ostore : ObjectStore.t) =
       let rec aux acc = function
         | `Null | `True | `False | `BoolT | `Num _ | `NumT
         | `Str _ | `StrT | `Undef | `Bot -> acc
         | `Clos (env, args, exp) ->
-          AddressSet.union acc
-            (Frame.addresses_of_vars (IdSet.diff (S.free_vars exp)
-                                        (IdSet.from_list args)) env)
+          AddressSet.union acc (Env.range env)
+        (* Initially, it was the following two lines, but as a closure's
+           environment only contains its free variable, it is simpler to do as
+           it is done now *)
+        (* (Frame.addresses_of_vars (IdSet.diff (S.free_vars exp)
+                                        (IdSet.from_list args)) env) *)
         | `Obj a -> begin match ObjectStore.lookup a ostore with
             | `Obj obj -> aux_obj acc obj
             | `ObjT -> failwith "touch: a value was too abtsract"
@@ -152,8 +144,25 @@ struct
       in
       aux (AddressSet.empty)
 
+    let rec control_root control env vstore ostore : AddressSet.t = match control with
+      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
+      | Prop (S.Data ({S.value = v; _}, _, _)) -> Frame.addresses_of_vars (S.free_vars v) env
+      | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
+        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s)) env
+      | Frame (control, frame) ->
+        AddressSet.union (control_root control env vstore ostore) (Frame.touch frame)
+      | Val v -> touch vstore ostore v
+      | PropVal _ -> AddressSet.empty
+
+    let root (state, ss) : AddressSet.t =
+      AddressSet.union ss (control_root state.control state.env state.vstore state.ostore)
+
     let touching_rel1 vstore ostore addr =
-      touch vstore ostore (ValueStore.lookup addr vstore)
+      try
+        touch vstore ostore (ValueStore.lookup addr vstore)
+      with Not_found ->
+        print_endline ("Value not found at address " ^ (Address.to_string addr));
+        raise Not_found
 
     let touching_rel vstore ostore addr =
       let rec aux todo acc =
@@ -164,9 +173,9 @@ struct
           if AddressSet.mem a acc then
             aux (AddressSet.remove a todo) acc
           else
-            let addrs = touching_rel1 vstore ostore addr in
+            let addrs = touching_rel1 vstore ostore a in
             aux (AddressSet.remove a (AddressSet.union addrs todo))
-              (AddressSet.add a (AddressSet.union addrs acc))
+              (AddressSet.add a acc)
       in
       aux (AddressSet.singleton addr) AddressSet.empty
 

@@ -13,6 +13,8 @@ module type Env_signature =
     val size : t -> int
     val to_string : t -> string
     val subsumes : t -> t -> bool
+    val domain : t -> IdSet.t
+    val range : t -> AddressSet.t
   end
 
 (* S5 uses a map of identifier *)
@@ -49,4 +51,8 @@ module Env : Env_signature =
         | Some _, None -> None
         | None, None -> None in
       StringMap.is_empty (StringMap.merge merge_val e1 e2)
+
+    (* urr *)
+    let domain env = IdSet.from_list (BatList.of_enum (StringMap.keys env))
+    let range env = AddressSet.of_enum (StringMap.values env)
   end
