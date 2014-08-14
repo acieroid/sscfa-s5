@@ -6,6 +6,7 @@ module type Env_signature =
     type t
     val empty : t
     val extend : string -> Address.t -> t -> t
+    val contains : string -> t -> bool
     val lookup : string -> t -> Address.t
     val keep : IdSet.t -> t -> t
     val compare : t -> t -> int
@@ -24,6 +25,8 @@ module Env : Env_signature =
     let empty = StringMap.empty
 
     let extend = StringMap.add
+
+    let contains = StringMap.mem
 
     let lookup = StringMap.find
 

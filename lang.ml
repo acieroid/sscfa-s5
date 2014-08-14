@@ -74,6 +74,7 @@ struct
 
   module StackSummary =
   struct
+    (* Stack summary used for garbage collection *)
     type t = AddressSet.t
     let empty = AddressSet.empty
     let compare = AddressSet.compare

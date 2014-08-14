@@ -31,7 +31,6 @@ type t =
   | GetFieldObj of S.exp * S.exp * Env.t
   | GetFieldField of AValue.t * S.exp * Env.t
   | GetFieldBody of AValue.t * AValue.t * Env.t
-  | RestoreEnv of Env.t
   (* obj[field] = val *)
   | SetFieldObj of S.exp * S.exp * S.exp * Env.t
   | SetFieldField of AValue.t * S.exp * S.exp * Env.t
@@ -44,9 +43,80 @@ type t =
   | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
   | SetAttrField of S.pattr * AValue.t * S.exp * Env.t
   | SetAttrNewval of S.pattr * AValue.t * AValue.t * Env.t
+  (* frame to restore the contained environment *)
+  | RestoreEnv of Env.t
 
-let touch = function
-  | _ -> AddressSet.empty (* TODO *)
+let touch frame =
+  let aux pred free env =
+    IdSet.fold (fun v acc ->
+        if (pred v) then
+          acc
+        else
+          if Env.contains v env then
+            AddressSet.add (Env.lookup v env) acc
+          else begin
+            (* TODO: this should only happen for actual unbound variables.
+               Shouldn't they be reported before doing the interpretation? *)
+            print_endline ("Ignoring variable not found in env: " ^ v);
+            acc
+          end)
+      free AddressSet.empty in
+  let eq v v' = v = v' in
+  let none _ = false in
+  let fv_attr (_, exp) = S.free_vars exp in
+  let fv_prop = function
+    | (_, S.Data ({S.value = v; _}, _, _)) -> S.free_vars v
+    | (_, S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
+       IdSet.union (S.free_vars g) (S.free_vars s) in
+  let fv_list f = List.fold_left (fun acc x ->
+      IdSet.union acc (f x)) IdSet.empty in
+  let fv_attrs = fv_list fv_attr in
+  let fv_props = fv_list fv_prop in
+  match frame with
+  (* Special cases *)
+  | Let (id, exp, env) -> aux (eq id) (S.free_vars exp) env
+  | ObjectAttrs (name, obj, attrs, props, env) ->
+    aux none (IdSet.union (fv_attrs attrs) (fv_props props)) env
+  | ObjectProps (name, obj, props, env) ->
+    aux none (fv_props props) env
+  | PropAccessor (Some exp, _, env) -> aux none (S.free_vars exp) env
+
+  (* List of exps *)
+  | AppFun (args, env)
+  | AppArgs (_, _, args, env) ->
+    aux none (fv_list S.free_vars args) env
+ 
+  (* Three exps *)
+  | SetFieldObj (exp1, exp2, exp3, env) ->
+    aux none (fv_list S.free_vars [exp1; exp2; exp3]) env
+
+  (* Two exps *)
+  | If (exp1, exp2, env)
+  | GetFieldObj (exp1, exp2, env)
+  | SetFieldField (_, exp1, exp2, env)
+  | SetAttrObj (_, exp1, exp2, env) ->
+
+    aux none (fv_list S.free_vars [exp1; exp2]) env
+
+  (* One exp *)
+  | Op2Arg (_, exp, env)
+  | Seq (exp, env)
+  | GetFieldField (_, exp, env)
+  | SetFieldNewval (_, _, exp, env)
+  | GetAttrObj (_, exp, env)
+  | SetAttrField (_, _, exp, env) ->
+    aux none (S.free_vars exp) env
+
+  (* No exp *)
+  | PropData _
+  | PropAccessor (None, _, _)
+  | Op1App _
+  | Op2App _
+  | GetFieldBody _
+  | SetFieldArgs _
+  | GetAttrField _
+  | SetAttrNewval _
+  | RestoreEnv _ -> AddressSet.empty
 
 let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
