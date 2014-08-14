@@ -93,6 +93,94 @@ struct
   let compare_conf (state, ss) (state', ss') =
     order_comp (compare_state state state') (StackSummary.compare ss ss')
 
+  module GC =
+  struct
+    (* Garbage collection.
+       TODO:
+         - for now, we only perform GC on the value store. It could be worth
+           investigating it on the the object store as well?
+    *)
+
+    let rec control_root control env : AddressSet.t = match control with
+      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
+      | Prop (S.Data ({S.value = v; _}, _, _)) -> Frame.addresses_of_vars (S.free_vars v) env
+      | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
+        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s)) env
+      | Frame (control, frame) ->
+        AddressSet.union (control_root control env) (Frame.touch frame)
+      | Val _ | PropVal _ -> AddressSet.empty
+
+    let root (state, ss) : AddressSet.t =
+      AddressSet.union ss (control_root state.control state.env)
+
+    let touch (vstore : ValueStore.t) (ostore : ObjectStore.t) =
+      let rec aux acc = function
+        | `Null | `True | `False | `BoolT | `Num _ | `NumT
+        | `Str _ | `StrT | `Undef | `Bot -> acc
+        | `Clos (env, args, exp) ->
+          AddressSet.union acc
+            (Frame.addresses_of_vars (IdSet.diff (S.free_vars exp)
+                                        (IdSet.from_list args)) env)
+        | `Obj a -> begin match ObjectStore.lookup a ostore with
+            | `Obj obj -> aux_obj acc obj
+            | `ObjT -> failwith "touch: a value was too abtsract"
+          end
+        | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
+      and aux_obj acc ((attrs, props) : O.t) =
+        aux_obj_props
+          (List.fold_left AddressSet.union acc
+             [aux AddressSet.empty attrs.O.code;
+              aux AddressSet.empty attrs.O.proto;
+              aux AddressSet.empty attrs.O.primval;
+              aux AddressSet.empty attrs.O.klass;
+              aux AddressSet.empty attrs.O.extensible])
+          (IdMap.bindings props)
+      and aux_obj_props acc : (string * O.prop) list -> AddressSet.t = function
+        | [] -> acc
+        | (_, O.Data ({O.value = v; O.writable = w}, enum, config)) :: props ->
+          aux_obj_props (List.fold_left AddressSet.union acc
+                           [aux AddressSet.empty v;
+                            aux AddressSet.empty w;
+                            aux AddressSet.empty enum;
+                            aux AddressSet.empty config]) props
+        | (_, O.Accessor ({O.getter = g; O.setter = s}, enum, config)) :: props ->
+          aux_obj_props (List.fold_left AddressSet.union acc
+                           [aux AddressSet.empty g;
+                            aux AddressSet.empty s;
+                            aux AddressSet.empty enum;
+                            aux AddressSet.empty config]) props
+      in
+      aux (AddressSet.empty)
+
+    let touching_rel1 vstore ostore addr =
+      touch vstore ostore (ValueStore.lookup addr vstore)
+
+    let touching_rel vstore ostore addr =
+      let rec aux todo acc =
+        if AddressSet.is_empty todo then
+          acc
+        else
+          let a = AddressSet.choose todo in
+          if AddressSet.mem a acc then
+            aux (AddressSet.remove a todo) acc
+          else
+            let addrs = touching_rel1 vstore ostore addr in
+            aux (AddressSet.remove a (AddressSet.union addrs todo))
+              (AddressSet.add a (AddressSet.union addrs acc))
+      in
+      aux (AddressSet.singleton addr) AddressSet.empty
+
+    let reachable ((state, ss) : conf) : AddressSet.t =
+      AddressSet.fold (fun a acc ->
+          AddressSet.union acc (touching_rel state.vstore state.ostore a))
+        (root (state, ss)) AddressSet.empty
+
+    let gc ((state, ss) : conf) : conf =
+      ({state with
+        vstore = ValueStore.restrict (reachable (state, ss)) state.vstore},
+       ss)
+  end
+
   type stack_change =
     | StackPop of F.t
     | StackPush of F.t
@@ -449,7 +537,7 @@ struct
                             state.env))
         ({state with control = Exp g}, ss)
 
-  let step ((state, ss) as conf : conf) (frame : (conf * F.t) option)
+  let step_no_gc ((state, ss) as conf : conf) (frame : (conf * F.t) option)
     : (stack_change * conf) list =
     let res = match state.control with
       | Exp e -> step_exp e conf
@@ -474,4 +562,6 @@ struct
                       (fun (g, c) -> (string_of_stack_change g) ^ " -> " ^
                                      (string_of_state c)))); *)
     res
+
+  let step conf = step_no_gc (GC.gc conf)
 end

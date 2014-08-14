@@ -10,8 +10,8 @@ module type Store_signature =
     val empty : t
     val join : Address.t -> elt -> t -> t
     val lookup : Address.t -> t -> elt
-   (* Keep only addresses in the given list *)
-    val restrict : Address.t list -> t -> t
+   (* Keep only addresses in the given set *)
+    val restrict : AddressSet.t -> t -> t
     val compare : t -> t -> int
     val size : t -> int
     val to_string : t -> string
@@ -52,7 +52,7 @@ module Make =
 
     let restrict addrs =
       AddrMap.filter (fun a _ ->
-          if (List.mem a addrs) then begin
+          if (AddressSet.mem a addrs) then begin
             print_string ("reclaim(" ^ (Address.to_string a) ^ ")");
             print_newline ();
             true

@@ -46,21 +46,20 @@ type t =
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
+let addresses_of_vars (vars : IdSet.t) (env : Env.t) : AddressSet.t =
+  IdSet.fold (fun v acc ->
+      if Env.contains v env then
+        AddressSet.add (Env.lookup v env) acc
+      else begin
+        (* TODO: this should only happen for actual unbound variables.
+           Shouldn't they be reported before doing the interpretation? *)
+        print_endline ("Ignoring variable not found in env: " ^ v);
+        acc
+      end) vars AddressSet.empty
+
 let touch frame =
-  let aux pred free env =
-    IdSet.fold (fun v acc ->
-        if (pred v) then
-          acc
-        else
-          if Env.contains v env then
-            AddressSet.add (Env.lookup v env) acc
-          else begin
-            (* TODO: this should only happen for actual unbound variables.
-               Shouldn't they be reported before doing the interpretation? *)
-            print_endline ("Ignoring variable not found in env: " ^ v);
-            acc
-          end)
-      free AddressSet.empty in
+  let aux (pred : string -> bool) (free : IdSet.t) : Env.t -> AddressSet.t =
+    addresses_of_vars (IdSet.filter (fun v -> not (pred v)) free) in
   let eq v v' = v = v' in
   let none _ = false in
   let fv_attr (_, exp) = S.free_vars exp in
@@ -85,7 +84,7 @@ let touch frame =
   | AppFun (args, env)
   | AppArgs (_, _, args, env) ->
     aux none (fv_list S.free_vars args) env
- 
+
   (* Three exps *)
   | SetFieldObj (exp1, exp2, exp3, env) ->
     aux none (fv_list S.free_vars [exp1; exp2; exp3]) env
