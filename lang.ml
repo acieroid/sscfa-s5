@@ -299,7 +299,7 @@ struct
                   env = env'}
     | F.AppArgs (f, vals, [], env') ->
       let (exp, state') = apply_fun f (BatList.rev (v :: vals)) state in
-      {state with control = Exp exp}
+      {state' with control = Exp exp}
     | F.AppArgs (f, vals, arg :: args, env') ->
       {state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
                   env = env'}
