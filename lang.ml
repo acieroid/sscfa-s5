@@ -631,5 +631,5 @@ struct
                                      (string_of_state c)))); *)
     res
 
-  let step conf = step_no_gc ((* GC.gc *) conf)
+  let step conf = step_no_gc (GC.gc conf)
 end

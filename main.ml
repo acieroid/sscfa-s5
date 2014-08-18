@@ -1,5 +1,6 @@
 open Lang
 open Dsg
+open Lexing
 
 module S = Ljs_syntax
 
@@ -10,10 +11,14 @@ let file =
     Array.get Sys.argv 1
 
 let load_s5 file : S.exp =
-  Marshal.from_channel (open_in_bin file)
+  let cin = open_in_bin file in
+  let lexbuf = Lexing.from_channel cin in
+  lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file };
+  let e = Ljs_parser.prog Ljs_lexer.token lexbuf in
+  close_in cin;
+  e
 
-let save_s5 s5 file =
-  Marshal.to_channel (open_out_bin file) s5 []
+module G = DSG.G
 
 let eval exp =
   let push stack v = v :: stack in
@@ -23,24 +28,33 @@ let eval exp =
   let top = function
     | [] -> None
     | hd :: tl -> Some hd in
-  let rec aux stack conf =
-    let confs' = LJS.step conf (top stack) in
-    match confs' with
-    | [] -> print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf))
-    | (g, conf) :: _ ->
-      print_endline ((LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf));
-      match g with
-      | LJS.StackPush f -> aux (push stack (conf, f)) conf
-      | LJS.StackPop _ -> aux (pop stack) conf
-      | LJS.StackUnchanged -> aux stack conf
-  in aux [] (LJS.inject exp)
+  let rec aux graph stack conf =
+    try
+      let confs' = LJS.step conf (top stack) in
+      match confs' with
+      | [] ->
+        print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf));
+        graph
+      | (g, conf') :: _ ->
+        print_endline ((LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
+        aux (G.add_edge_e graph (conf, g, conf'))
+          (match g with
+           | LJS.StackPush f -> push stack (conf', f)
+           | LJS.StackPop _ -> pop stack
+           | LJS.StackUnchanged -> stack)
+          conf'
+    with e -> print_endline (Printexc.to_string e); graph
+  in aux G.empty [] (LJS.inject exp)
 
 let _ =
   let s5 = load_s5 file in
   (* let dsg = DSG.build_dyck s5 in
   DSG.output_dsg dsg "dsg.dot";
   DSG.output_ecg dsg "ecg.dot" *)
-  eval s5
+  let g = eval s5 in
+  let out = open_out_bin "graph.dot" in
+  DSG.Dot.output_graph out g;
+  close_out out
 
 (*
   let conf = LJS.inject s5 in
