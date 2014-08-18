@@ -37,10 +37,10 @@ let eval exp =
 
 let _ =
   let s5 = load_s5 file in
-  let dsg = DSG.build_dyck s5 in
+  (* let dsg = DSG.build_dyck s5 in
   DSG.output_dsg dsg "dsg.dot";
-  DSG.output_ecg dsg "ecg.dot"
-  (* eval s5 *)
+  DSG.output_ecg dsg "ecg.dot" *)
+  eval s5
 
 (*
   let conf = LJS.inject s5 in

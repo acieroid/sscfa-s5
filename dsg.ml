@@ -86,7 +86,7 @@ module BuildDSG =
 
     let add_short dsg c c' =
       (* print_endline ("add_short" ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'));
-      print_endline ("size of ECG: (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^ ", " ^
+         print_endline ("size of ECG: (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^ ", " ^
                      (string_of_int (G.nb_edges dsg.ecg)) ^ ")"); *)
       let de = G.fold_edges_e
           (fun e acc -> match e with
@@ -194,47 +194,54 @@ module BuildDSG =
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;
-        (* print_endline ("ΔS = " ^ (string_of_list (ConfSet.to_list ds)
-                                     L.string_of_conf));
-        print_endline ("ΔE = " ^ (string_of_list (EdgeSet.to_list de)
-                                     (fun (c, g, c') ->
-                                        (L.string_of_conf c) ^ " ->" ^ (L.string_of_stack_change g) ^ " " ^
-                                        (L.string_of_conf c'))));
-        print_endline ("ΔH = " ^ (string_of_list (EpsSet.to_list dh)
-                                     (fun (c, c') ->
-                                        (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'))));
-        print_endline ("Size of ECG (#v, #e): (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^
-                       ", " ^ (string_of_int (G.nb_edges dsg.ecg)) ^ ")"); *)
-        (* output_dsg dsg ("/tmp/dsg/dsg-" ^ (string_of_int !i) ^ ".dot");
-        output_ecg dsg ("/tmp/dsg/ecg-" ^ (string_of_int !i) ^ ".dot"); *)
-        if not (EpsSet.is_empty dh) then
-          let c, c' = EpsSet.choose dh in
-          (* print_endline ("eps: " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
-          let (ds', de', dh') = add_short dsg c c' in
-          (* print_endline ("Adding edge " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
-          loop { dsg with ecg = G.add_edge dsg.ecg c c' }
-            (ConfSet.union ds ds')
-            (EdgeSet.union de de')
-            (EpsSet.remove (c, c') (EpsSet.union dh dh'))
-        else if not (EdgeSet.is_empty de) then
-          let c, g, c' = EdgeSet.choose de in
-          (* print_endline ("edge: " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
-          let (ds', de', dh') = add_edge dsg c g c' in
-          loop { dsg with g = G.add_edge_e dsg.g (c, g, c') }
-            (ConfSet.union ds ds')
-            (EdgeSet.remove (c, g, c') (EdgeSet.union de de'))
-            (EpsSet.union dh dh')
-        else if not (ConfSet.is_empty ds) then
-          let c = ConfSet.choose ds in
-          (* print_endline ("conf: " ^ (L.string_of_conf c)); *)
-          let (ds', de', dh') = explore dsg c in
-          (* print_endline ("Adding vertex " ^ (L.string_of_conf c)); *)
-          loop { dsg with g = G.add_vertex dsg.g c; ecg = G.add_vertex dsg.ecg c }
-            (ConfSet.remove c (ConfSet.union ds ds'))
-            (EdgeSet.union de de')
-            (EpsSet.union dh dh')
-        else
-          dsg
+        try
+          (* print_endline ("ΔS = " ^ (string_of_list (ConfSet.to_list ds)
+                                       L.string_of_conf));
+             print_endline ("ΔE = " ^ (string_of_list (EdgeSet.to_list de)
+                                       (fun (c, g, c') ->
+                                          (L.string_of_conf c) ^ " ->" ^ (L.string_of_stack_change g) ^ " " ^
+                                          (L.string_of_conf c'))));
+             print_endline ("ΔH = " ^ (string_of_list (EpsSet.to_list dh)
+                                       (fun (c, c') ->
+                                          (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'))));
+             print_endline ("Size of ECG (#v, #e): (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^
+                         ", " ^ (string_of_int (G.nb_edges dsg.ecg)) ^ ")"); *)
+          (* output_dsg dsg ("/tmp/dsg/dsg-" ^ (string_of_int !i) ^ ".dot");
+             output_ecg dsg ("/tmp/dsg/ecg-" ^ (string_of_int !i) ^ ".dot"); *)
+          if not (EpsSet.is_empty dh) then
+            let c, c' = EpsSet.choose dh in
+            (* print_endline ("eps: " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
+            let (ds', de', dh') = add_short dsg c c' in
+            (* print_endline ("Adding edge " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
+            loop { dsg with ecg = G.add_edge dsg.ecg c c' }
+              (ConfSet.union ds ds')
+              (EdgeSet.union de de')
+              (EpsSet.remove (c, c') (EpsSet.union dh dh'))
+          else if not (EdgeSet.is_empty de) then
+            let c, g, c' = EdgeSet.choose de in
+            (* print_endline ("edge: " ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c')); *)
+            let (ds', de', dh') = add_edge dsg c g c' in
+            loop { dsg with g = G.add_edge_e dsg.g (c, g, c') }
+              (ConfSet.union ds ds')
+              (EdgeSet.remove (c, g, c') (EdgeSet.union de de'))
+              (EpsSet.union dh dh')
+          else if not (ConfSet.is_empty ds) then
+            let c = ConfSet.choose ds in
+            (* print_endline ("conf: " ^ (L.string_of_conf c)); *)
+            let (ds', de', dh') = explore dsg c in
+            (* print_endline ("Adding vertex " ^ (L.string_of_conf c)); *)
+            loop { dsg with g = G.add_vertex dsg.g c; ecg = G.add_vertex dsg.ecg c }
+              (ConfSet.remove c (ConfSet.union ds ds'))
+              (EdgeSet.union de de')
+              (EpsSet.union dh dh')
+          else
+            dsg
+        with e -> begin
+            print_endline ("Failed at i = " ^ (string_of_int !i));
+            output_dsg dsg ("/tmp/dsg-" ^ (string_of_int !i) ^ ".dot");
+            print_endline (Printexc.to_string e);
+            dsg
+          end
       in loop { g = G.empty; q0 = c0; ecg = G.empty }
         (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
   end

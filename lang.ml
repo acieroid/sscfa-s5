@@ -52,7 +52,7 @@ struct
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
     | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
     | Val v -> "Val(" ^ (AValue.to_string v) ^ ")"
-    | PropVal v -> "PropVal"
+    | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
 
   type state = {
@@ -340,6 +340,15 @@ struct
     | S.OwnFieldNames (p, obj) ->
       push (F.OwnFieldNames state.env)
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+    | S.Rec (p, name, exp, body) ->
+      let a = alloc_val name `Undef state in
+      let env' = Env.extend name a state.env in
+      let vstore' = ValueStore.join a `Undef state.vstore in
+      push (F.Rec (name, a, body, env'))
+        ({state with control = Exp exp;
+                     env = env';
+                     vstore = vstore';
+                     time = Time.tick p state.time}, ss)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args (state : state)
@@ -560,6 +569,9 @@ struct
         | `ObjT -> failwith "TODO: OwnFieldNames"
         | _ -> failwith "OwnFieldNames on a non-object"
       end
+    | F.Rec (name, a, body, env') ->
+      let vstore = ValueStore.set a v state.vstore in
+      {state with control = Exp body; vstore = vstore}
     | F.RestoreEnv env' ->
       {state with control = Val v; env = env'}
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
@@ -606,7 +618,10 @@ struct
                            StackSummary.push ss frame)]
       | PropVal prop -> begin match frame with
           | Some ((state', ss'), frame) ->
-            [StackPop frame, (apply_frame_prop prop frame state, ss')]
+            print_endline ("apply_frame_prop from state " ^ (string_of_state state));
+            let res = [StackPop frame, (apply_frame_prop prop frame state, ss')] in
+            print_endline "success";
+            res
           | None ->
             []
         end in

@@ -25,6 +25,10 @@ type prop =
   | Data of data * AValue.t * AValue.t
   | Accessor of accessor * AValue.t * AValue.t
 
+let string_of_prop = function
+  | Data ({value = v; _}, _, _) -> "Data(" ^ (AValue.to_string v) ^ ")"
+  | Accessor ({getter = g; setter = s}, _, _) -> "Accessor(" ^ (AValue.to_string g) ^ ", " ^ (AValue.to_string s) ^ ")"
+
 (* TODO: use a PropMap that is keyed on AValue.t instead of an IdMap *)
 type t = attrs * (prop IdMap.t)
 

@@ -10,6 +10,8 @@ module O = Obj_val
 type t =
   (* {let (id = exp) body}, where the exp in the frame is body *)
   | Let of id * S.exp * Env.t
+  (* {rec (id = exp) body} *)
+  | Rec of id * Address.t * S.exp * Env.t
   (* {[field1: val1, ...]} *)
   | ObjectAttrs of string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of string * O.t * (string * S.prop) list * Env.t
@@ -98,7 +100,6 @@ let touch frame =
   | GetFieldObj (exp1, exp2, env)
   | SetFieldField (_, exp1, exp2, env)
   | SetAttrObj (_, exp1, exp2, env) ->
-
     aux none (fv_list S.free_vars [exp1; exp2]) env
 
   (* One exp *)
@@ -107,7 +108,8 @@ let touch frame =
   | GetFieldField (_, exp, env)
   | SetFieldNewval (_, _, exp, env)
   | GetAttrObj (_, exp, env)
-  | SetAttrField (_, _, exp, env) ->
+  | SetAttrField (_, _, exp, env)
+  | Rec (_, _, exp, env) ->
     aux none (S.free_vars exp) env
 
   (* No exp *)
@@ -125,10 +127,12 @@ let touch frame =
 
 let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
+  | Rec (id, _, _, _) -> "Rec-" ^ id
   | ObjectProps _ -> "ObjectProps"
   | ObjectAttrs _ -> "ObjectAttrs"
   | PropData _ -> "PropData"
-  | PropAccessor _ -> "PropAccessor"
+  | PropAccessor (Some _, _, _) -> "PropAccessor-Some"
+  | PropAccessor (None, _, _) -> "PropAccessor-None"
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
   | AppArgs _ -> "AppArgs"
@@ -160,6 +164,13 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | Let _, _ -> 1
   | _, Let _ -> -1
+  | Rec (id, a, exp, env), Rec (id', a', exp', env') ->
+    order_concat [lazy (Pervasives.compare id id');
+                  lazy (Address.compare a a');
+                  lazy (Pervasives.compare exp exp');
+                  lazy (Env.compare env env')]
+  | Rec _, _ -> 1
+  | _, Rec _ -> -1
   | ObjectAttrs (attr, obj, attrs, props, env),
     ObjectAttrs (attr', obj', attrs', props', env') ->
     order_concat [lazy (Pervasives.compare attr attr');
