@@ -334,6 +334,12 @@ struct
     | S.SetAttr (p, pattr, obj, field, newval) ->
       push (F.SetAttrObj (pattr, field, newval, state.env))
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+    | S.GetObjAttr (p, oattr, obj) ->
+      push (F.GetObjAttr (oattr, state.env))
+        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+    | S.OwnFieldNames (p, obj) ->
+      push (F.OwnFieldNames state.env)
+        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args (state : state)
@@ -522,7 +528,41 @@ struct
           end
         | _ -> failwith "TODO: SetAttrNewval frame"
       end
-    | _ -> failwith "Not implemented"
+    | F.GetObjAttr (oattr, env') -> begin match v with
+        | `Obj a -> begin match ObjectStore.lookup a state.ostore with
+          | `Obj obj -> {state with control = Val (O.get_obj_attr obj oattr); env = env'}
+          | `ObjT -> failwith "TODO: GetObjAttr"
+          end
+        | `ObjT -> failwith "TODO: GetObjAttr"
+        | _ -> failwith "GetObjAttr on a non-object"
+      end
+    | F.OwnFieldNames env' -> begin match v with
+        | `Obj a -> begin match ObjectStore.lookup a state.ostore with
+          | `Obj (_, props) ->
+            let add_name n x m =
+              IdMap.add (string_of_int x)
+                (O.Data ({O.value = `Str n; O.writable = `False}, `False, `False))
+                m in
+            let namelist = IdMap.fold (fun k v l -> (k :: l)) props [] in
+            let props = BatList.fold_right2 add_name namelist
+                (iota (List.length namelist)) IdMap.empty in
+            let d = (float_of_int (List.length namelist)) in
+            let final_props =
+              IdMap.add "length"
+                (O.Data ({O.value = `Num d; O.writable = `False}, `False, `False))
+                props in
+            let obj' = (O.d_attrsv , final_props) in
+            let addr = alloc_obj "obj" obj' state in
+            let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
+            {state with control = Val (`Obj addr); ostore = ostore'}
+          | `ObjT -> failwith "TODO: OwnFieldNames"
+          end
+        | `ObjT -> failwith "TODO: OwnFieldNames"
+        | _ -> failwith "OwnFieldNames on a non-object"
+      end
+    | F.RestoreEnv env' ->
+      {state with control = Val v; env = env'}
+    | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
 
   let apply_frame_prop v frame (state : state) : state = match frame with
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
@@ -535,7 +575,7 @@ struct
       let obj' = O.set_prop obj name v in
       {state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
                   env = env'}
-    | _ -> failwith "Not implemented"
+    | f -> failwith ("apply_frame_prop: not implemented: " ^ (string_of_frame f))
 
   let step_prop p ((state, ss) : conf)
     : (stack_change * conf) list = match p with
@@ -576,5 +616,5 @@ struct
                                      (string_of_state c)))); *)
     res
 
-  let step conf = step_no_gc (GC.gc conf)
+  let step conf = step_no_gc ((* GC.gc *) conf)
 end

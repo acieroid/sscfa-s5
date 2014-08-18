@@ -43,6 +43,10 @@ type t =
   | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
   | SetAttrField of S.pattr * AValue.t * S.exp * Env.t
   | SetAttrNewval of S.pattr * AValue.t * AValue.t * Env.t
+  (* syntax? *)
+  | GetObjAttr of S.oattr * Env.t
+  (* syntax? *)
+  | OwnFieldNames of Env.t
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
@@ -115,6 +119,8 @@ let touch frame =
   | SetFieldArgs _
   | GetAttrField _
   | SetAttrNewval _
+  | GetObjAttr _
+  | OwnFieldNames _
   | RestoreEnv _ -> AddressSet.empty
 
 let to_string = function
@@ -143,6 +149,8 @@ let to_string = function
   | SetAttrObj _ -> "SetAttrObj"
   | SetAttrField _ -> "SetAttrField"
   | SetAttrNewval _ -> "SetAttrNewval"
+  | GetObjAttr _ -> "GetObjAttr"
+  | OwnFieldNames _ -> "OwnFieldNames"
 
 (* TODO: use ppx_deriving when 4.02 is out *)
 let compare f f' = match f, f' with
@@ -300,6 +308,8 @@ let compare f f' = match f, f' with
                   lazy (AValue.compare obj obj');
                   lazy (Pervasives.compare newval newval');
                   lazy (Env.compare env env')]
+  | SetAttrField _, _ -> 1
+  | _, SetAttrField _ -> -1
   | SetAttrNewval (pattr, obj, field, env),
     SetAttrNewval (pattr', obj', field', env') ->
     order_concat [lazy (Pervasives.compare pattr pattr');
@@ -308,3 +318,12 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | SetAttrNewval _, _ -> 1
   | _, SetAttrNewval _ -> -1
+  | GetObjAttr (oattr, env), GetObjAttr (oattr', env') ->
+    order_concat [lazy (Pervasives.compare oattr oattr');
+                  lazy (Env.compare env env')]
+  | GetObjAttr _, _ -> 1
+  | _, GetObjAttr _ -> -1
+  | OwnFieldNames env, OwnFieldNames env' ->
+    Env.compare env env'
+  | OwnFieldNames _, _ -> 1
+  | _, OwnFieldNames _ -> -1

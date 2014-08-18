@@ -128,3 +128,18 @@ let set_attr ({extensible = ext; _} as attrs, props) attr field value =
       | _ -> failwith "bad property set"
   in
   (attrs, IdMap.add field newprop props)
+
+let get_obj_attr (attrs, _) attr = match attrs, attr with
+  | {proto = v; _}, S.Proto
+  | {extensible = v; _}, S.Extensible
+  | {code = v; _}, S.Code
+  | {primval = v; _}, S.Primval
+  | {klass = v; _}, S.Klass -> v
+
+let d_attrsv = {
+  primval = `Undef;
+  code = `Undef;
+  proto = `Null;
+  extensible = `False;
+  klass = `Str "LambdaJS internal"
+}
