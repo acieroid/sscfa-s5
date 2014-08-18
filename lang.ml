@@ -98,12 +98,11 @@ struct
     (* Garbage collection.
        TODO:
          - for now, we only perform GC on the value store. It could be worth
-           investigating it on the the object store as well?
+           investigating it on the the object store as well
     *)
 
-
     let touch (vstore : ValueStore.t) (ostore : ObjectStore.t) =
-      let rec aux acc = function
+      let rec aux acc visited_objs = function
         | `Null | `True | `False | `BoolT | `Num _ | `NumT
         | `Str _ | `StrT | `Undef | `Bot -> acc
         | `Clos (env, args, exp) ->
@@ -113,36 +112,41 @@ struct
            it is done now *)
         (* (Frame.addresses_of_vars (IdSet.diff (S.free_vars exp)
                                         (IdSet.from_list args)) env) *)
-        | `Obj a -> begin match ObjectStore.lookup a ostore with
-            | `Obj obj -> aux_obj acc obj
-            | `ObjT -> failwith "touch: a value was too abtsract"
-          end
+        | `Obj a -> if AddressSet.mem a visited_objs then
+            acc
+          else
+            begin match ObjectStore.lookup a ostore with
+              | `Obj obj -> aux_obj acc (AddressSet.add a visited_objs) obj
+              | `ObjT -> failwith "touch: a value was too abtsract"
+            end
         | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
-      and aux_obj acc ((attrs, props) : O.t) =
+      and aux_obj acc visited_objs ((attrs, props) : O.t) =
         aux_obj_props
           (List.fold_left AddressSet.union acc
-             [aux AddressSet.empty attrs.O.code;
-              aux AddressSet.empty attrs.O.proto;
-              aux AddressSet.empty attrs.O.primval;
-              aux AddressSet.empty attrs.O.klass;
-              aux AddressSet.empty attrs.O.extensible])
+             [aux acc visited_objs attrs.O.code;
+              aux acc visited_objs attrs.O.proto;
+              aux acc visited_objs attrs.O.primval;
+              aux acc visited_objs attrs.O.klass;
+              aux acc visited_objs attrs.O.extensible])
+          visited_objs
           (IdMap.bindings props)
-      and aux_obj_props acc : (string * O.prop) list -> AddressSet.t = function
+      and aux_obj_props acc visited_objs props =
+        match props with
         | [] -> acc
         | (_, O.Data ({O.value = v; O.writable = w}, enum, config)) :: props ->
           aux_obj_props (List.fold_left AddressSet.union acc
-                           [aux AddressSet.empty v;
-                            aux AddressSet.empty w;
-                            aux AddressSet.empty enum;
-                            aux AddressSet.empty config]) props
+                           [aux acc visited_objs v;
+                            aux acc visited_objs w;
+                            aux acc visited_objs enum;
+                            aux acc visited_objs config]) visited_objs  props
         | (_, O.Accessor ({O.getter = g; O.setter = s}, enum, config)) :: props ->
           aux_obj_props (List.fold_left AddressSet.union acc
-                           [aux AddressSet.empty g;
-                            aux AddressSet.empty s;
-                            aux AddressSet.empty enum;
-                            aux AddressSet.empty config]) props
+                           [aux acc visited_objs g;
+                            aux acc visited_objs s;
+                            aux acc visited_objs enum;
+                            aux acc visited_objs config]) visited_objs props
       in
-      aux (AddressSet.empty)
+      aux AddressSet.empty AddressSet.empty
 
     let rec control_root control env vstore ostore : AddressSet.t = match control with
       | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
