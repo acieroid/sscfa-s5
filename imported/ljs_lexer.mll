@@ -34,8 +34,8 @@ let hex = ['0'-'9' 'A'-'f' 'a'-'f']
 
 let hex_lit = ("0x" | "0X") hex+
 
-let dec_lit = 
-  (signed_int '.' dec_digit* expt_part?) | 
+let dec_lit =
+  (signed_int '.' dec_digit* expt_part?) |
   ('.' dec_digit+ expt_part?) |
   (dec_int_lit expt_part?)
 
@@ -52,7 +52,7 @@ let blank = [ ' ' '\t' ]
 let escape_sequence
   = [^ '\r' '\n'] | ('x' hex hex) | ('u' hex hex hex hex)
 
-let double_quoted_string_char = 
+let double_quoted_string_char =
   [^ '\r' '\n' '"' '\\'] | ('\\' escape_sequence)
 
 let single_quoted_string_char =
@@ -69,7 +69,7 @@ rule token = parse
 
    | '"' (double_quoted_string_char* as x) '"' { STRING x }
    | ''' (single_quoted_string_char* as x) ''' { STRING x }
-  
+
    | num_lit as x { parse_num_lit x }
    | "NaN" { NUM nan }
    | "+inf" { NUM infinity }
@@ -125,10 +125,10 @@ rule token = parse
    | "#extensible" { EXTENSIBLE }
    | "#primval" { PRIMVAL }
    | "#class" { CLASS }
-   | "get-own-field-names" { GETFIELDS }    
+   | "get-own-field-names" { GETFIELDS }
 
    | ident as x { ID x }
- 
+
    | eof { EOF }
 
 and block_comment = parse
@@ -141,7 +141,7 @@ and hint = parse
   | "*/" { let str = Buffer.contents block_comment_buf in
              Buffer.clear block_comment_buf; HINT str }
   | '*' { Buffer.add_char block_comment_buf '*'; hint lexbuf }
-  | "\r\n" { new_line lexbuf; Buffer.add_char block_comment_buf '\n'; 
+  | "\r\n" { new_line lexbuf; Buffer.add_char block_comment_buf '\n';
              hint lexbuf }
   | [ '\n' '\r' ] { new_line lexbuf; Buffer.add_char block_comment_buf '\n';
                     hint lexbuf }

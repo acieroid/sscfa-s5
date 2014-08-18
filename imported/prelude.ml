@@ -21,7 +21,7 @@ module Pos = struct
   let dummy = (Lexing.dummy_pos, Lexing.dummy_pos, true)
   let compare = Pervasives.compare
 
-  let before (_, p1_end, _) (p2_start, _, _) = 
+  let before (_, p1_end, _) (p2_start, _, _) =
     p1_end.pos_cnum < p2_start.pos_cnum
     || p1_end.pos_lnum < p2_start.pos_lnum (* may not have cnum info from SpiderMonkey positions *)
     || p1_end.pos_bol < p2_start.pos_bol
@@ -30,7 +30,7 @@ module Pos = struct
   let synthetic (p_start, p_end) = (p_start, p_end, true)
   let real (p_start, p_end) = (p_start, p_end, false)
   let rangeToString p e =
-    if (p.pos_lnum = e.pos_lnum) 
+    if (p.pos_lnum = e.pos_lnum)
     then Format.sprintf "%s:%d:%d-%d" p.pos_fname p.pos_lnum (p.pos_cnum - p.pos_bol)
       (e.pos_cnum - e.pos_bol)
     else Format.sprintf "%s:%d:%d-%d:%d" p.pos_fname p.pos_lnum (p.pos_cnum - p.pos_bol)
@@ -106,7 +106,7 @@ let rec intersperse a lst = match lst with
 
 let rec take_while f xs = match xs with
     [] -> [], []
-  | x :: xs' -> 
+  | x :: xs' ->
       if f x then
         let lhs, rhs = take_while f xs' in
           x :: lhs, rhs
@@ -121,7 +121,7 @@ let rec match_while f xs = match xs with
             y :: ys, xs''
       | None -> [], xs
     end
-    
+
 let rec take n xs = match n, xs with
   | 0, _ -> []
   | _, [] -> []
@@ -135,7 +135,7 @@ let rec nub (lst : 'a list) : 'a list = match lst with
     [] -> []
   | x :: xs -> x :: (nub (rem x xs))
 
-let rec iota' m lst = 
+let rec iota' m lst =
   if m < 0 then lst
   else iota' (m - 1) (m :: lst)
 
