@@ -247,15 +247,15 @@ braced_seq_exp :
  | LBRACE unbraced_seq_exp RBRACE { with_pos $2 (Pos.real (Parsing.rhs_start_pos 1, Parsing.rhs_end_pos 3)) }
 
 unbraced_seq_exp :
- | unbraced_seq_item SEMI unbraced_seq_exp { Seq (Pos.real (Parsing.rhs_start_pos 1, Parsing.rhs_end_pos 3), $1, $3) }
- | unbraced_seq_item { $1 }
-
-unbraced_seq_item :
- | cexp { $1 }
  | LET LPAREN ID EQUALS unbraced_seq_exp RPAREN unbraced_seq_item
    { Let (Pos.real (Parsing.rhs_start_pos 1, Parsing.rhs_end_pos 7), $3, $5, $7) }
  | REC LPAREN ID EQUALS func RPAREN unbraced_seq_item
    { Rec (Pos.real (Parsing.rhs_start_pos 1, Parsing.rhs_end_pos 7), $3, $5, $7) }
+ | unbraced_seq_item { $1 }
+
+unbraced_seq_item :
+ | cexp { $1 }
+ | unbraced_seq_item SEMI unbraced_seq_exp { Seq (Pos.real (Parsing.rhs_start_pos 1, Parsing.rhs_end_pos 3), $1, $3) }
 
 env :
  | EOF

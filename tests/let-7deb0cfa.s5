@@ -1,7 +1,7 @@
 // Expected: "foo"
 
-// This test does not pass because S5's parser is broken, and parses this as
-// {let (%foo = "foo") "bar"}; %foo
+// This test does not pass with S5's parser because it is broken, and parses
+// this as {let (%foo = "foo") "bar"}; %foo
 // However, {let (%foo = "foo") {"bar"; %foo}} works as expected
 
 {let (%foo = "foo")
