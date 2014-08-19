@@ -1,6 +1,7 @@
 open Lang
 open Dsg
 open Lexing
+open Prelude
 
 module S = Ljs_syntax
 
@@ -14,9 +15,20 @@ let load_s5 file : S.exp =
   let cin = open_in_bin file in
   let lexbuf = Lexing.from_channel cin in
   lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = file };
-  let e = Ljs_parser.prog Ljs_lexer.token lexbuf in
-  close_in cin;
-  e
+  try
+    let e = Ljs_parser.prog Ljs_lexer.token lexbuf in
+    close_in cin;
+    e
+  with
+  |  Failure "lexing: empty token" ->
+    failwith (sprintf "lexical error at %s"
+                (Pos.string_of_pos (Pos.real
+                                      (lexbuf.lex_curr_p, lexbuf.lex_curr_p))))
+  | Parsing.Parse_error ->
+    failwith (sprintf "parse error at %s; unexpected token %s"
+                (Pos.string_of_pos (Pos.real
+                                      (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
+                (lexeme lexbuf))
 
 module G = DSG.G
 

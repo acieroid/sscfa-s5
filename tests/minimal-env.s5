@@ -1,0 +1,14 @@
+// Expected: "foo"
+{let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
+     {let (%global = {[#proto: %ObjectProto,
+                       #class: "Object",
+                       #extensible: true,]})
+          {let (%globalContext = {[#proto: %global,
+                                   #class: "Object",
+                                   #extensible: true,]})
+               {let (%this = %global)
+                    {let (%strictContext = %globalContext)
+                         {let (%nonstrictContext = %globalContext)
+                              {let (%context = %nonstrictContext)
+                                   {let (#strict = false)
+                                        "foo"}}}}}}}}
