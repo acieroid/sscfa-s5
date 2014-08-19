@@ -106,7 +106,7 @@ module ClosF(L : ClosS) = struct
       | _ -> false
   let to_string ((`Clos _ | `ClosT) as c : t0) : string = match c with
     | `Clos (env, xs, exp) ->
-      "clos("^(Env.to_string env)^", "^
+      "clos("^
         (string_of_list xs (fun x -> x))^", "^
         (string_of_exp exp)^")"
     | `ClosT -> "clos⊤"

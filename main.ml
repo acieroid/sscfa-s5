@@ -48,18 +48,22 @@ let eval exp =
         print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf));
         graph
       | (g, conf') :: _ ->
-        print_endline ((LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
+        print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
         aux (G.add_edge_e graph (conf, g, conf'))
           (match g with
            | LJS.StackPush f -> push stack (conf', f)
            | LJS.StackPop _ -> pop stack
            | LJS.StackUnchanged -> stack)
           conf'
-    with e -> print_endline (Printexc.to_string e); graph
+    with e ->
+      print_endline (Printexc.get_backtrace ());
+      print_endline (Printexc.to_string e);
+      graph
   in aux G.empty [] (LJS.inject exp)
 
 let _ =
   let s5 = load_s5 file in
+  print_endline (Shared.full_string_of_exp s5);
   (* let dsg = DSG.build_dyck s5 in
   DSG.output_dsg dsg "dsg.dot";
   DSG.output_ecg dsg "ecg.dot" *)

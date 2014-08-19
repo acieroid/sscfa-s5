@@ -184,9 +184,15 @@ struct
       aux (AddressSet.singleton addr) AddressSet.empty
 
     let reachable ((state, ss) : conf) : AddressSet.t =
+      let r = root (state, ss) in
+      print_endline ("Root set: " ^ (string_of_list (AddressSet.to_list ss) Address.to_string));
+      begin match state.control with
+      | Exp e ->  print_endline ("Free vars of control: " ^ (string_of_list (IdSet.to_list (S.free_vars e)) (fun x -> x)))
+      | _ -> ()
+      end;
       AddressSet.fold (fun a acc ->
           AddressSet.union acc (touching_rel state.vstore state.ostore a))
-        (root (state, ss)) AddressSet.empty
+        r AddressSet.empty
 
     let gc ((state, ss) : conf) : conf =
       ({state with
@@ -269,8 +275,13 @@ struct
     | S.True _ -> unch (Val `True) conf
     | S.False _ -> unch (Val `False) conf
     | S.Id (_, id) ->
-      unch (Val (ValueStore.lookup (Env.lookup id state.env) state.vstore))
-        conf
+      begin try
+        unch (Val (ValueStore.lookup (Env.lookup id state.env) state.vstore))
+          conf
+      with Not_found ->
+        print_endline ("Identifier cannot be resolved: " ^ id);
+        raise Not_found
+      end
     | S.Lambda (_, args, body) ->
       let free = S.free_vars body in
       let env' = Env.keep free state.env in

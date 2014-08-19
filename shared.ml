@@ -100,11 +100,11 @@ module AddressSet = BatSet.Make(Address)
 let rec string_of_exp exp = match exp with
   | Null p -> "null"
   | Undefined _ -> "undef"
-  | String (_, v) -> "string("^v^")"
-  | Num (_, f) -> "num("^(string_of_float f)^")"
+  | String (_, v) -> "\""^v^"\""
+  | Num (_, f) -> (string_of_float f)
   | True _ -> "true"
   | False _ -> "false"
-  | Id (_, x) -> "id(" ^ x ^ ")"
+  | Id (_, x) -> x
   | Object (_, _, _) -> "object"
   | GetAttr (_, _, _, _) -> "getattr"
   | SetAttr (_, _, _, _, _) -> "setattr"
@@ -121,7 +121,7 @@ let rec string_of_exp exp = match exp with
   | App (_, _, _) -> "app"
   | Seq (_, _, _) -> "seq"
   | Let (_, x, e, _) ->
-    "(let "^x^" "^(string_of_exp e)^")"
+    "let "^x^" = "^(string_of_exp e)^""
   | Rec (_, x, e1, e2) ->
     "rec("^x^", "^(string_of_exp e1)^", "^(string_of_exp e2)^")"
   | Label (_, _, _) -> "label"
@@ -130,7 +130,47 @@ let rec string_of_exp exp = match exp with
   | TryFinally (_, _, _) -> "finally"
   | Throw (_, _) -> "throw"
   | Lambda (_, xs, e) ->
-    "lam("^(string_of_list xs (fun x->x))^", "^(string_of_exp e)^")"
+    "func("^(string_of_list xs (fun x->x))^", "^(string_of_exp e)^")"
+  | Eval (_, _, _) -> "eval"
+  | Hint (_, _, _) -> "hint"
+
+let rec full_string_of_exp exp = match exp with
+  | Null p -> "null"
+  | Undefined _ -> "undef"
+  | String (_, v) -> "\"" ^ v ^ "\""
+  | Num (_, f) -> string_of_float f
+  | True _ -> "true"
+  | False _ -> "false"
+  | Id (_, x) -> x
+  | Object (_, _, _) -> "object"
+  | GetAttr (_, _, _, _) -> "getattr"
+  | SetAttr (_, _, _, _, _) -> "setattr"
+  | GetObjAttr (_, _, _) -> "getobjattr"
+  | SetObjAttr (_, _, _, _) -> "setobjattr"
+  | GetField (_, _, _, _) -> "getfield"
+  | SetField (_, _, _, _, _) -> "setfield"
+  | DeleteField (_, _, _) -> "deletefield"
+  | OwnFieldNames (_, _) -> "ownfieldnames"
+  | SetBang (_, s, e) -> s ^ " := " ^ (full_string_of_exp e)
+  | Op1 (_, s, e) -> s ^ (full_string_of_exp e)
+  | Op2 (_, s, e1, e2) -> (full_string_of_exp e1) ^ " " ^ s ^ " " ^ (full_string_of_exp e2)
+  | If (_, cond, cons, alt) -> "if (" ^ (full_string_of_exp cond) ^ ") {" ^
+                               (full_string_of_exp cons) ^ "} else {" ^
+                               (full_string_of_exp alt) ^ "}"
+  | App (_, f, args) -> (full_string_of_exp f) ^ "(" ^
+                        (String.concat ", " (List.map full_string_of_exp args)) ^ ")"
+  | Seq (_, e1, e2) -> (full_string_of_exp e1) ^ "; " ^ (full_string_of_exp e2)
+  | Let (_, x, e, body) ->
+    "{let (" ^ x ^ " = " ^ (full_string_of_exp e) ^ ") " ^ (full_string_of_exp body) ^ "}"
+  | Rec (_, x, e1, e2) ->
+    "rec (" ^ x ^ " = " ^ (full_string_of_exp e1) ^ ") " ^ (full_string_of_exp e2) ^ ")"
+  | Label (_, _, _) -> "label"
+  | Break (_, _, _) -> "break"
+  | TryCatch (_, _, _) -> "catch"
+  | TryFinally (_, _, _) -> "finally"
+  | Throw (_, _) -> "throw"
+  | Lambda (_, xs, e) ->
+    "func (" ^ (String.concat ", " xs) ^ ") {" ^ (full_string_of_exp e) ^ "}"
   | Eval (_, _, _) -> "eval"
   | Hint (_, _, _) -> "hint"
 

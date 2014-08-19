@@ -52,6 +52,39 @@ type t =
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
+let env_of_frame = function
+  | Let (_, _, env)
+  | ObjectAttrs (_, _, _, _, env)
+  | ObjectProps (_, _, _, env)
+  | PropAccessor (_, _, env)
+  | Rec (_, _, _, env)
+  | AppFun (_, env)
+  | AppArgs (_, _, _, env)
+  | SetFieldObj (_, _, _, env)
+  | If (_, _, env)
+  | GetFieldObj (_, _, env)
+  | SetFieldField (_, _, _, env)
+  | SetAttrObj (_, _, _, env)
+  | Op2Arg (_, _, env)
+  | Seq (_, env)
+  | GetFieldField (_, _, env)
+  | SetFieldNewval (_, _, _, env)
+  | GetAttrObj (_, _, env)
+  | SetAttrField (_, _, _, env)
+  | PropData (_, env)
+  | PropAccessor (_, _, env)
+  | Op1App (_, env)
+  | Op2App (_, _, env)
+  | GetFieldBody (_, _, env)
+  | SetFieldArgs (_, _, _, env)
+  | GetAttrField (_, _, env)
+  | SetAttrNewval (_, _, _, env) 
+  | GetObjAttr (_, env)
+  | OwnFieldNames env
+  | RestoreEnv env ->
+    env
+
+
 let addresses_of_vars (vars : IdSet.t) (env : Env.t) : AddressSet.t =
   IdSet.fold (fun v acc ->
       if Env.contains v env then
@@ -63,54 +96,49 @@ let addresses_of_vars (vars : IdSet.t) (env : Env.t) : AddressSet.t =
         acc
       end) vars AddressSet.empty
 
-let touch frame =
-  let aux (pred : string -> bool) (free : IdSet.t) : Env.t -> AddressSet.t =
-    addresses_of_vars (IdSet.filter (fun v -> not (pred v)) free) in
-  let eq v v' = v = v' in
-  let none _ = false in
+let free_vars frame =
+  let fv_list f = List.fold_left (fun acc x ->
+      IdSet.union acc (f x)) IdSet.empty in
   let fv_attr (_, exp) = S.free_vars exp in
   let fv_prop = function
     | (_, S.Data ({S.value = v; _}, _, _)) -> S.free_vars v
     | (_, S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
        IdSet.union (S.free_vars g) (S.free_vars s) in
-  let fv_list f = List.fold_left (fun acc x ->
-      IdSet.union acc (f x)) IdSet.empty in
   let fv_attrs = fv_list fv_attr in
   let fv_props = fv_list fv_prop in
   match frame with
-  (* Special cases *)
-  | Let (id, exp, env) -> aux (eq id) (S.free_vars exp) env
-  | ObjectAttrs (name, obj, attrs, props, env) ->
-    aux none (IdSet.union (fv_attrs attrs) (fv_props props)) env
-  | ObjectProps (name, obj, props, env) ->
-    aux none (fv_props props) env
-  | PropAccessor (Some exp, _, env) -> aux none (S.free_vars exp) env
+  (* special cases *)
+  | Let (id, exp, _) -> IdSet.remove id (S.free_vars exp)
+  | ObjectAttrs (_, _, attrs, props, _) ->
+    (IdSet.union (fv_attrs attrs) (fv_props props))
+  | ObjectProps (_, _, props, _) -> fv_props props
 
   (* List of exps *)
-  | AppFun (args, env)
-  | AppArgs (_, _, args, env) ->
-    aux none (fv_list S.free_vars args) env
+  | AppFun (args, _)
+  | AppArgs (_, _, args, _) ->
+    fv_list S.free_vars args
 
   (* Three exps *)
-  | SetFieldObj (exp1, exp2, exp3, env) ->
-    aux none (fv_list S.free_vars [exp1; exp2; exp3]) env
+  | SetFieldObj (exp1, exp2, exp3, _) ->
+    fv_list S.free_vars [exp1; exp2; exp3]
 
   (* Two exps *)
-  | If (exp1, exp2, env)
-  | GetFieldObj (exp1, exp2, env)
-  | SetFieldField (_, exp1, exp2, env)
-  | SetAttrObj (_, exp1, exp2, env) ->
-    aux none (fv_list S.free_vars [exp1; exp2]) env
+  | If (exp1, exp2, _)
+  | GetFieldObj (exp1, exp2, _)
+  | SetFieldField (_, exp1, exp2, _)
+  | SetAttrObj (_, exp1, exp2, _) ->
+    fv_list S.free_vars [exp1; exp2]
 
   (* One exp *)
-  | Op2Arg (_, exp, env)
-  | Seq (exp, env)
-  | GetFieldField (_, exp, env)
-  | SetFieldNewval (_, _, exp, env)
-  | GetAttrObj (_, exp, env)
-  | SetAttrField (_, _, exp, env)
-  | Rec (_, _, exp, env) ->
-    aux none (S.free_vars exp) env
+  | Op2Arg (_, exp, _)
+  | Seq (exp, _)
+  | GetFieldField (_, exp, _)
+  | SetFieldNewval (_, _, exp, _)
+  | GetAttrObj (_, exp, _)
+  | SetAttrField (_, _, exp, _)
+  | PropAccessor (Some exp, _, _)
+  | Rec (_, _, exp, _) ->
+    S.free_vars exp
 
   (* No exp *)
   | PropData _
@@ -123,7 +151,79 @@ let touch frame =
   | SetAttrNewval _
   | GetObjAttr _
   | OwnFieldNames _
-  | RestoreEnv _ -> AddressSet.empty
+  | RestoreEnv _ -> IdSet.empty
+
+let touched_addresses = function
+  | Rec (_, a, _, _) -> AddressSet.singleton a
+  | _ -> AddressSet.empty
+
+let touched_addresses_from_values frame =
+  let of_list l =
+    let rec aux acc = function
+    | [] -> acc
+    | h :: t -> begin match h with
+      | `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
+      | `ClosT -> failwith "Closure was too abstracted"
+      (* TODO: what about objects? *)
+      | _ -> aux acc t
+      end in
+    aux AddressSet.empty l
+  in
+  match frame with
+  (* Special cases *)
+  | AppArgs (f, args, _, _) ->
+    of_list (f :: args)
+  | PropData (({O.value = v; O.writable = w}, enum, config), _) ->
+    of_list [v; w; enum; config]
+  | PropAccessor (_, ({O.getter = g; setter = s}, enum, config), _) ->
+    of_list [g; s; enum; config]
+
+  (* No value *)
+  | Let (_, _, _)
+  | Rec (_, _, _, _)
+  | ObjectAttrs (_, _, _, _, _)
+  | ObjectProps (_, _, _, _)
+  | Seq (_, _)
+  | AppFun (_, _)
+  | Op1App (_, _)
+  | Op2Arg (_, _, _)
+  | If (_, _, _)
+  | GetFieldObj (_, _, _)
+  | SetFieldObj (_, _, _, _)
+  | GetAttrObj (_, _, _)
+  | SetAttrObj (_, _, _, _)
+  | GetObjAttr (_, _)
+  | OwnFieldNames _
+  | RestoreEnv _ ->
+    of_list []
+
+  (* One value *)
+  | Op2App (_, v, _)
+  | GetFieldField (v, _, _)
+  | SetFieldField (v, _, _, _)
+  | GetAttrField (_, v, _)
+  | SetAttrField (_, v, _, _) ->
+    of_list [v]
+
+  (* Two values *)
+  | GetFieldBody (v1, v2, _)
+  | SetFieldNewval (v1, v2, _, _)
+  | SetAttrNewval (_, v1, v2, _) ->
+    of_list [v1; v2]
+
+  (* Three values *)
+  | SetFieldArgs (v1, v2, v3, _) ->
+    of_list [v1; v2; v3]
+
+let touch frame =
+  AddressSet.union
+    (AddressSet.union (addresses_of_vars (free_vars frame) (env_of_frame frame))
+       (touched_addresses frame))
+    (touched_addresses_from_values frame)
+
+(* TODO: addrs: Rec (_, a, _, _) -> a *)
+(* TODO: vals: AppArg (v, _, _, _) -> v = `Clos (...) -> S.free_vars *)
+
 
 let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
