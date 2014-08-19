@@ -185,11 +185,6 @@ struct
 
     let reachable ((state, ss) : conf) : AddressSet.t =
       let r = root (state, ss) in
-      print_endline ("Root set: " ^ (string_of_list (AddressSet.to_list ss) Address.to_string));
-      begin match state.control with
-      | Exp e ->  print_endline ("Free vars of control: " ^ (string_of_list (IdSet.to_list (S.free_vars e)) (fun x -> x)))
-      | _ -> ()
-      end;
       AddressSet.fold (fun a acc ->
           AddressSet.union acc (touching_rel state.vstore state.ostore a))
         r AddressSet.empty
@@ -267,7 +262,9 @@ struct
      (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
      etc.) *)
   let step_exp (exp : S.exp) ((state, ss) as conf : conf)
-    : (stack_change * conf) list = match exp with
+    : (stack_change * conf) list =
+    let e = match exp with S.Hint (_, _, e) -> e | _ -> exp in
+    match e with
     | S.Null _ -> unch (Val `Null) conf
     | S.Undefined _ -> unch (Val `Undef) conf
     | S.String (_, s) -> unch (Val (`Str s)) conf

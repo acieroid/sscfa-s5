@@ -50,12 +50,10 @@ module Make =
     let lookup = AddrMap.find
 
     let restrict addrs =
-      print_endline ("Keep only: " ^ (string_of_list (AddressSet.to_list addrs) Address.to_string));
       AddrMap.filter (fun a _ ->
           if (AddressSet.mem a addrs) then
             true
           else begin
-            print_endline ((Address.to_string a) ^ " \027[31mnot in\027[0m " ^  (string_of_list (AddressSet.to_list addrs) Address.to_string));
             print_endline ("\027[31mreclaim(" ^ (Address.to_string a) ^ ")\027[0m");
             false
           end)
