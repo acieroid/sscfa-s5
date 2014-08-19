@@ -1,4 +1,4 @@
-// Expected: "foo"
+// Expected: 'foo'
 
 // This test does not pass with S5's parser because it is broken, and parses
 // this as {let (%foo = "foo") "bar"}; %foo

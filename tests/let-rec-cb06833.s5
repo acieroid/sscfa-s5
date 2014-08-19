@@ -1,4 +1,4 @@
-// Expected: "foo"
+// Expected: 'foo'
 // Does not work until commit cb06833 included due an incorrect parser rule
 {let (f = func()
   {{let (x = 1.)

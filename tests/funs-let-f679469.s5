@@ -1,3 +1,4 @@
+// Expected: 1.
 {let (f = func(x) { x })
 {let (g = func(y) { f(y) })
   g(1)}}

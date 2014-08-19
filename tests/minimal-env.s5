@@ -1,4 +1,4 @@
-// Expected: "foo"
+// Expected: 'foo'
 {let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
      {let (%global = {[#proto: %ObjectProto,
                        #class: "Object",
