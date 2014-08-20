@@ -227,9 +227,9 @@ struct
   end
 
   (* TODO: put that somewhere else? *)
-  let alloc_val id _ state = Address.alloc id state.time
+  let alloc_var id _ state = Address.alloc_var id state.time
 
-  let alloc_obj id _ state = Address.alloc id state.time
+  let alloc_obj id _ state = Address.alloc_obj id state.time
 
   let inject (exp : S.exp) : conf = ({
     control = Exp exp;
@@ -349,7 +349,7 @@ struct
       push (F.OwnFieldNames state.env)
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
     | S.Rec (p, name, exp, body) ->
-      let a = alloc_val name `Undef state in
+      let a = alloc_var name `Undef state in
       let env' = Env.extend name a state.env in
       let vstore' = ValueStore.join a `Undef state.vstore in
       push (F.Rec (name, a, body, env'))
@@ -366,7 +366,7 @@ struct
         failwith "Arity mismatch"
       else
         let alloc_arg v name (vstore, env) =
-          let a = alloc_val name v state in
+          let a = alloc_var name v state in
           (ValueStore.join a v vstore,
            Env.extend name a env) in
         let (vstore', env') =
@@ -383,7 +383,7 @@ struct
 
   let apply_frame v frame (state : state) : state list = match frame with
     | F.Let (id, body, env') ->
-      let a = alloc_val id id state in
+      let a = alloc_var id id state in
       let env'' = Env.extend id a env' in
       let vstore' = ValueStore.join a v state.vstore in
       [{state with control = Exp body; env = env''; vstore = vstore'}]

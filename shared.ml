@@ -77,19 +77,26 @@ module type Address_signature =
     type t
     val compare : t -> t -> int
     val to_string : t -> string
-    val alloc : string -> T.t -> t
+    val alloc_obj : string -> T.t -> t
+    val alloc_var : string -> T.t -> t
   end
 
 (* S5 uses Store.Loc module (util/store.ml) *)
 module MakeAddress : Address_signature =
   functor (T : Time_signature) ->
 struct
-  type t = string * T.t
-  let compare (id, t) (id', t') =
-    order_comp (Pervasives.compare id id') (T.compare t t')
-  let to_string (id, t) =
-    "@" ^ id
-  let alloc id t = (id, t)
+  type t = [ `ObjAddress of string * T.t | `VarAddress of string * T.t ]
+  let compare x y = match x, y with
+    | `ObjAddress (id, t), `ObjAddress (id', t') 
+    | `VarAddress (id, t), `VarAddress (id', t') ->
+      order_comp (Pervasives.compare id id') (T.compare t t')
+    | `ObjAddress _, `VarAddress _ -> 1
+    | `VarAddress _, `ObjAddress _ -> -1
+  let to_string = function
+    | `ObjAddress (id, t) -> "@obj-" ^ id
+    | `VarAddress (id, t) -> "@var-" ^ id
+  let alloc_obj id t = `ObjAddress (id, t)
+  let alloc_var id t = `VarAddress (id, t)
 end
 
 module K1 = struct let k = 1 end

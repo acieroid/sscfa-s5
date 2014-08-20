@@ -72,7 +72,6 @@ let env_of_frame = function
   | GetAttrObj (_, _, env)
   | SetAttrField (_, _, _, env)
   | PropData (_, env)
-  | PropAccessor (_, _, env)
   | Op1App (_, env)
   | Op2App (_, _, env)
   | GetFieldBody (_, _, env)
@@ -357,10 +356,6 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | GetFieldBody _, _ -> 1
   | _, GetFieldBody _ -> -1
-  | RestoreEnv env, RestoreEnv env' ->
-    Env.compare env env'
-  | RestoreEnv _, _ -> 1
-  | _, RestoreEnv _ -> -1
   | SetFieldObj (field, newval, body, env),
     SetFieldObj (field', newval', body', env') ->
     order_concat [lazy (Pervasives.compare field field');
@@ -438,3 +433,6 @@ let compare f f' = match f, f' with
     Env.compare env env'
   | OwnFieldNames _, _ -> 1
   | _, OwnFieldNames _ -> -1
+
+  | RestoreEnv env, RestoreEnv env' ->
+    Env.compare env env'
