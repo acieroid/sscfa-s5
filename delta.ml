@@ -354,7 +354,7 @@ let same_value store v1 v2 = match v1, v2 with
                  else Pervasives.compare x y = 0)
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
   | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
-  | `BoolT, `True | `True, `BoolT | `BoolT, `False | `True, `BoolT
+  | `BoolT, `True | `True, `BoolT | `BoolT, `False | `False, `BoolT
   | `BoolT, `BoolT -> `BoolT
   | _ -> AValue.bool (Pervasives.compare v1 v2 = 0)
 

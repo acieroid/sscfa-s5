@@ -461,9 +461,12 @@ struct
               [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
-        | `Obj _, `StrT -> failwith "TODO: GetFieldBody frame"
-        | `ObjT, _ -> failwith "TODO: GetFieldBody frame"
-        | _ -> failwith "TODO: GetFieldBody frame"
+        | `Obj _, `StrT ->
+          (* We can handle this case more precisely by returning a state for
+             each possible value of a field in this object *)
+          [{state with control = Val `Top; env = env'}]
+        | `ObjT, _ -> failwith "GetFieldBody: object too abstracted"
+        | _ -> failwith "GetFieldBody on a non-object or non-string field"
       end
     | F.SetFieldObj (field, newval, body, env') ->
       [{state with control = Frame (Exp field, F.SetFieldField (v, newval, body, env'));
@@ -509,7 +512,7 @@ struct
                     [{state with control = Val `Undef}]
                   | _ -> failwith "TODO: SetFieldArgs frame"
               end
-            | `ObjT -> failwith "TODO: SetFieldArgs frame"
+            | `ObjT -> failwith "SetFieldArgs: object too abstracted"
           end
         | _ -> failwith "update field"
       end
@@ -523,9 +526,9 @@ struct
           begin match ObjectStore.lookup a state.ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
               [{state with control = Val attr; env = env'}]
-            | `ObjT -> failwith "TODO: GetAttrField frame"
+            | `ObjT -> failwith "GetAttrField: object too abstracted"
           end
-        | _ -> failwith "TODO: GetAttrField frame"
+        | _ -> failwith "GetAttrField on a non-object"
       end
     | F.SetAttrObj (pattr, field, newval, env') ->
       [{state with control = Frame (Exp field, F.SetAttrField (pattr, v, newval, env'));
@@ -542,16 +545,19 @@ struct
               let newobj = O.set_attr o pattr s newval in
               let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
               [{state with control = Val `True; env = env'; ostore = ostore'}]
-            | `ObjT -> failwith "TODO: SetAttrNewval frame"
+            | `ObjT -> failwith "SetAttrNewval: object too abstracted"
           end
-        | _ -> failwith "TODO: SetAttrNewval frame"
+        | `ObjT, _ -> failwith "SetAttrNewval: object too abstracted"
+        | _ -> failwith "SetAttrNewval on a non-object or non-string attribute"
       end
     | F.GetObjAttr (oattr, env') -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
           | `Obj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
-          | `ObjT -> failwith "TODO: GetObjAttr"
+          | `ObjT ->
+            (* TODO: Could be more precise here *)
+            [{state with control = Val `Top; env = env'}]
           end
-        | `ObjT -> failwith "TODO: GetObjAttr"
+        | `ObjT -> failwith "GetObjAttr: object too abstracted"
         | _ -> failwith "GetObjAttr on a non-object"
       end
     | F.OwnFieldNames env' -> begin match v with
@@ -573,9 +579,9 @@ struct
             let addr = alloc_obj "obj" obj' state in
             let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
             [{state with control = Val (`Obj addr); ostore = ostore'}]
-          | `ObjT -> failwith "TODO: OwnFieldNames"
+          | `ObjT -> failwith "OwnFieldNames: object too abstracted"
           end
-        | `ObjT -> failwith "TODO: OwnFieldNames"
+        | `ObjT -> failwith "OwnFieldNames: object too abstracted"
         | _ -> failwith "OwnFieldNames on a non-object"
       end
     | F.Rec (name, a, body, env') ->
