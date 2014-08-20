@@ -71,10 +71,13 @@ module KCFA : functor (K : KCFA_arg) -> Time_signature =
     let tick p t = BatList.take K.k (p :: t)
   end
 
+type 'a addr_kind = [ `ObjAddress of 'a | `VarAddress of 'a ]
+
 module type Address_signature =
   functor (T : Time_signature) ->
   sig
-    type t
+    type a
+    type t = a addr_kind
     val compare : t -> t -> int
     val to_string : t -> string
     val alloc_obj : string -> T.t -> t
@@ -85,7 +88,8 @@ module type Address_signature =
 module MakeAddress : Address_signature =
   functor (T : Time_signature) ->
 struct
-  type t = [ `ObjAddress of string * T.t | `VarAddress of string * T.t ]
+  type a = (string * T.t)
+  type t = a addr_kind
   let compare x y = match x, y with
     | `ObjAddress (id, t), `ObjAddress (id', t') 
     | `VarAddress (id, t), `VarAddress (id', t') ->

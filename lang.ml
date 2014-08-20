@@ -116,7 +116,7 @@ struct
             acc
           else
             begin match ObjectStore.lookup a ostore with
-              | `Obj obj -> aux_obj acc (AddressSet.add a visited_objs) obj
+              | `Obj obj -> aux_obj (AddressSet.add a acc) (AddressSet.add a visited_objs) obj
               | `ObjT -> failwith "touch: a value was too abtsract"
             end
         | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
@@ -162,8 +162,9 @@ struct
       AddressSet.union ss (control_root state.control state.env state.vstore state.ostore)
 
     let touching_rel1 vstore ostore addr =
-      try
-        touch vstore ostore (ValueStore.lookup addr vstore)
+      try match addr with
+        | `ObjAddress _ -> touch vstore ostore (`Obj addr)
+        | `VarAddress _ -> touch vstore ostore (ValueStore.lookup addr vstore)
       with Not_found ->
         print_endline ("Value not found at address " ^ (Address.to_string addr));
         raise Not_found
