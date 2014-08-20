@@ -35,9 +35,9 @@ module Make =
 
     let join a v store =
       if AddrMap.mem a store then begin
-        print_endline ("Joining: " ^ (Elt.to_string v) ^ " and " ^
+        print_endline ("\027[31mJoining: " ^ (Elt.to_string v) ^ " and " ^
                       (Elt.to_string (AddrMap.find a store)) ^
-                      " at location " ^ (Address.to_string a));
+                      " at location " ^ (Address.to_string a) ^ "\027[0m");
         AddrMap.add a (Elt.join (AddrMap.find a store) v) store
       end
       else
@@ -54,7 +54,7 @@ module Make =
           if (AddressSet.mem a addrs) then
             true
           else begin
-            print_endline ("\027[31mreclaim(" ^ (Address.to_string a) ^ ")\027[0m");
+            print_endline ("\027[32mreclaim(" ^ (Address.to_string a) ^ ")\027[0m");
             false
           end)
 

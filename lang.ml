@@ -381,98 +381,99 @@ struct
       end
     | _ -> failwith "Applied non-function"
 
-  let apply_frame v frame (state : state) : state = match frame with
+  let apply_frame v frame (state : state) : state list = match frame with
     | F.Let (id, body, env') ->
       let a = alloc_val id id state in
       let env'' = Env.extend id a env' in
       let vstore' = ValueStore.join a v state.vstore in
-      {state with control = Exp body; env = env''; vstore = vstore'}
+      [{state with control = Exp body; env = env''; vstore = vstore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | F.ObjectAttrs (name, obj, [], [], env') ->
       let obj' = O.set_attr_str obj name v in
       let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
-      {state with control = Val (`Obj a); env = env';  ostore = ostore'}
+      [{state with control = Val (`Obj a); env = env';  ostore = ostore'}]
     | F.ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
       let obj' = O.set_attr_str obj name v in
-      {state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
-                  env = env'}
+      [{state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
+                   env = env'}]
     | F.ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
       let obj' = O.set_attr_str obj name v in
-      {state with control = Frame (Exp attr, F.ObjectAttrs (name', obj', attrs, props, env'));
-                  env = env'}
+      [{state with control = Frame (Exp attr, F.ObjectAttrs (name', obj', attrs, props, env'));
+                   env = env'}]
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | F.PropData ((data, enum, config), env') ->
-      {state with control = PropVal (O.Data ({data with O.value = v}, enum, config));
-                  env = env'}
+      [{state with control = PropVal (O.Data ({data with O.value = v}, enum, config));
+                   env = env'}]
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
     | F.PropAccessor (None, (accessor, enum, config), env') ->
-      {state with control = PropVal (O.Accessor ({accessor with O.setter = v}, enum, config));
-                  env = env'}
+      [{state with control = PropVal (O.Accessor ({accessor with O.setter = v}, enum, config));
+                   env = env'}]
     | F.PropAccessor (Some exp, (accessor, enum, config), env') ->
-      {state with
-       control = Frame (Exp exp, (F.PropAccessor (None, ({accessor with O.getter = v},
-                                                         enum, config), env')));
-       env = env'}
+      [{state with
+        control = Frame (Exp exp, (F.PropAccessor (None, ({accessor with O.getter = v},
+                                                          enum, config), env')));
+        env = env'}]
     | F.Seq (exp, env') ->
-      {state with control = Exp exp; env = env'}
+      [{state with control = Exp exp; env = env'}]
     | F.AppFun ([], env') ->
       let (exp, state') = apply_fun v [] state in
-      {state' with control = Exp exp}
+      [{state' with control = Exp exp}]
     | F.AppFun (arg :: args, env') ->
-      {state with control = Frame (Exp arg, (F.AppArgs (v, [], args, env')));
-                  env = env'}
+      [{state with control = Frame (Exp arg, (F.AppArgs (v, [], args, env')));
+                   env = env'}]
     | F.AppArgs (f, vals, [], env') ->
       let (exp, state') = apply_fun f (BatList.rev (v :: vals)) state in
-      {state' with control = Exp exp}
+      [{state' with control = Exp exp}]
     | F.AppArgs (f, vals, arg :: args, env') ->
-      {state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
-                  env = env'}
+      [{state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
+                   env = env'}]
     | F.Op1App (op, env') ->
-      {state with control = Val (D.op1 state.ostore op v);
-                  env = env'}
+      [{state with control = Val (D.op1 state.ostore op v);
+                   env = env'}]
     | F.Op2Arg (op, arg2, env') ->
-      {state with control = Frame (Exp arg2, (F.Op2App (op, v, env')));
-                  env = env'}
+      [{state with control = Frame (Exp arg2, (F.Op2App (op, v, env')));
+                   env = env'}]
     | F.Op2App (op, arg1, env') ->
-      {state with control = Val (D.op2 state.ostore op arg1 v);
-                  env = env'}
+      [{state with control = Val (D.op2 state.ostore op arg1 v);
+                   env = env'}]
     | F.If (cons, alt, env') -> begin match v with
-        | `True -> {state with control = Exp cons; env = env'}
-        | `BoolT | `Top -> failwith "TODO: two if possibilities (If frame)"
-        | _ -> {state with control = Exp alt; env = env'}
+        | `True -> [{state with control = Exp cons; env = env'}]
+        | `BoolT | `Top -> [{state with control = Exp cons; env = env'};
+                            {state with control = Exp alt; env = env'}]
+        | _ -> [{state with control = Exp alt; env = env'}]
       end
     | F.GetFieldObj (field, body, env') ->
-      {state with control = Frame (Exp field, F.GetFieldField (v, body, env'));
-                  env = env'}
+      [{state with control = Frame (Exp field, F.GetFieldField (v, body, env'));
+                   env = env'}]
     | F.GetFieldField (obj, body, env') ->
-      {state with control = Frame (Exp body, F.GetFieldBody (obj, v, env'));
-                  env = env'}
+      [{state with control = Frame (Exp body, F.GetFieldBody (obj, v, env'));
+                   env = env'}]
     | F.GetFieldBody (obj, field, env') ->
       let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
           begin match get_prop (`Obj a) s state.ostore with
             | Some (O.Data ({O.value = v; _}, _, _)) ->
-              {state with control = Val v; env = env'}
+              [{state with control = Val v; env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
               let (body, state') = apply_fun g [obj; body] state in
-              {state' with control = Frame (Exp body, F.RestoreEnv env')}
-            | None -> {state with control = Val `Undef; env = env'}
+              [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
+            | None -> [{state with control = Val `Undef; env = env'}]
           end
         | `Obj _, `StrT -> failwith "TODO: GetFieldBody frame"
         | `ObjT, _ -> failwith "TODO: GetFieldBody frame"
         | _ -> failwith "TODO: GetFieldBody frame"
       end
     | F.SetFieldObj (field, newval, body, env') ->
-      {state with control = Frame (Exp field, F.SetFieldField (v, newval, body, env'));
-                  env = env'}
+      [{state with control = Frame (Exp field, F.SetFieldField (v, newval, body, env'));
+                   env = env'}]
     | F.SetFieldField (obj, newval, body, env') ->
-      {state with control = Frame (Exp newval, F.SetFieldNewval (obj, v, body, env'));
-                  env = env'}
+      [{state with control = Frame (Exp newval, F.SetFieldNewval (obj, v, body, env'));
+                   env = env'}]
     | F.SetFieldNewval (obj, field, body, env') ->
-      {state with control = Frame (Exp body, F.SetFieldArgs (obj, field, v, env'));
-                  env = env'}
+      [{state with control = Frame (Exp body, F.SetFieldArgs (obj, field, v, env'));
+                   env = env'}]
     | F.SetFieldArgs (obj, field, newval, env') ->
       let body = v in
       begin match obj, field with
@@ -489,13 +490,13 @@ struct
                       (O.Data ({O.value = newval; O.writable = `True},
                                enum, config)) in
                   let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                  {state with control = Val newval; env = env'; ostore = ostore'}
+                  [{state with control = Val newval; env = env'; ostore = ostore'}]
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
                   failwith "unwritable" (* TODO: throw *)
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
                   let (exp, state') = apply_fun setter [obj; body] state in
-                  {state' with control = Frame (Exp exp, F.RestoreEnv env')}
+                  [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
                 | None ->
                   match extensible with
                   | `True ->
@@ -503,9 +504,9 @@ struct
                         (O.Data ({O.value = newval; O.writable = `True},
                                  `True, `True)) in
                     let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                    {state with control = Val newval; env = env'; ostore = ostore'}
+                    [{state with control = Val newval; env = env'; ostore = ostore'}]
                   | `False ->
-                    {state with control = Val `Undef}
+                    [{state with control = Val `Undef}]
                   | _ -> failwith "TODO: SetFieldArgs frame"
               end
             | `ObjT -> failwith "TODO: SetFieldArgs frame"
@@ -513,25 +514,25 @@ struct
         | _ -> failwith "update field"
       end
     | F.GetAttrObj (pattr, field, env') ->
-      {state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
-                  env = env'}
+      [{state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
+                   env = env'}]
     | F.GetAttrField (pattr, obj, env') ->
       let field = v in
       begin match obj with
         | `Obj a ->
           begin match ObjectStore.lookup a state.ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
-              {state with control = Val attr; env = env'}
+              [{state with control = Val attr; env = env'}]
             | `ObjT -> failwith "TODO: GetAttrField frame"
           end
         | _ -> failwith "TODO: GetAttrField frame"
       end
     | F.SetAttrObj (pattr, field, newval, env') ->
-      {state with control = Frame (Exp field, F.SetAttrField (pattr, v, newval, env'));
-                  env = env'}
+      [{state with control = Frame (Exp field, F.SetAttrField (pattr, v, newval, env'));
+                   env = env'}]
     | F.SetAttrField (pattr, obj, newval, env') ->
-      {state with control = Frame (Exp newval, F.SetAttrNewval (pattr, obj, v, env'));
-                  env = env'}
+      [{state with control = Frame (Exp newval, F.SetAttrNewval (pattr, obj, v, env'));
+                   env = env'}]
     | F.SetAttrNewval (pattr, obj, field, env') ->
       let newval = v in
       begin match obj, field with
@@ -540,14 +541,14 @@ struct
             | `Obj o ->
               let newobj = O.set_attr o pattr s newval in
               let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-              {state with control = Val `True; env = env'; ostore = ostore'}
+              [{state with control = Val `True; env = env'; ostore = ostore'}]
             | `ObjT -> failwith "TODO: SetAttrNewval frame"
           end
         | _ -> failwith "TODO: SetAttrNewval frame"
       end
     | F.GetObjAttr (oattr, env') -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
-          | `Obj obj -> {state with control = Val (O.get_obj_attr obj oattr); env = env'}
+          | `Obj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
           | `ObjT -> failwith "TODO: GetObjAttr"
           end
         | `ObjT -> failwith "TODO: GetObjAttr"
@@ -571,7 +572,7 @@ struct
             let obj' = (O.d_attrsv , final_props) in
             let addr = alloc_obj "obj" obj' state in
             let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
-            {state with control = Val (`Obj addr); ostore = ostore'}
+            [{state with control = Val (`Obj addr); ostore = ostore'}]
           | `ObjT -> failwith "TODO: OwnFieldNames"
           end
         | `ObjT -> failwith "TODO: OwnFieldNames"
@@ -579,9 +580,9 @@ struct
       end
     | F.Rec (name, a, body, env') ->
       let vstore = ValueStore.set a v state.vstore in
-      {state with control = Exp body; vstore = vstore}
+      [{state with control = Exp body; vstore = vstore}]
     | F.RestoreEnv env' ->
-      {state with control = Val v; env = env'}
+      [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
 
   let apply_frame_prop v frame (state : state) : state = match frame with
@@ -617,7 +618,7 @@ struct
       | Prop p -> step_prop p conf
       | Val v -> begin match frame with
           | Some ((_, ss'), frame) ->
-            [StackPop frame, (apply_frame v frame state, ss')]
+            BatList.map (fun state -> (StackPop frame, (state, ss'))) (apply_frame v frame state)
           | None ->
             []
         end

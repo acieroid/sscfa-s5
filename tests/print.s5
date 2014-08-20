@@ -723,73 +723,57 @@
                             'length' : {#value (0.) ,
                                         #writable false ,
                                         #configurable false}})
-   {let (%mkArgsObjBase = func(args)
-     {{let (keys = get-own-field-names(args))
+   {let (%mkArgsObjBase = func(args) {
+     {let (keys = get-own-field-names(args))
      {let (argsObj = {[#proto: %ObjectProto,
-     #class: "Arguments",
-     #extensible: true,]
-     'callee' : {#getter %ThrowTypeError ,
-     #setter %ThrowTypeError},
-     'caller' : {#getter %ThrowTypeError ,
-     #setter %ThrowTypeError}})
-     {argsObj
-     ["callee"
-     <#configurable>=false];
-     argsObj
-     ["caller"
-     <#configurable>=false];
-     rec (loop = func
-     (iter)
-     {{let (strx = %ToString
-     (iter))
-     if (prim
-     ("hasOwnProperty", keys , strx))
-     {%defineOwnProperty
-     (argsObj,
-     strx,
-     {[#proto: null,
-     #class: "Object",
-     #extensible: true,]
-     'value' : {#value (args
-     [strx , {[#proto: null,
-     #class: "Object",
-     #extensible: true,]}]) ,
-     #writable false ,
-     #configurable false},
-     'writable' : {#value (true) ,
-     #writable false ,
-     #configurable false},
-     'configurable' : {#value (true) ,
-     #writable false ,
-     #configurable false},
-     'enumerable' : {#value (true) ,
-     #writable false ,
-     #configurable false}});
-     loop
-     (prim
-     ("+", iter , 1.))}
-     else
-     {%defineOwnProperty
-     (argsObj,
-     "length",
-     {[#proto: null,
-     #class: "Object",
-     #extensible: true,]
-     'value' : {#value (iter) ,
-     #writable false ,
-     #configurable false},
-     'writable' : {#value (true) ,
-     #writable false ,
-     #configurable false},
-     'configurable' : {#value (true) ,
-     #writable false ,
-     #configurable false},
-     'enumerable' : {#value (false) ,
-     #writable false ,
-     #configurable false}})}}})
-     {loop
-     (0.);
-     argsObj}}}}})
+                       #class: "Arguments",
+                       #extensible: true,]
+                      'callee' : {#getter %ThrowTypeError ,
+                                  #setter %ThrowTypeError},
+                                  'caller' : {#getter %ThrowTypeError ,
+                                              #setter %ThrowTypeError}})
+     {argsObj["callee"<#configurable>=false];
+      argsObj["caller"<#configurable>=false];
+      rec (loop = func(iter) {
+        {let (strx = %ToString(iter))
+        if (prim("hasOwnProperty", keys , strx)) {
+          %defineOwnProperty(argsObj, strx, {[#proto: null,
+                                              #class: "Object",
+                                              #extensible: true,]
+                                             'value' : {#value (args[strx , {[#proto: null,
+                                                                                  #class: "Object",
+                                                                                  #extensible: true,]}]) ,
+                                                                                  #writable false ,
+                                                                                  #configurable false},
+                                                                             'writable' : {#value (true) ,
+                                                                                           #writable false ,
+                                                                                           #configurable false},
+                                                                             'configurable' : {#value (true) ,
+                                                                                               #writable false ,
+                                                                                               #configurable false},
+                                                                             'enumerable' : {#value (true) ,
+                                                                                             #writable false ,
+                                                                                             #configurable false}});
+          loop(prim("+", iter , 1.))
+        } else {
+          %defineOwnProperty(argsObj, "length", {[#proto: null,
+                                                  #class: "Object",
+                                                  #extensible: true,]
+                                                'value' : {#value (iter) ,
+                                                           #writable false ,
+                                                           #configurable false},
+                                                'writable' : {#value (true) ,
+                                                              #writable false ,
+                                                              #configurable false},
+                                                             'configurable' : {#value (true) ,
+                                                                               #writable false ,
+                                                                               #configurable false},
+                                                             'enumerable' : {#value (false) ,
+                                                                             #writable false ,
+                                                                             #configurable false}})
+        }}})
+      {loop(0.);
+       argsObj}}}}})
    {let (%mkArgsObj = func(args)
      {{let (argsObj = %mkArgsObjBase
      (args))
@@ -807,7 +791,7 @@
      <#writable>=false];
      argsObj}}})
    {let (%context = %nonstrictContext)
-     {%defineGlobalAccessors(%context,"print");
+     {//%defineGlobalAccessors(%context,"print");
      {let (#strict = false)
      {let (%fun2 = %context["print" , {[#proto: null,
                                         #class: "Object",

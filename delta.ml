@@ -12,10 +12,6 @@ module O = Obj_val
 
 exception PrimErr of string
 
-let to_int v = match v with
-  | `Num x -> int_of_float x
-  | _ -> raise (PrimErr "to-int")
-
 let typeof ostore = function
   | `Undef -> AValue.str "undefined"
   | `Null -> AValue.str "null"
@@ -35,11 +31,11 @@ let typeof ostore = function
   | _ -> `StrT
 
 let is_closure store v = match v with
-  | `Clos _ -> `True
+  | `Clos _ | `ClosT-> `True
   | _ -> `False
 
 let is_primitive store v = match v with
-  | `Undef | `Null | `Str _ | `Num _ | `True | `False -> `True
+  | `Undef | `Null | `Str _ | `StrT | `Num _ | `NumT | `True | `False | `BoolT -> `True
   | _ -> `False
 
 let float_str n =
@@ -76,35 +72,40 @@ let prim_to_str store v = match v with
       else AValue.str fs
   | `True -> AValue.str "true"
   | `False -> AValue.str "false"
-  | _ -> `StrT
+  | `BoolT | `NumT | `StrT -> `StrT
+  | _ -> raise (PrimErr ("prim_to_str with value " ^ (AValue.to_string v)))
 
 let strlen store s = match s with
   | `Str s -> `Num (float_of_int (String.length s))
-  | _ -> `NumT
+  | `StrT -> `NumT
+  | _ -> raise (PrimErr ("strlen with value " ^ (AValue.to_string s)))
 
   (* Section 9.3, excluding objects *)
-let prim_to_num store v = AValue.num (match v with
-  | `Undef -> nan
-  | `Null -> 0.0
-  | `True -> 1.0
-  | `False -> 0.0
-  | `Num x -> x
-  | `Str "" -> 0.0
-  | `Str s -> (try float_of_string s with Failure _ -> nan)
-  | _ -> raise (PrimErr ("prim_to_num with value " ^ (AValue.to_string v))))
+let prim_to_num store v = match v with
+  | `Undef -> `Num nan
+  | `Null -> `Num 0.0
+  | `True -> `Num 1.0
+  | `False -> `Num 0.0
+  | `Num x -> `Num x
+  | `Str "" -> `Num 0.0
+  | `Str s -> `Num (try float_of_string s with Failure _ -> nan)
+  | `BoolT | `NumT | `StrT -> `NumT
+  | _ -> raise (PrimErr ("prim_to_num with value " ^ (AValue.to_string v)))
 
-let prim_to_bool store v = AValue.bool (match v with
-  | `Num x -> not (x == nan || x = 0.0 || x = -0.0)
-  | `Str s -> not (String.length s = 0)
+let prim_to_bool store v = match v with
+  | `Num x -> AValue.bool (not (x == nan || x = 0.0 || x = -0.0))
+  | `Str s -> AValue.bool (not (String.length s = 0))
+  | `BoolT | `NumT | `StrT -> `BoolT
   | `False
   | `Undef
-  | `Null -> false
+  | `Null -> `False
   | `True
-  | _ -> true)
+  | _ -> `True
 
+(* TODO: how to deal with such side effects in an abstract interpreter? *)
 let print store v = match v with
   | `Str s -> printf "%s\n%!" s; `Undef
-  | `Num n -> let s = string_of_float n in printf "%S\n" s; `Undef
+  | `Num n -> let s = string_of_float n in printf "%S\n%!" s; `Undef
   | _ -> printf "%s\n%!" (AValue.to_string v); `Undef
 (*  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v) *)
 
@@ -115,9 +116,7 @@ let is_extensible ostore obj = match obj with
   | `Obj loc -> begin match ObjectStore.lookup loc ostore with
     | `Obj ({ O.extensible = ext; _ }, _) -> ext
     end
-(* OSet.fold
-      (fun ({ exten=exten }, _) acc -> AValue.join acc exten)
-      (get_objs loc store) `Bot *)
+  | `ObjT -> `BoolT
   | _ -> raise (PrimErr "is-extensible")
 
   (* Implement this here because there's no need to expose the class
@@ -130,11 +129,7 @@ let object_to_string (ostore : ObjectStore.t) obj = match obj with
         end
       | `ObjT -> `StrT
     end
-(*  OSet.fold
-      (fun ({ klass=kls }, _) acc -> match kls with
-      | `Str s -> AValue.join acc (AValue.str ("[object "^s^"]"))
-      | _ -> `Top)
-      (get_objs loc store) `Bot *)
+  | `ObjT -> `StrT
   | _ -> raise (PrimErr "object-to-string, wasn't given object")
 
 let is_array ostore obj = match obj with
@@ -146,16 +141,12 @@ let is_array ostore obj = match obj with
       end
     | `ObjT -> `BoolT
     end
-(*  OSet.fold
-      (fun ({ klass=kls }, _) acc -> match kls with
-      | `Str "Array" -> AValue.join acc `True
-      | `Str _ -> AValue.join acc `False
-      | _ -> `Top)
-      (get_objs loc store) `Bot *)
+  | `ObjT -> `BoolT
   | _ -> raise (PrimErr "is-array")
 
 let to_int32 store v = match v with
   | `Num d -> `Num (float_of_int (int_of_float d))
+  | `NumT -> `NumT
   | _ -> raise (PrimErr "to-int")
 
 let nnot store e = match e with
@@ -166,57 +157,71 @@ let nnot store e = match e with
   | `Str s when (s = "") -> `True
   | `Num _
   | `Str _
-  | `Obj _
-  | `Clos _
+  | `Obj _ | `ObjT
+  | `Clos _ | `ClosT
   | `True -> `False
+  | `NumT | `StrT | `BoolT | `Top -> `BoolT
   | _ -> raise (PrimErr "nnot fallthrough")
 
 let void store v = `Undef
 
-let floor' store =
-  function `Num d -> `Num (floor d) | _ -> raise (PrimErr "floor")
+let floor' store = function
+  | `Num d -> `Num (floor d)
+  | `NumT -> `NumT
+  | _ -> raise (PrimErr "floor")
 
-let ceil' store =
-  function `Num d -> `Num (ceil d) | _ -> raise (PrimErr "ceil")
+let ceil' store = function
+  | `Num d -> `Num (ceil d)
+  | `NumT -> `NumT
+  | _ -> raise (PrimErr "ceil")
 
-let absolute store =
-  function `Num d -> `Num (abs_float d) | _ -> raise (PrimErr "abs")
+let absolute store = function
+  | `Num d -> `Num (abs_float d)
+  | `NumT -> `NumT
+  | _ -> raise (PrimErr "abs")
 
-let log' store =
-  function `Num d -> `Num (log d ) | _ -> raise (PrimErr "log")
+let log' store = function
+  | `Num d -> `Num (log d)
+  | `NumT -> `NumT
+  | _ -> raise (PrimErr "log")
 
 let ascii_ntoc store n = match n with
   | `Num d -> `Str (String.make 1 (Char.chr (int_of_float d)))
+  | `NumT -> `StrT
   | _ -> raise (PrimErr "ascii_ntoc")
 let ascii_cton store c = match c with
   | `Str s -> `Num (float_of_int (Char.code (String.get s 0)))
+  | `StrT -> `NumT
   | _ -> raise (PrimErr "ascii_cton")
 
 let to_lower store = function
   | `Str s -> `Str (String.lowercase s)
+  | `StrT -> `StrT
   | _ -> raise (PrimErr "to_lower")
 
 let to_upper store = function
   | `Str s -> `Str (String.uppercase s)
+  | `StrT -> `StrT
   | _ -> raise (PrimErr "to_lower")
 
 let bnot store = function
   | `Num d -> `Num (float_of_int (lnot (int_of_float d)))
+  | `NumT -> `NumT
   | _ -> raise (PrimErr "bnot")
 
 let sine store = function
   | `Num d -> `Num (sin d)
+  | `NumT -> `NumT
   | _ -> raise (PrimErr "sin")
 
 let numstr store = function
   | `Str "" -> `Num 0.
   | `Str s -> `Num (try float_of_string s with Failure _ -> nan)
+  | `StrT -> `NumT
   | _ -> raise (PrimErr "numstr")
 
 let current_utc store = function
-  | _ -> `Num (Unix.gettimeofday ())
-
-
+  | _ -> `NumT
 
 let op1 (store : ObjectStore.t) op : AValue.t -> AValue.t =
   match op with
@@ -254,35 +259,26 @@ let op1 (store : ObjectStore.t) op : AValue.t -> AValue.t =
   | "!" -> nnot store
   | "sin" -> sine store
   | _ ->
-    raise (PrimErr ("no implementation of unary operator: " ^ op))(* in
-  ((fun v -> match v with
-  | `Delay _ -> failwith "op1 got a delay"
-  | `Top -> `Top
-  | `Bot -> `Bot
-  | _ -> f v) : (value -> value))*)
+    raise (PrimErr ("no implementation of unary operator: " ^ op))
 
-let arith store s i_op f_op v1 v2 = match v1, v2 with
+let arith store s f_op v1 v2 = match v1, v2 with
   | `Num x, `Num y -> `Num (f_op x y)
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `NumT
   | v1, v2 -> raise (PrimErr "arith got non-numbers")
-  (*
-    raise (PrimErr ("arithmetic operator: " ^ s ^
-    " got non-numbers: " ^ (pretty_value v1) ^
-    ", " ^ (pretty_value v2) ^ "perhaps " ^
-    "something wasn't desugared fully?"))) *)
 
-let arith_sum store = arith store "+" (+) (+.)
+let arith_sum store = arith store "+" (+.)
 
-let arith_sub store = arith store "-" (-) (-.)
+let arith_sub store = arith store "-" (-.)
 
-  (* OCaml syntax failure! Operator section syntax lexes as a comment. *)
-let arith_mul store = arith store "*" (fun m n -> m * n) (fun x y -> x *. y)
+let arith_mul store = arith store "*" ( *. )
 
-let arith_div store x y = try arith store "/" (/) (/.) x y
+let arith_div store x y = try arith store "/" (/.) x y
   with Division_by_zero -> `Num infinity
 
-let arith_mod store x y = try arith store "mod" (mod) mod_float x y
+let arith_mod store x y = try arith store "mod" mod_float x y
   with Division_by_zero -> `Num nan
 
+(* TODO: abstract those (arith_lt, arith_le, arith_gt, arith_ge) *)
 let arith_lt store x y = AValue.bool (x < y)
 
 let arith_le store x y = AValue.bool (x <= y)
@@ -291,60 +287,76 @@ let arith_gt store x y = AValue.bool (x > y)
 
 let arith_ge store x y = AValue.bool (x >= y)
 
-let bitwise_and store v1 v2 = `Num (float_of_int ((to_int v1) land (to_int v2)))
+let bin_float op x y = float_of_int (op (int_of_float x) (int_of_float y))
 
-let bitwise_or store v1 v2 = `Num (float_of_int ((to_int v1) lor (to_int v2)))
+let bitwise_and store = arith store "&" (bin_float (land))
 
-let bitwise_xor store v1 v2 = `Num (float_of_int ((to_int v1) lxor (to_int v2)))
+let bitwise_or store = arith store "|" (bin_float (lor))
 
-let bitwise_shiftl store v1 v2 = `Num (float_of_int ((to_int v1) lsl (to_int v2)))
+let bitwise_xor store = arith store "^" (bin_float (lxor))
 
-let bitwise_zfshiftr store v1 v2 = `Num (float_of_int ((to_int v1) lsr (to_int v2)))
+let bitwise_shiftl store = arith store "<<" (bin_float (lsl))
 
-let bitwise_shiftr store v1 v2 = `Num (float_of_int ((to_int v1) asr (to_int v2)))
+let bitwise_zfshiftr store = arith store ">>>" (bin_float (lsr))
+
+let bitwise_shiftr store = arith store ">>" (bin_float (asr))
 
 let string_plus store v1 v2 = match v1, v2 with
-  | `Str s1, `Str s2 ->
-    `Str (s1 ^ s2)
+  | `Str s1, `Str s2 -> `Str (s1 ^ s2)
+  | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT -> `StrT
   | _ -> raise (PrimErr "string concatenation")
 
 let string_lessthan store v1 v2 = match v1, v2 with
   | `Str s1, `Str s2 -> AValue.bool (s1 < s2)
+  | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT -> `BoolT
   | _ -> raise (PrimErr "string less than")
 
-let stx_eq store v1 v2 = AValue.bool (match v1, v2 with
-  | `Num x1, `Num x2 -> x1 = x2
-  | `Str x1, `Str x2 -> x1 = x2
+let stx_eq store v1 v2 = match v1, v2 with
+  | `Num x1, `Num x2 -> AValue.bool (x1 = x2)
+  | `Str x1, `Str x2 -> AValue.bool (x1 = x2)
   | `Undef, `Undef
   | `Null, `Null
   | `False, `False
-  | `True, `True -> true
-  | _ -> v1 == v2 (* otherwise, pointer equality *))
+  | `True, `True -> `True
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
+  | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
+  | `BoolT, `True | `True, `BoolT | `BoolT, `False | `False, `BoolT
+  | `BoolT, `BoolT -> `BoolT
+  | _ -> AValue.bool (v1 == v2) (* otherwise, pointer equality *)
 
   (* Algorithm 11.9.3, steps 1 through 19. Steps 20 and 21 are desugared to
      access the heap. *)
-let abs_eq store v1 v2 = AValue.bool
-  (if v1 = v2 then (* works correctly on floating point values *)
-    true
-  else match v1, v2 with
+let abs_eq store v1 v2 = match v1, v2 with
   | `Null, `Undef
-  | `Undef, `Null -> true
+  | `Undef, `Null -> `True
+  | `Str s1, `Str s2 when s1 = s2 -> `True
+  | `Num x, `Num y when x = y -> `True
   | `Str s, `Num x
   | `Num x, `Str s ->
-    (try x = float_of_string s with Failure _ -> false)
-  | `Num x, `True | `True, `Num x -> x = 1.0
-  | `Num x, `False | `False, `Num x -> x = 0.0
-  | _ -> false)
+    (try AValue.bool (x = float_of_string s) with Failure _ -> `False)
+  | `Num x, `True | `True, `Num x -> AValue.bool (x = 1.0)
+  | `Num x, `False | `False, `Num x -> AValue.bool (x = 0.0)
+  | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
+  | `StrT, `Num _ | `StrT, `NumT | `Num _, `StrT | `NumT, `StrT
+  | `NumT, `True | `True, `NumT | `NumT, `False | `False, `NumT
+  | `Num _, `BoolT | `BoolT, `Num _ | `NumT, `BoolT | `BoolT, `NumT ->
+    `BoolT
+  | _ -> `False
   (* TODO: are these all the cases? *)
 
   (* Algorithm 9.12, the SameValue algorithm.
      This gives "nan = nan" and "+0 != -0". *)
-let same_value store v1 v2 = AValue.bool (match v1, v2 with
+let same_value store v1 v2 = match v1, v2 with
   | `Num x, `Num y ->
-    if x = 0. && y = 0.
-    then 1. /. x = 1. /. y
-    else Pervasives.compare x y = 0
-  | _ -> Pervasives.compare v1 v2 = 0)
+    AValue.bool (if x = 0. && y = 0.
+                 then 1. /. x = 1. /. y
+                 else Pervasives.compare x y = 0)
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
+  | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
+  | `BoolT, `True | `True, `BoolT | `BoolT, `False | `True, `BoolT
+  | `BoolT, `BoolT -> `BoolT
+  | _ -> AValue.bool (Pervasives.compare v1 v2 = 0)
 
 let rec has_property ostore obj field = match obj, field with
   | `Obj loc, _ -> begin match ObjectStore.lookup loc ostore with
@@ -353,14 +365,9 @@ let rec has_property ostore obj field = match obj, field with
         `True
       else
         has_property ostore proto field
-    | `ObjT -> `Top
+    | `ObjT -> `BoolT
     end
-    (* OSet.fold
-      (fun ({ proto=proto }, props) acc -> begin
-        AValue.join acc
-          (if PropMap.mem field props then `True
-           else has_property store proto field) end)
-      (get_objs loc store) `Bot *)
+  | `ObjT, _ -> `BoolT
   | _ -> `False
 
 let has_own_property ostore obj field = match obj, field with
@@ -369,14 +376,11 @@ let has_own_property ostore obj field = match obj, field with
         AValue.bool (O.has_prop o field)
       | `ObjT -> `BoolT
     end
-(*  OSet.fold
-      (fun (_, props) acc -> AValue.join acc (AValue.bool (PropMap.mem field props)))
-      (get_objs loc store) `Bot *)
+  | `Obj _, `StrT | `ObjT, `Str _ | `ObjT, `StrT -> `BoolT
   | `Obj loc, _ ->
     raise (PrimErr "has-own-property: field not a string")
   | _, `Str s ->
-    begin print_endline (AValue.to_string obj);
-    raise (PrimErr ("has-own-property: obj not an object for field " ^ s)) end
+    raise (PrimErr ("has-own-property: obj not an object for field " ^ s))
   | _ ->
     raise (PrimErr "has-own-property: neither an object nor a string")
 
@@ -410,20 +414,24 @@ let get_base store n r = match n, r with
   | `Num x, `Num y ->
     let result = base store (abs_float x) (abs_float y) in
     `Str (if x < 0.0 then "-" ^ result else result)
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `StrT
   | _ -> raise (PrimErr "base got non-numbers")
 
 let char_at store a b  = match a, b with
   | `Str s, `Num n ->
     `Str (String.make 1 (String.get s (int_of_float n)))
+  | `StrT, `Num _ | `Str _, `NumT -> `StrT
   | _ -> raise (PrimErr "char_at didn't get a string and a number")
 
 let locale_compare store a b = match a, b with
   | `Str r, `Str s ->
     `Num (float_of_int (String.compare r s))
+  | `StrT, `Str _ | `Str _ , `StrT | `StrT, `StrT -> `NumT
   | _ -> raise (PrimErr "locale_compare didn't get 2 strings")
 
 let pow store a b = match a, b with
   | `Num base, `Num exp -> `Num (base ** exp)
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `NumT
   | _ -> raise (PrimErr "pow didn't get 2 numbers")
 
 let to_fixed store a b = match a, b with
@@ -442,6 +450,7 @@ let to_fixed store a b = match a, b with
               `Str (fixed_s)
          else let suffix = String.make (fint - decimal_chars) '0' in
               `Str (s ^ suffix)
+  | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `NumT
   | _ -> raise (PrimErr "to-fixed didn't get 2 numbers")
 
 let rec is_accessor ostore a b = match a, b with
@@ -457,14 +466,8 @@ let rec is_accessor ostore a b = match a, b with
         is_accessor ostore proto b
     | `ObjT -> `BoolT
     end
-(*    OSet.fold
-      (fun (attrs, props) acc ->
-        AValue.join acc
-          (if PropMap.mem b props then
-              match PropMap.lookup b props with Data _ -> `False | _ -> `True
-           else let { proto=proto } = attrs in is_accessor store proto b))
-      (get_objs loc store) `Bot *)
-  | `Null, `Str s -> raise (PrimErr "isAccessor topped out")
+  | `ObjT, `Str _ -> `BoolT
+  | `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
   | _ -> raise (PrimErr "isAccessor")
 
 let op2 (store : ObjectStore.t) op = match op with

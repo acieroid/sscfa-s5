@@ -100,7 +100,7 @@ module AddressSet = BatSet.Make(Address)
 let rec string_of_exp exp = match exp with
   | Null p -> "null"
   | Undefined _ -> "undef"
-  | String (_, v) -> "\""^v^"\""
+  | String (_, v) -> "'"^v^"'"
   | Num (_, f) -> (string_of_float f)
   | True _ -> "true"
   | False _ -> "false"
