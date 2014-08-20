@@ -163,7 +163,8 @@ let touched_addresses_from_values frame =
     | h :: t -> begin match h with
       | `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
       | `ClosT -> failwith "Closure was too abstracted"
-      (* TODO: what about objects? *)
+      | `Obj a -> aux (AddressSet.add a acc) t
+      | `ObjT -> failwith "Object was too abstracted"
       | _ -> aux acc t
       end in
     aux AddressSet.empty l

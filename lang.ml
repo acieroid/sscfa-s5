@@ -190,8 +190,10 @@ struct
         r AddressSet.empty
 
     let gc ((state, ss) : conf) : conf =
+      let r = reachable (state, ss) in
       ({state with
-        vstore = ValueStore.restrict (reachable (state, ss)) state.vstore},
+        vstore = ValueStore.restrict r state.vstore;
+        ostore = ObjectStore.restrict r state.ostore},
        ss)
   end
 
