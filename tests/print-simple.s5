@@ -1,0 +1,2 @@
+// Expected: undef
+prim("print", "foo")

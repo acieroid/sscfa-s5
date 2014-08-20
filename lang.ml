@@ -288,7 +288,7 @@ struct
       let free = S.free_vars body in
       let env' = Env.keep free state.env in
       unch (Val (`Clos (env', args, body))) conf
-    | S.Object (_, attrs, props) ->
+    | S.Object (p, attrs, props) ->
       let {S.primval = pexp;
            S.code = cexp;
            S.proto = proexp;
@@ -314,7 +314,7 @@ struct
           push (F.ObjectProps (prop, obj, props, state.env))
             ({state with control = Prop exp}, ss)
         | (attr, exp)::attrs, props ->
-          push (F.ObjectAttrs (attr, obj, attrs, props, state.env))
+          push (F.ObjectAttrs (p, attr, obj, attrs, props, state.env))
             ({state with control = Exp exp}, ss)
       end
     | S.Let (p, id, exp, body) ->
@@ -393,18 +393,19 @@ struct
       let vstore' = ValueStore.join a v state.vstore in
       [{state with control = Exp body; env = env''; vstore = vstore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
-    | F.ObjectAttrs (name, obj, [], [], env') ->
+    | F.ObjectAttrs (p, name, obj, [], [], env') ->
       let obj' = O.set_attr_str obj name v in
       let a = alloc_obj name obj' state in
       let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
-      [{state with control = Val (`Obj a); env = env';  ostore = ostore'}]
-    | F.ObjectAttrs (name, obj, [], (name', prop) :: props, env') ->
+      [{state with control = Val (`Obj a); env = env';  ostore = ostore';
+                   time = Time.tick p state.time}]
+    | F.ObjectAttrs (_, name, obj, [], (name', prop) :: props, env') ->
       let obj' = O.set_attr_str obj name v in
       [{state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
                    env = env'}]
-    | F.ObjectAttrs (name, obj, (name', attr) :: attrs, props, env') ->
+    | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
       let obj' = O.set_attr_str obj name v in
-      [{state with control = Frame (Exp attr, F.ObjectAttrs (name', obj', attrs, props, env'));
+      [{state with control = Frame (Exp attr, F.ObjectAttrs (p, name', obj', attrs, props, env'));
                    env = env'}]
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | F.PropData ((data, enum, config), env') ->

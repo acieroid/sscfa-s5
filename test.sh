@@ -1,4 +1,5 @@
 #!/bin/sh
+echo -n > test.log
 LOGFILE=test.log
 RAN=0
 FAILED=0

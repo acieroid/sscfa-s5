@@ -68,7 +68,9 @@ module KCFA : functor (K : KCFA_arg) -> Time_signature =
     let initial = []
     let compare = Pervasives.compare
     let to_string t = string_of_list t Pos.string_of_pos
-    let tick p t = BatList.take K.k (p :: t)
+    let tick p t =
+      print_endline ("\027[34mtick\027[0m");
+      BatList.take K.k (p :: t)
   end
 
 type 'a addr_kind = [ `ObjAddress of 'a | `VarAddress of 'a ]
@@ -99,8 +101,12 @@ struct
   let to_string = function
     | `ObjAddress (id, t) -> "@obj-" ^ id
     | `VarAddress (id, t) -> "@var-" ^ id
-  let alloc_obj id t = `ObjAddress (id, t)
-  let alloc_var id t = `VarAddress (id, t)
+  let alloc_obj id t =
+    print_endline ("\027[33malloc_obj(" ^ (T.to_string t) ^ ")\027[0m");
+    `ObjAddress (id, t)
+  let alloc_var id t =
+    print_endline ("\027[33malloc_var(" ^ (T.to_string t) ^ ")\027[0m");
+    `VarAddress (id, t)
 end
 
 module K1 = struct let k = 1 end

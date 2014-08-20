@@ -1,3 +1,3 @@
-// Expected: obj@obj-proto
+// Expected: 'success'
 {let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
-    %ObjectProto}
+    %ObjectProto; "success"}

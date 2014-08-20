@@ -13,7 +13,7 @@ type t =
   (* {rec (id = exp) body} *)
   | Rec of id * Address.t * S.exp * Env.t
   (* {[field1: val1, ...]} *)
-  | ObjectAttrs of string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
+  | ObjectAttrs of Pos.t * string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of string * O.t * (string * S.prop) list * Env.t
   | PropData of (O.data * AValue.t * AValue.t) * Env.t
   | PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
@@ -54,7 +54,7 @@ type t =
 
 let env_of_frame = function
   | Let (_, _, env)
-  | ObjectAttrs (_, _, _, _, env)
+  | ObjectAttrs (_, _, _, _, _, env)
   | ObjectProps (_, _, _, env)
   | PropAccessor (_, _, env)
   | Rec (_, _, _, env)
@@ -107,7 +107,7 @@ let free_vars frame =
   match frame with
   (* special cases *)
   | Let (id, exp, _) -> IdSet.remove id (S.free_vars exp)
-  | ObjectAttrs (_, _, attrs, props, _) ->
+  | ObjectAttrs (_, _, _, attrs, props, _) ->
     (IdSet.union (fv_attrs attrs) (fv_props props))
   | ObjectProps (_, _, props, _) -> fv_props props
 
@@ -189,7 +189,7 @@ let touched_addresses_from_values frame =
     addresses_of_vals [g; s; enum; config]
 
   (* Object *)
-  | ObjectAttrs (_, o, _, _, _)
+  | ObjectAttrs (_, _, o, _, _, _)
   | ObjectProps (_, o, _, _) ->
     addresses_of_obj o
 
@@ -242,7 +242,7 @@ let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
   | Rec (id, _, _, _) -> "Rec-" ^ id
   | ObjectProps (name, _, _, _) -> "ObjectProps-" ^ name
-  | ObjectAttrs (name, _, _, _,  _) -> "ObjectAttrs-" ^ name
+  | ObjectAttrs (_, name, _, _, _,  _) -> "ObjectAttrs-" ^ name
   | PropData _ -> "PropData"
   | PropAccessor (Some _, _, _) -> "PropAccessor-Some"
   | PropAccessor (None, _, _) -> "PropAccessor-None"
@@ -284,9 +284,10 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | Rec _, _ -> 1
   | _, Rec _ -> -1
-  | ObjectAttrs (attr, obj, attrs, props, env),
-    ObjectAttrs (attr', obj', attrs', props', env') ->
-    order_concat [lazy (Pervasives.compare attr attr');
+  | ObjectAttrs (p, attr, obj, attrs, props, env),
+    ObjectAttrs (p', attr', obj', attrs', props', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare attr attr');
                   lazy (O.compare obj obj');
                   lazy (Pervasives.compare attrs attrs');
                   lazy (Pervasives.compare props props');
