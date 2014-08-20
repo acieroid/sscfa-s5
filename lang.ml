@@ -636,10 +636,7 @@ struct
                            StackSummary.push ss frame)]
       | PropVal prop -> begin match frame with
           | Some ((state', ss'), frame) ->
-            print_endline ("apply_frame_prop from state " ^ (string_of_state state));
-            let res = [StackPop frame, (apply_frame_prop prop frame state, ss')] in
-            print_endline "success";
-            res
+            [StackPop frame, (apply_frame_prop prop frame state, ss')]
           | None ->
             []
         end in

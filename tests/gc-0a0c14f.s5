@@ -1,0 +1,6 @@
+// Expected: ?
+{let (foo = func(x) {
+    {[#code: func() { x }]}
+  })
+foo("arg")
+}

@@ -791,7 +791,7 @@
      <#writable>=false];
      argsObj}}})
    {let (%context = %nonstrictContext)
-     {//%defineGlobalAccessors(%context,"print");
+     {%defineGlobalAccessors(%context,"print");
      {let (#strict = false)
      {let (%fun2 = %context["print" , {[#proto: null,
                                         #class: "Object",

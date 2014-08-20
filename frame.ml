@@ -77,12 +77,11 @@ let env_of_frame = function
   | GetFieldBody (_, _, env)
   | SetFieldArgs (_, _, _, env)
   | GetAttrField (_, _, env)
-  | SetAttrNewval (_, _, _, env) 
+  | SetAttrNewval (_, _, _, env)
   | GetObjAttr (_, env)
   | OwnFieldNames env
   | RestoreEnv env ->
     env
-
 
 let addresses_of_vars (vars : IdSet.t) (env : Env.t) : AddressSet.t =
   IdSet.fold (fun v acc ->
@@ -167,8 +166,15 @@ let touched_addresses_from_values frame =
       | `ObjT -> failwith "Object was too abstracted"
       | _ -> aux acc t
       end in
-    aux AddressSet.empty l
-  in
+    aux AddressSet.empty l in
+  let vals_of_prop = function
+    | O.Data ({O.value = v; O.writable = w}, enum, config) -> [v; w; enum; config]
+    | O.Accessor ({O.getter = g; O.setter = s}, enum, config) -> [g; s; enum; config] in
+  let of_obj ({O.code = code; O.proto = proto; O.primval = primval;
+               O.klass = klass; O.extensible = extensible}, props) =
+    IdMap.fold (fun _ prop -> AddressSet.union (of_list (vals_of_prop prop)))
+      props (of_list [code; proto; primval; klass; extensible]) in
+
   match frame with
   (* Special cases *)
   | AppArgs (f, args, _, _) ->
@@ -178,11 +184,14 @@ let touched_addresses_from_values frame =
   | PropAccessor (_, ({O.getter = g; setter = s}, enum, config), _) ->
     of_list [g; s; enum; config]
 
+  (* Object *)
+  | ObjectAttrs (_, o, _, _, _)
+  | ObjectProps (_, o, _, _) ->
+    of_obj o
+
   (* No value *)
   | Let (_, _, _)
   | Rec (_, _, _, _)
-  | ObjectAttrs (_, _, _, _, _)
-  | ObjectProps (_, _, _, _)
   | Seq (_, _)
   | AppFun (_, _)
   | Op1App (_, _)
@@ -228,17 +237,17 @@ let touch frame =
 let to_string = function
   | Let (id, _, _) -> "Let-" ^ id
   | Rec (id, _, _, _) -> "Rec-" ^ id
-  | ObjectProps _ -> "ObjectProps"
-  | ObjectAttrs _ -> "ObjectAttrs"
+  | ObjectProps (name, _, _, _) -> "ObjectProps-" ^ name
+  | ObjectAttrs (name, _, _, _,  _) -> "ObjectAttrs-" ^ name
   | PropData _ -> "PropData"
   | PropAccessor (Some _, _, _) -> "PropAccessor-Some"
   | PropAccessor (None, _, _) -> "PropAccessor-None"
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
   | AppArgs _ -> "AppArgs"
-  | Op1App _ -> "Op1App"
-  | Op2Arg _ -> "Op2Arg"
-  | Op2App _ -> "Op2App"
+  | Op1App (op, _) -> "Op1App-" ^ op
+  | Op2Arg (op, _, _) -> "Op2Arg-" ^ op
+  | Op2App (op, _, _) -> "Op2App-" ^ op
   | If _ -> "If"
   | GetFieldObj _ -> "GetFieldObj"
   | GetFieldField _ -> "GetFieldField"
