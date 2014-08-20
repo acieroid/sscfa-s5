@@ -1,0 +1,14 @@
+// Expected: 'success'
+// Until commit 492ccdf included, results in: Value not found at address @obj-proto
+
+let (foo = func() {
+   {[#proto: null]
+   'get' : {#value {[#code: func(this, args) { undefined }]},
+            #writable true,
+            #configurable false},
+   'configurable' : {#value true,
+                     #writable true,
+                     #configurable false}}})
+
+foo();
+"success"

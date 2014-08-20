@@ -156,7 +156,9 @@ struct
       | Frame (control, frame) ->
         AddressSet.union (control_root control env vstore ostore) (Frame.touch frame)
       | Val v -> touch vstore ostore v
-      | PropVal _ -> AddressSet.empty
+      | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
+      | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
+        Frame.addresses_of_vals (Frame.vals_of_prop prop)
 
     let root (state, ss) : AddressSet.t =
       AddressSet.union ss (control_root state.control state.env state.vstore state.ostore)

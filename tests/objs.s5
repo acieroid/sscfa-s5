@@ -1,0 +1,36 @@
+// Expected: 'success'
+{let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
+{let (%global = {[#proto: %ObjectProto,
+                  #class: "Object",
+                  #extensible: true,]})
+{let (%context = {[#proto: %global,
+                         #class: "Object",
+                         #extensible: true,]})
+{let (%makeGetter = func(object , id) {
+   {[#code: func(this , args) {
+              if (prim("hasProperty", object , id)) {
+                object[id , {[#proto: null,
+                              #class: "Object",
+                              #extensible: true,]}]
+              } else {
+                undefined
+              }
+            },
+   #class: "Object",
+   #extensible: false,]}})
+{let (%defineGlobalAccessors = func(context , id) {
+   {[#proto: null,
+     #class: "Object",
+     #extensible: true,]
+   'get' : {#value (%makeGetter(%global, id)) ,
+            #writable true ,
+            #configurable false},
+   'enumerable' : {#value (true) ,
+                   #writable false ,
+                   #configurable false},
+   'configurable' : {#value (true) ,
+                     #writable true ,
+                     #configurable false}}})
+     {%defineGlobalAccessors(%context,"print");
+      "success"
+}}}}}}

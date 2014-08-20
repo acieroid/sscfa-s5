@@ -1,14 +1,29 @@
 #!/bin/sh
+LOGFILE=test.log
+RAN=0
+FAILED=0
+
 function run_test {
     TEST="$1"
-    echo "Running $TEST"
+    echo -n "Running $TEST ... "
     RES=$(./main.byte "$TEST" | sed -En 's/Evaluation done: Val\((.*)\)/\1/p')
     EXPECTED=$(sed -En 's|// Expected: (.*)$|\1|p' "$TEST")
     if [ "$RES" != "$EXPECTED" ]; then
-        echo "Test failed: $TEST. Got $RES instead of $EXPECTED"
+        echo "failure!"
+        echo "Test $TEST failed: Got $RES instead of $EXPECTED" >> $LOGFILE
+        FAILED=$(($FAILED+1))
+    else
+        echo "success."
     fi
+    RAN=$(($RAN+1))
 }
 
 for TEST in $(ls tests/*.s5); do
-    run_test $TEST
+    run_test "$TEST"
 done
+
+echo -n "Ran $RAN tests, $FAILED of them failed"
+if [ "$FAILED" -gt 1 ]; then
+    echo -n " (see $LOGFILE for the reasons of failure)"
+fi
+echo "."

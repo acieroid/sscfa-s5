@@ -155,39 +155,43 @@ let touched_addresses = function
   | Rec (_, a, _, _) -> AddressSet.singleton a
   | _ -> AddressSet.empty
 
-let touched_addresses_from_values frame =
-  let of_list l =
-    let rec aux acc = function
+(* TODO: some of those functions should probably go elsewhere *)
+let addresses_of_vals l =
+  let rec aux acc = function
     | [] -> acc
     | h :: t -> begin match h with
-      | `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
-      | `ClosT -> failwith "Closure was too abstracted"
-      | `Obj a -> aux (AddressSet.add a acc) t
-      | `ObjT -> failwith "Object was too abstracted"
-      | _ -> aux acc t
+        | `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
+        | `ClosT -> failwith "Closure was too abstracted"
+        | `Obj a -> aux (AddressSet.add a acc) t
+        | `ObjT -> failwith "Object was too abstracted"
+        | _ -> aux acc t
       end in
-    aux AddressSet.empty l in
-  let vals_of_prop = function
-    | O.Data ({O.value = v; O.writable = w}, enum, config) -> [v; w; enum; config]
-    | O.Accessor ({O.getter = g; O.setter = s}, enum, config) -> [g; s; enum; config] in
-  let of_obj ({O.code = code; O.proto = proto; O.primval = primval;
-               O.klass = klass; O.extensible = extensible}, props) =
-    IdMap.fold (fun _ prop -> AddressSet.union (of_list (vals_of_prop prop)))
-      props (of_list [code; proto; primval; klass; extensible]) in
+  aux AddressSet.empty l
 
+let vals_of_prop = function
+  | O.Data ({O.value = v; O.writable = w}, enum, config) -> [v; w; enum; config]
+  | O.Accessor ({O.getter = g; O.setter = s}, enum, config) -> [g; s; enum; config]
+
+
+let addresses_of_obj ({O.code = code; O.proto = proto; O.primval = primval;
+                       O.klass = klass; O.extensible = extensible}, props) =
+  IdMap.fold (fun _ prop -> AddressSet.union (addresses_of_vals (vals_of_prop prop)))
+    props (addresses_of_vals [code; proto; primval; klass; extensible])
+
+let touched_addresses_from_values frame =
   match frame with
   (* Special cases *)
   | AppArgs (f, args, _, _) ->
-    of_list (f :: args)
+    addresses_of_vals (f :: args)
   | PropData (({O.value = v; O.writable = w}, enum, config), _) ->
-    of_list [v; w; enum; config]
+    addresses_of_vals [v; w; enum; config]
   | PropAccessor (_, ({O.getter = g; setter = s}, enum, config), _) ->
-    of_list [g; s; enum; config]
+    addresses_of_vals [g; s; enum; config]
 
   (* Object *)
   | ObjectAttrs (_, o, _, _, _)
   | ObjectProps (_, o, _, _) ->
-    of_obj o
+    addresses_of_obj o
 
   (* No value *)
   | Let (_, _, _)
@@ -204,7 +208,7 @@ let touched_addresses_from_values frame =
   | GetObjAttr (_, _)
   | OwnFieldNames _
   | RestoreEnv _ ->
-    of_list []
+    addresses_of_vals []
 
   (* One value *)
   | Op2App (_, v, _)
@@ -212,17 +216,17 @@ let touched_addresses_from_values frame =
   | SetFieldField (v, _, _, _)
   | GetAttrField (_, v, _)
   | SetAttrField (_, v, _, _) ->
-    of_list [v]
+    addresses_of_vals [v]
 
   (* Two values *)
   | GetFieldBody (v1, v2, _)
   | SetFieldNewval (v1, v2, _, _)
   | SetAttrNewval (_, v1, v2, _) ->
-    of_list [v1; v2]
+    addresses_of_vals [v1; v2]
 
   (* Three values *)
   | SetFieldArgs (v1, v2, v3, _) ->
-    of_list [v1; v2; v3]
+    addresses_of_vals [v1; v2; v3]
 
 let touch frame =
   AddressSet.union
