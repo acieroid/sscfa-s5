@@ -618,7 +618,7 @@ struct
                         state.env))
         ({state with control = Exp v}, ss)
     | S.Accessor ({S.getter = g; S.setter = s}, enum, config) ->
-      push (F.PropAccessor (Some g, ({O.getter = `Undef; O.setter = `Undef},
+      push (F.PropAccessor (Some s, ({O.getter = `Undef; O.setter = `Undef},
                                      AValue.bool enum, AValue.bool config),
                             state.env))
         ({state with control = Exp g}, ss)
