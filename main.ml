@@ -57,7 +57,7 @@ let eval exp =
           conf'
     with e ->
       print_endline (Printexc.get_backtrace ());
-      print_endline (Printexc.to_string e);
+      Printf.printf "Failed after computing %d states: %s" (G.nb_vertex graph) (Printexc.to_string e);
       graph
   in aux G.empty [] (LJS.inject exp)
 

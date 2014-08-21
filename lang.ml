@@ -385,7 +385,7 @@ struct
       else
         let alloc_arg v name (vstore, ostore, env) =
           let (ostore', v') = alloc_if_necessary state name v in
-          let a = alloc_var name v' state in
+          let a = alloc_var name v' {state with vstore = vstore; ostore = ostore'} in
           (ValueStore.join a v' vstore,
            ostore',
            Env.extend name a env) in
@@ -460,7 +460,7 @@ struct
       [{state' with control = Exp exp}]
     | F.AppArgs (f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
-                    env = env'}]
+                   env = env'}]
     | F.Op1App (op, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
       let ostore', v' = alloc_if_necessary state ("op1-" ^ op) v in
@@ -472,9 +472,9 @@ struct
     | F.Op2App (op, arg1, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
       let ostore', arg1' = alloc_if_necessary state ("op2-" ^ op ^ "arg1") arg1 in
-      let ostore', arg2' = alloc_if_necessary state ("op2-" ^ op ^ "arg2") v in
+      let ostore'', arg2' = alloc_if_necessary {state with ostore = ostore'} ("op2-" ^ op ^ "arg2") v in
       [{state with control = Val ((D.op2 state.ostore op arg1' arg2') :> v);
-                   ostore = ostore'; env = env'}]
+                   ostore = ostore''; env = env'}]
     | F.If (cons, alt, env') -> begin match v with
         | `True -> [{state with control = Exp cons; env = env'}]
         | `BoolT | `Top -> [{state with control = Exp cons; env = env'};
@@ -486,7 +486,7 @@ struct
                    env = env'}]
     | F.GetFieldField (obj, body, env') ->
       [{state with control = Frame (Exp body, F.GetFieldBody (obj, v, env'));
-                    env = env'}]
+                   env = env'}]
     | F.GetFieldBody (obj, field, env') ->
       begin match obj, field with
         | `Obj a, `Str s ->
@@ -495,7 +495,7 @@ struct
               [{state with control = Val (v :> v); env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
               let (body, state') = apply_fun (g :> v) [obj; v] state in
-              [{state with control = Frame (Exp body, F.RestoreEnv env')}]
+              [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
         | `Obj _, `StrT ->
