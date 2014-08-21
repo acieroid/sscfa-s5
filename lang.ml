@@ -39,19 +39,22 @@ struct
   type frame = F.t
   let string_of_frame = F.to_string
 
+  type v = F.value (* shorthand *)
+
   (* type clo = [`Clos of Env.t * id list * S.exp ] *)
 
   type control =
     | Exp of S.exp
     | Prop of S.prop
     | PropVal of O.prop
-    | Val of AValue.t
+    | Val of F.value
     | Frame of (control * F.t)
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
     | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
-    | Val v -> "Val(" ^ (AValue.to_string v) ^ ")"
+    | Val (`StackObj o) -> "Val(StackObj(" ^ (O.to_string o) ^ "))"
+    | Val (#AValue.t as v) -> "Val(" ^ (AValue.to_string v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
 
@@ -101,8 +104,8 @@ struct
            investigating it on the the object store as well
     *)
 
-    let touch (vstore : ValueStore.t) (ostore : ObjectStore.t) =
-      let rec aux acc visited_objs = function
+    let touch vstore ostore v =
+      let rec aux acc visited_objs : AValue.t -> StackSummary.t = function
         | `Null | `True | `False | `BoolT | `Num _ | `NumT
         | `Str _ | `StrT | `Undef | `Bot -> acc
         | `Clos (env, args, exp) ->
@@ -121,13 +124,12 @@ struct
             end
         | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
-        aux_obj_props
-          (List.fold_left AddressSet.union acc
-             [aux acc visited_objs attrs.O.code;
-              aux acc visited_objs attrs.O.proto;
-              aux acc visited_objs attrs.O.primval;
-              aux acc visited_objs attrs.O.klass;
-              aux acc visited_objs attrs.O.extensible])
+        aux_obj_props (List.fold_left AddressSet.union acc
+                         [aux acc visited_objs attrs.O.code;
+                          aux acc visited_objs attrs.O.proto;
+                          aux acc visited_objs attrs.O.primval;
+                          aux acc visited_objs attrs.O.klass;
+                          aux acc visited_objs attrs.O.extensible])
           visited_objs
           (IdMap.bindings props)
       and aux_obj_props acc visited_objs props =
@@ -138,15 +140,17 @@ struct
                            [aux acc visited_objs v;
                             aux acc visited_objs w;
                             aux acc visited_objs enum;
-                            aux acc visited_objs config]) visited_objs  props
+                            aux acc visited_objs config]) visited_objs props
         | (_, O.Accessor ({O.getter = g; O.setter = s}, enum, config)) :: props ->
           aux_obj_props (List.fold_left AddressSet.union acc
                            [aux acc visited_objs g;
                             aux acc visited_objs s;
                             aux acc visited_objs enum;
-                            aux acc visited_objs config]) visited_objs props
-      in
-      aux AddressSet.empty AddressSet.empty
+                            aux acc visited_objs config]) visited_objs props in
+      match v with
+      | #AValue.t as v -> aux AddressSet.empty AddressSet.empty v
+      | `StackObj obj -> aux_obj AddressSet.empty AddressSet.empty obj
+
 
     let rec control_root control env vstore ostore : AddressSet.t = match control with
       | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
@@ -166,7 +170,7 @@ struct
     let touching_rel1 vstore ostore addr =
       try match addr with
         | `ObjAddress _ -> touch vstore ostore (`Obj addr)
-        | `VarAddress _ -> touch vstore ostore (ValueStore.lookup addr vstore)
+        | `VarAddress _ -> touch vstore ostore ((ValueStore.lookup addr vstore) :> v)
       with Not_found ->
         print_endline ("Value not found at address " ^ (Address.to_string addr));
         raise Not_found
@@ -236,13 +240,20 @@ struct
 
   let alloc_obj id _ state = Address.alloc_obj id state.time
 
+  let alloc_if_necessary state id = function
+    | #AValue.t as v -> (state.ostore, v)
+    | `StackObj obj ->
+      let a = alloc_obj id obj state in
+      let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
+      (ostore', `Obj a)
+
   let inject (exp : S.exp) : conf = ({
-    control = Exp exp;
-    env = Env.empty;
-    vstore = ValueStore.empty;
-    ostore = ObjectStore.empty;
-    time = Time.initial;
-  }, StackSummary.empty)
+      control = Exp exp;
+      env = Env.empty;
+      vstore = ValueStore.empty;
+      ostore = ObjectStore.empty;
+      time = Time.initial;
+    }, StackSummary.empty)
 
   let unch (control : control) ((state, ss) : conf) =
     [StackUnchanged, ({state with control}, ss)]
@@ -254,13 +265,17 @@ struct
       begin match ObjectStore.lookup a ostore with
         | `Obj ({O.proto = pvalue; _}, props) ->
           begin try Some (IdMap.find prop props)
-            with Not_found -> get_prop pvalue prop ostore
+            with Not_found -> get_prop (pvalue :> v) prop ostore
           end
         | `ObjT -> failwith "get_prop: too abstracted"
       end
+    | `StackObj ({O.proto = pvalue; _}, props) ->
+      begin try Some (IdMap.find prop props)
+        with Not_found -> get_prop (pvalue :> v) prop ostore
+      end
     | `ObjT -> failwith "get_prop: too abstracted"
     | `Null -> None
-    | _ -> failwith ("get_prop on non-object: " ^ (AValue.to_string obj))
+    | #AValue.t as v -> failwith ("get_prop on non-object: " ^ (AValue.to_string v))
 
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
   (* TODO: currently, we call Time.tick only when an application takes place
@@ -278,11 +293,11 @@ struct
     | S.False _ -> unch (Val `False) conf
     | S.Id (_, id) ->
       begin try
-        unch (Val (ValueStore.lookup (Env.lookup id state.env) state.vstore))
-          conf
-      with Not_found ->
-        print_endline ("Identifier cannot be resolved: " ^ id);
-        raise Not_found
+          unch (Val ((ValueStore.lookup (Env.lookup id state.env) state.vstore) :> v))
+            conf
+        with Not_found ->
+          print_endline ("Identifier cannot be resolved: " ^ id);
+          raise Not_found
       end
     | S.Lambda (_, args, body) ->
       let free = S.free_vars body in
@@ -307,9 +322,7 @@ struct
                  IdMap.empty) in
       begin match attrs, props with
         | [], [] ->
-          let a = alloc_obj "obj" obj state in
-          let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
-          unch (Val (`Obj a)) ({state with ostore = ostore'}, ss)
+          unch (Val (`StackObj obj)) (state, ss)
         | [], (prop, exp)::props ->
           push (F.ObjectProps (prop, obj, props, state.env))
             ({state with control = Prop exp}, ss)
@@ -370,13 +383,15 @@ struct
       if (List.length args) != (List.length args') then
         failwith "Arity mismatch"
       else
-        let alloc_arg v name (vstore, env) =
-          let a = alloc_var name v state in
-          (ValueStore.join a v vstore,
+        let alloc_arg v name (vstore, ostore, env) =
+          let (ostore', v') = alloc_if_necessary state name v in
+          let a = alloc_var name v' state in
+          (ValueStore.join a v' vstore,
+           ostore',
            Env.extend name a env) in
-        let (vstore', env') =
-          BatList.fold_right2 alloc_arg args args' (state.vstore, env') in
-        (body, {state with env = env'; vstore = vstore';
+        let (vstore', ostore', env') =
+          BatList.fold_right2 alloc_arg args args' (state.vstore, state.ostore, env') in
+        (body, {state with env = env'; vstore = vstore'; ostore = ostore';
                            time = Time.tick (S.pos_of body) state.time})
     | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
     | `Obj a -> begin match ObjectStore.lookup a state.ostore with
@@ -384,42 +399,53 @@ struct
           apply_fun (`Clos f) args state
         | _ -> failwith "Applied object without code attribute"
       end
+    | `ObjT -> failwith "Object too abstracted when applying function"
+    | `StackObj ({O.code = `Clos f; _}, _) ->
+      apply_fun (`Clos f) args state
+    | `StackObj _ -> failwith "Applied object without code attribute"
     | _ -> failwith "Applied non-function"
 
-  let apply_frame v frame (state : state) : state list = match frame with
+  let apply_frame (v : v) (frame :frame) (state : state) : state list = match frame with
     | F.Let (id, body, env') ->
       let a = alloc_var id id state in
       let env'' = Env.extend id a env' in
-      let vstore' = ValueStore.join a v state.vstore in
-      [{state with control = Exp body; env = env''; vstore = vstore'}]
+      let ostore', v' = alloc_if_necessary state id v in
+      let vstore' = ValueStore.join a v' state.vstore in
+      [{state with control = Exp body; env = env''; vstore = vstore'; ostore = ostore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | F.ObjectAttrs (p, name, obj, [], [], env') ->
-      let obj' = O.set_attr_str obj name v in
-      let a = alloc_obj name obj' state in
-      let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
-      [{state with control = Val (`Obj a); env = env';  ostore = ostore';
-                   time = Time.tick p state.time}]
+      let ostore', v' = alloc_if_necessary state name v in
+      let obj' = O.set_attr_str obj name v' in
+      [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore';
+                    time = Time.tick p state.time}]
     | F.ObjectAttrs (_, name, obj, [], (name', prop) :: props, env') ->
-      let obj' = O.set_attr_str obj name v in
+      let ostore', v' = alloc_if_necessary state name v in
+      let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
-                   env = env'}]
+                   ostore = ostore'; env = env'}]
     | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
-      let obj' = O.set_attr_str obj name v in
+      let ostore', v' = alloc_if_necessary state name v in
+      let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Exp attr, F.ObjectAttrs (p, name', obj', attrs, props, env'));
-                   env = env'}]
+                   ostore = ostore'; env = env'}]
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
     | F.PropData ((data, enum, config), env') ->
-      [{state with control = PropVal (O.Data ({data with O.value = v}, enum, config));
-                   env = env'}]
+      let ostore', v' = alloc_if_necessary state "propdata" v in
+      [{state with control = PropVal (O.Data ({data with O.value = v'},
+                                              enum, config));
+                   ostore = ostore'; env = env'}]
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
     | F.PropAccessor (None, (accessor, enum, config), env') ->
-      [{state with control = PropVal (O.Accessor ({accessor with O.setter = v}, enum, config));
-                   env = env'}]
+      let ostore', v' = alloc_if_necessary state "propacc-set" v in
+      [{state with control = PropVal (O.Accessor ({accessor with O.setter = v'},
+                                                  enum, config));
+                   ostore = ostore'; env = env'}]
     | F.PropAccessor (Some exp, (accessor, enum, config), env') ->
-      [{state with
-        control = Frame (Exp exp, (F.PropAccessor (None, ({accessor with O.getter = v},
-                                                          enum, config), env')));
-        env = env'}]
+      let ostore', v' = alloc_if_necessary state "propacc-get" v in
+      [{state with control = Frame (Exp exp, (F.PropAccessor
+                                                 (None, ({accessor with O.getter = v'},
+                                                         enum, config), env')));
+                    ostore = ostore'; env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
     | F.AppFun ([], env') ->
@@ -429,20 +455,26 @@ struct
       [{state with control = Frame (Exp arg, (F.AppArgs (v, [], args, env')));
                    env = env'}]
     | F.AppArgs (f, vals, [], env') ->
-      let (exp, state') = apply_fun f (BatList.rev (v :: vals)) state in
+      let args = BatList.rev (v :: vals) in
+      let (exp, state') = apply_fun f args state in
       [{state' with control = Exp exp}]
     | F.AppArgs (f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
-                   env = env'}]
+                    env = env'}]
     | F.Op1App (op, env') ->
-      [{state with control = Val (D.op1 state.ostore op v);
-                   env = env'}]
+      (* TODO: we should avoid allocating for op1 and op2 *)
+      let ostore', v' = alloc_if_necessary state ("op1-" ^ op) v in
+      [{state with control = Val ((D.op1 ostore' op v') :> v);
+                   ostore = ostore'; env = env'}]
     | F.Op2Arg (op, arg2, env') ->
       [{state with control = Frame (Exp arg2, (F.Op2App (op, v, env')));
                    env = env'}]
     | F.Op2App (op, arg1, env') ->
-      [{state with control = Val (D.op2 state.ostore op arg1 v);
-                   env = env'}]
+      (* TODO: we should avoid allocating for op1 and op2 *)
+      let ostore', arg1' = alloc_if_necessary state ("op2-" ^ op ^ "arg1") arg1 in
+      let ostore', arg2' = alloc_if_necessary state ("op2-" ^ op ^ "arg2") v in
+      [{state with control = Val ((D.op2 state.ostore op arg1' arg2') :> v);
+                   ostore = ostore'; env = env'}]
     | F.If (cons, alt, env') -> begin match v with
         | `True -> [{state with control = Exp cons; env = env'}]
         | `BoolT | `Top -> [{state with control = Exp cons; env = env'};
@@ -454,17 +486,16 @@ struct
                    env = env'}]
     | F.GetFieldField (obj, body, env') ->
       [{state with control = Frame (Exp body, F.GetFieldBody (obj, v, env'));
-                   env = env'}]
+                    env = env'}]
     | F.GetFieldBody (obj, field, env') ->
-      let body = v in
       begin match obj, field with
         | `Obj a, `Str s ->
           begin match get_prop (`Obj a) s state.ostore with
             | Some (O.Data ({O.value = v; _}, _, _)) ->
-              [{state with control = Val v; env = env'}]
+              [{state with control = Val (v :> v); env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun g [obj; body] state in
-              [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
+              let (body, state') = apply_fun (g :> v) [obj; v] state in
+              [{state with control = Frame (Exp body, F.RestoreEnv env')}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
         | `Obj _, `StrT ->
@@ -483,8 +514,11 @@ struct
     | F.SetFieldNewval (obj, field, body, env') ->
       [{state with control = Frame (Exp body, F.SetFieldArgs (obj, field, v, env'));
                    env = env'}]
-    | F.SetFieldArgs (obj, field, newval, env') ->
+    | F.SetFieldArgs (obj_, field, newval, env') ->
+      (* TODO: allow objects to contain objects that don't live in the store *)
       let body = v in
+      let ostore', obj = alloc_if_necessary state "setfieldargs" obj_ in
+      let state = {state with ostore = ostore'} in
       begin match obj, field with
         | `Obj a, `Str s ->
           begin match ObjectStore.lookup a state.ostore with
@@ -495,25 +529,27 @@ struct
                       (enum, config)
                     else
                       (`True, `True) in
+                  let ostore', newval' = alloc_if_necessary state ("setfieldargs" ^ s) newval in
                   let newobj = O.set_prop (attrs, props) s
-                      (O.Data ({O.value = newval; O.writable = `True},
+                      (O.Data ({O.value = newval'; O.writable = `True},
                                enum, config)) in
-                  let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                  [{state with control = Val newval; env = env'; ostore = ostore'}]
+                  let ostore'' = ObjectStore.set a (`Obj newobj) state.ostore in
+                  [{state with control = Val (newval :> v); env = env'; ostore = ostore''}]
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
                   failwith "unwritable" (* TODO: throw *)
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, state') = apply_fun setter [obj; body] state in
+                  let (exp, state') = apply_fun (setter :> v) [obj; body] state in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
                 | None ->
                   match extensible with
                   | `True ->
+                    let ostore', newval' = alloc_if_necessary state ("setfieldargs" ^ s) newval in
                     let newobj = O.set_prop (attrs, props) s
-                        (O.Data ({O.value = newval; O.writable = `True},
+                        (O.Data ({O.value = newval'; O.writable = `True},
                                  `True, `True)) in
-                    let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                    [{state with control = Val newval; env = env'; ostore = ostore'}]
+                    let ostore'' = ObjectStore.set a (`Obj newobj) state.ostore in
+                    [{state with control = Val (newval' :> v); env = env'; ostore = ostore''}]
                   | `False ->
                     [{state with control = Val `Undef}]
                   | _ -> failwith "TODO: SetFieldArgs frame"
@@ -531,7 +567,7 @@ struct
         | `Obj a ->
           begin match ObjectStore.lookup a state.ostore with
             | `Obj o -> let attr = O.get_attr o pattr field in
-              [{state with control = Val attr; env = env'}]
+              [{state with control = Val (attr :> v); env = env'}]
             | `ObjT -> failwith "GetAttrField: object too abstracted"
           end
         | _ -> failwith "GetAttrField on a non-object"
@@ -542,15 +578,16 @@ struct
     | F.SetAttrField (pattr, obj, newval, env') ->
       [{state with control = Frame (Exp newval, F.SetAttrNewval (pattr, obj, v, env'));
                    env = env'}]
-    | F.SetAttrNewval (pattr, obj, field, env') ->
-      let newval = v in
+    | F.SetAttrNewval (pattr, obj_, field, env') ->
+      let ostore', obj = alloc_if_necessary state "setattrnewvalobj" obj_ in
+      let ostore'', newval = alloc_if_necessary {state with ostore = ostore'} "setattrnewvalv" v in
       begin match obj, field with
         | `Obj a, `Str s ->
-          begin match ObjectStore.lookup a state.ostore with
+          begin match ObjectStore.lookup a ostore'' with
             | `Obj o ->
               let newobj = O.set_attr o pattr s newval in
-              let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-              [{state with control = Val `True; env = env'; ostore = ostore'}]
+              let ostore''' = ObjectStore.set a (`Obj newobj) ostore'' in
+              [{state with control = Val `True; env = env'; ostore = ostore'''}]
             | `ObjT -> failwith "SetAttrNewval: object too abstracted"
           end
         | `ObjT, _ -> failwith "SetAttrNewval: object too abstracted"
@@ -558,41 +595,42 @@ struct
       end
     | F.GetObjAttr (oattr, env') -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
-          | `Obj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
-          | `ObjT ->
-            (* TODO: Could be more precise here *)
-            [{state with control = Val `Top; env = env'}]
+            | `Obj obj -> [{state with control = Val ((O.get_obj_attr obj oattr) :> v); env = env'}]
+            | `ObjT ->
+              (* TODO: Could be more precise here *)
+              [{state with control = Val `Top; env = env'}]
           end
         | `ObjT -> failwith "GetObjAttr: object too abstracted"
         | _ -> failwith "GetObjAttr on a non-object"
       end
     | F.OwnFieldNames env' -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
-          | `Obj (_, props) ->
-            let add_name n x m =
-              IdMap.add (string_of_int x)
-                (O.Data ({O.value = `Str n; O.writable = `False}, `False, `False))
-                m in
-            let namelist = IdMap.fold (fun k v l -> (k :: l)) props [] in
-            let props = BatList.fold_right2 add_name namelist
-                (iota (List.length namelist)) IdMap.empty in
-            let d = (float_of_int (List.length namelist)) in
-            let final_props =
-              IdMap.add "length"
-                (O.Data ({O.value = `Num d; O.writable = `False}, `False, `False))
-                props in
-            let obj' = (O.d_attrsv , final_props) in
-            let addr = alloc_obj "obj" obj' state in
-            let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
-            [{state with control = Val (`Obj addr); ostore = ostore'}]
-          | `ObjT -> failwith "OwnFieldNames: object too abstracted"
+            | `Obj (_, props) ->
+              let add_name n x m =
+                IdMap.add (string_of_int x)
+                  (O.Data ({O.value = `Str n; O.writable = `False}, `False, `False))
+                  m in
+              let namelist = IdMap.fold (fun k v l -> (k :: l)) props [] in
+              let props = BatList.fold_right2 add_name namelist
+                  (iota (List.length namelist)) IdMap.empty in
+              let d = (float_of_int (List.length namelist)) in
+              let final_props =
+                IdMap.add "length"
+                  (O.Data ({O.value = `Num d; O.writable = `False}, `False, `False))
+                  props in
+              let obj' = (O.d_attrsv , final_props) in
+              let addr = alloc_obj "obj" obj' state in
+              let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
+              [{state with control = Val (`Obj addr); ostore = ostore'}]
+            | `ObjT -> failwith "OwnFieldNames: object too abstracted"
           end
         | `ObjT -> failwith "OwnFieldNames: object too abstracted"
         | _ -> failwith "OwnFieldNames on a non-object"
       end
     | F.Rec (name, a, body, env') ->
-      let vstore = ValueStore.set a v state.vstore in
-      [{state with control = Exp body; vstore = vstore}]
+      let ostore', v' = alloc_if_necessary state ("rec-" ^ name) v in
+      let vstore' = ValueStore.set a v' state.vstore in
+      [{state with control = Exp body; vstore = vstore'; ostore = ostore'}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
