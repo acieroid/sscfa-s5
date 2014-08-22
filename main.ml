@@ -61,7 +61,7 @@ let eval exp =
       graph
   in aux G.empty [] (LJS.inject exp)
 
-let computation = `Dsg
+let computation = `Eval
 let _ =
   let s5 = load_s5 file in
   match computation with

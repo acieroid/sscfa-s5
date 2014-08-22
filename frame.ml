@@ -58,8 +58,11 @@ type t =
   | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
   | SetAttrField of S.pattr * value * S.exp * Env.t
   | SetAttrNewval of S.pattr * value * value * Env.t
-  (* obj[<#attr>]? *)
+  (* obj[<#attr>] *)
   | GetObjAttr of S.oattr * Env.t
+  (* obj[<#attr> = val] *)
+  | SetObjAttr of S.oattr * S.exp * Env.t
+  | SetObjAttrNewval of S.oattr * value * Env.t
   (* get-own-field-names(obj) *)
   | OwnFieldNames of Env.t
   (* id := val *)
@@ -94,6 +97,8 @@ let env_of_frame = function
   | GetAttrField (_, _, env)
   | SetAttrNewval (_, _, _, env)
   | GetObjAttr (_, env)
+  | SetObjAttr (_, _, env)
+  | SetObjAttrNewval (_, _, env)
   | OwnFieldNames env
   | SetBang (_, _, env)
   | RestoreEnv env ->
@@ -150,6 +155,7 @@ let free_vars frame =
   | SetFieldNewval (_, _, exp, _)
   | GetAttrObj (_, exp, _)
   | SetAttrField (_, _, exp, _)
+  | SetObjAttr (_, exp, _)
   | PropAccessor (Some exp, _, _)
   | Rec (_, _, exp, _) ->
     S.free_vars exp
@@ -164,6 +170,7 @@ let free_vars frame =
   | GetAttrField _
   | SetAttrNewval _
   | GetObjAttr _
+  | SetObjAttrNewval _
   | OwnFieldNames _
   | SetBang _
   | RestoreEnv _ -> IdSet.empty
@@ -228,6 +235,7 @@ let touched_addresses_from_values frame =
   | GetAttrObj _
   | SetAttrObj _
   | GetObjAttr _
+  | SetObjAttr _
   | OwnFieldNames _
   | SetBang _
   | RestoreEnv _ ->
@@ -238,7 +246,8 @@ let touched_addresses_from_values frame =
   | SetFieldField (v, _, _, _)
   | GetAttrField (_, v, _)
   | SetAttrField (_, v, _, _)
-  | GetFieldField (v, _, _) ->
+  | GetFieldField (v, _, _)
+  | SetObjAttrNewval (_, v, _) ->
     addresses_of_vals [v]
 
   (* Two values *)
@@ -290,6 +299,8 @@ let to_string = function
   | SetAttrField _ -> "SetAttrField"
   | SetAttrNewval _ -> "SetAttrNewval"
   | GetObjAttr _ -> "GetObjAttr"
+  | SetObjAttr _ -> "SetObjAttr"
+  | SetObjAttrNewval _ -> "SetObjAttrNewval"
   | OwnFieldNames _ -> "OwnFieldNames"
   | SetBang (id, _, _) -> "SetBang-" ^ id
 
@@ -468,6 +479,18 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | GetObjAttr _, _ -> 1
   | _, GetObjAttr _ -> -1
+  | SetObjAttr (oattr, newval, env), SetObjAttr (oattr', newval', env') ->
+    order_concat [lazy (Pervasives.compare oattr oattr');
+                  lazy (Pervasives.compare newval newval');
+                  lazy (Env.compare env env')]
+  | SetObjAttr _, _ -> 1
+  | _, SetObjAttr _ -> -1
+  | SetObjAttrNewval (oattr, obj, env), SetObjAttrNewval (oattr', obj', env') ->
+    order_concat [lazy (Pervasives.compare oattr oattr');
+                  lazy (compare_value obj obj');
+                  lazy (Env.compare env env')]
+  | SetObjAttrNewval _, _ -> 1
+  | _, SetObjAttrNewval _ -> -1
   | OwnFieldNames env, OwnFieldNames env' ->
     Env.compare env env'
   | OwnFieldNames _, _ -> 1

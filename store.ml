@@ -71,10 +71,14 @@ module ValueStore = Make(AValue)
 module ObjValue =
 struct
   type t = [`Obj of Obj_val.t | `ObjT]
-  let compare = Obj_val.compare
+  let compare x y = match x, y with
+    | `ObjT, `ObjT -> 0
+    | `ObjT, _ -> 1
+    | _, `ObjT -> -1
+    | `Obj o, `Obj o' -> Obj_val.compare o o'
   let join x y = match x, y with
     | `Obj o, `Obj o' ->
-      if compare o o' == 0 then
+      if Obj_val.compare o o' == 0 then
         `Obj o
       else
         `ObjT

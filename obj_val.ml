@@ -33,7 +33,7 @@ let string_of_prop = function
 type t = attrs * (prop IdMap.t)
 
 (* TODO: should use AValue.compare, as its definition could change *)
-let compare = Pervasives.compare
+let compare : t -> t -> int = Pervasives.compare
 
 let to_string o = "Obj"
 

@@ -364,6 +364,9 @@ struct
     | S.GetObjAttr (p, oattr, obj) ->
       push (F.GetObjAttr (oattr, state.env))
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+    | S.SetObjAttr (p, oattr, obj, newval) ->
+      push (F.SetObjAttr (oattr, newval, state.env))
+        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
     | S.OwnFieldNames (p, obj) ->
       push (F.OwnFieldNames state.env)
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
@@ -379,7 +382,8 @@ struct
     | S.SetBang (p, id, exp) ->
       begin try
         let a = Env.lookup id state.env in
-        push (F.SetBang (id, a, state.env)) ({state with control = Exp exp}, ss)
+        push (F.SetBang (id, a, state.env))
+          ({state with control = Exp exp; time = Time.tick p state.time}, ss)
       with Not_found ->
         print_endline ("Identifier cannot be resolved for set!: " ^ id);
         raise Not_found
@@ -612,6 +616,37 @@ struct
           end
         | `ObjT -> failwith "GetObjAttr: object too abstracted"
         | _ -> failwith "GetObjAttr on a non-object"
+      end
+    | F.SetObjAttr (oattr, newval, env') ->
+      [{state with control = Frame (Exp newval, F.SetObjAttrNewval (oattr, v, env'));
+                   env = env'}]
+    | F.SetObjAttrNewval (oattr, obj, env') ->
+      let helper attrs v' = match oattr, v' with
+        | S.Proto, `Obj _ | S.Proto, `Null -> {attrs with O.proto = v'}
+        | S.Proto, _ -> failwith "Cannot update proto without an object or null"
+        | S.Extensible, `True | S.Extensible, `False | S.Extensible, `BoolT ->
+          { attrs with O.extensible = v'}
+        | S.Extensible, _ -> failwith "Cannot update extensible without a boolean"
+        | S.Code, _ -> failwith "Cannot update code"
+        | S.Primval, _ -> {attrs with O.primval = v'}
+        | S.Klass, _ -> failwith "Cannot update klass" in
+      begin match obj with
+      | `Obj a -> begin match ObjectStore.lookup a state.ostore with
+        | `Obj (attrs, props) ->
+          let ostore', v' = alloc_if_necessary state
+              ("setobjattrnewval-" ^ (S.string_of_oattr oattr)) v in
+          let newobj = (helper attrs v', props) in
+          let ostore'' = ObjectStore.set a (`Obj newobj) ostore' in
+          [{state with control = Val (v' :> v);
+                      ostore = ostore''; env = env'}]
+        | `ObjT -> failwith "SetObjAttrNewval: object too abstract"
+        end
+      | `StackObj _ ->
+        (* TODO: this object lives on the stack and will not be returned by this
+           operation, it is therefore not reachable. Is this expected? *)
+        [{state with control = Val v; env = env'}]
+      | `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
+      | _ -> failwith "SetObjAttrNewval on a non-object"
       end
     | F.OwnFieldNames env' -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
