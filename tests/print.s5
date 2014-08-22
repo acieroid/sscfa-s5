@@ -1,4 +1,4 @@
-// Expected: undefined
+// Expected: 'success'
 {let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
 {let (%global = {[#proto: %ObjectProto,
                   #class: "Object",
@@ -805,5 +805,6 @@
                                          #extensible: true,]
                                        '0' : {#value ("foo") ,
                                               #writable true ,
-                                              #configurable true}}))}}
+                                              #configurable true}}))}};
+     "success"
 }}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}

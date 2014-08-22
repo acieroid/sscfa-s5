@@ -1,0 +1,3 @@
+// Expected: 'success'
+{[]}[<#extensible>=true];
+"success"

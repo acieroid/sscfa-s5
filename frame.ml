@@ -51,17 +51,19 @@ type t =
   | SetFieldField of value * S.exp * S.exp * Env.t
   | SetFieldNewval of value * value * S.exp * Env.t
   | SetFieldArgs of value * value * value * Env.t
-  (* syntax? *)
+  (* obj[field<#attr>] *)
   | GetAttrObj of S.pattr * S.exp * Env.t
   | GetAttrField of S.pattr * value * Env.t
-  (* syntax? *)
+  (* obj[field<#attr> = val] *)
   | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
   | SetAttrField of S.pattr * value * S.exp * Env.t
   | SetAttrNewval of S.pattr * value * value * Env.t
-  (* syntax? *)
+  (* obj[<#attr>]? *)
   | GetObjAttr of S.oattr * Env.t
-  (* syntax? *)
+  (* get-own-field-names(obj) *)
   | OwnFieldNames of Env.t
+  (* id := val *)
+  | SetBang of string * Address.t * Env.t
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
@@ -93,6 +95,7 @@ let env_of_frame = function
   | SetAttrNewval (_, _, _, env)
   | GetObjAttr (_, env)
   | OwnFieldNames env
+  | SetBang (_, _, env)
   | RestoreEnv env ->
     env
 
@@ -162,6 +165,7 @@ let free_vars frame =
   | SetAttrNewval _
   | GetObjAttr _
   | OwnFieldNames _
+  | SetBang _
   | RestoreEnv _ -> IdSet.empty
 
 let touched_addresses = function
@@ -212,19 +216,20 @@ let touched_addresses_from_values frame =
     addresses_of_obj o
 
   (* No value *)
-  | Let (_, _, _)
-  | Rec (_, _, _, _)
-  | Seq (_, _)
-  | AppFun (_, _)
-  | Op1App (_, _)
-  | Op2Arg (_, _, _)
-  | If (_, _, _)
-  | GetFieldObj (_, _, _)
-  | SetFieldObj (_, _, _, _)
-  | GetAttrObj (_, _, _)
-  | SetAttrObj (_, _, _, _)
-  | GetObjAttr (_, _)
+  | Let _
+  | Rec _
+  | Seq _
+  | AppFun _
+  | Op1App _
+  | Op2Arg _
+  | If _
+  | GetFieldObj _
+  | SetFieldObj _
+  | GetAttrObj _
+  | SetAttrObj _
+  | GetObjAttr _
   | OwnFieldNames _
+  | SetBang _
   | RestoreEnv _ ->
     addresses_of_vals []
 
@@ -232,20 +237,15 @@ let touched_addresses_from_values frame =
   | Op2App (_, v, _)
   | SetFieldField (v, _, _, _)
   | GetAttrField (_, v, _)
-  | SetAttrField (_, v, _, _) ->
-    addresses_of_vals [(v :> value)]
-
+  | SetAttrField (_, v, _, _)
   | GetFieldField (v, _, _) ->
     addresses_of_vals [v]
 
   (* Two values *)
   | SetFieldNewval (v1, v2, _, _)
-  | SetAttrNewval (_, v1, v2, _) ->
-    addresses_of_vals [(v1 :> value); (v2 :> value)]
-
+  | SetAttrNewval (_, v1, v2, _)
   | GetFieldBody (v1, v2, _) ->
     addresses_of_vals [v1; v2]
-
 
   (* Three values *)
   | SetFieldArgs (v1, v2, v3, _) ->
@@ -291,6 +291,7 @@ let to_string = function
   | SetAttrNewval _ -> "SetAttrNewval"
   | GetObjAttr _ -> "GetObjAttr"
   | OwnFieldNames _ -> "OwnFieldNames"
+  | SetBang (id, _, _) -> "SetBang-" ^ id
 
 (* TODO: use ppx_deriving when 4.02 is out *)
 let compare f f' = match f, f' with
@@ -471,6 +472,12 @@ let compare f f' = match f, f' with
     Env.compare env env'
   | OwnFieldNames _, _ -> 1
   | _, OwnFieldNames _ -> -1
+  | SetBang (id, a, env), SetBang (id', a', env') ->
+    order_concat [lazy (Pervasives.compare id id');
+                  lazy (Address.compare a a');
+                  lazy (Env.compare env env')]
+  | SetBang _, _ -> 1
+  | _, SetBang _ -> -1
 
   | RestoreEnv env, RestoreEnv env' ->
     Env.compare env env'

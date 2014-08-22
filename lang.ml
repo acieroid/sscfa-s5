@@ -331,6 +331,7 @@ struct
             ({state with control = Exp exp}, ss)
       end
     | S.Let (p, id, exp, body) ->
+      print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p));
       push (F.Let (id, body, state.env))
         ({state with control = Exp exp; time = Time.tick p state.time}, ss)
     | S.Seq (p, left, right) ->
@@ -375,6 +376,14 @@ struct
                      env = env';
                      vstore = vstore';
                      time = Time.tick p state.time}, ss)
+    | S.SetBang (p, id, exp) ->
+      begin try
+        let a = Env.lookup id state.env in
+        push (F.SetBang (id, a, state.env)) ({state with control = Exp exp}, ss)
+      with Not_found ->
+        print_endline ("Identifier cannot be resolved for set!: " ^ id);
+        raise Not_found
+      end
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args (state : state)
@@ -501,6 +510,7 @@ struct
         | `Obj _, `StrT ->
           (* We can handle this case more precisely by returning a state for
              each possible value of a field in this object *)
+          print_endline "Trying to access a field with a stringT name";
           [{state with control = Val `Top; env = env'}]
         | `ObjT, _ -> failwith "GetFieldBody: object too abstracted"
         | _ -> failwith "GetFieldBody on a non-object or non-string field"
@@ -630,7 +640,13 @@ struct
     | F.Rec (name, a, body, env') ->
       let ostore', v' = alloc_if_necessary state ("rec-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
-      [{state with control = Exp body; vstore = vstore'; ostore = ostore'}]
+      [{state with control = Exp body;
+                   vstore = vstore'; ostore = ostore'; env = env'}]
+    | F.SetBang (name, a, env') ->
+      let ostore', v' = alloc_if_necessary state ("setbang-" ^ name) v in
+      let vstore' = ValueStore.set a v' state.vstore in
+      [{state with control = Val (v' :> v);
+                   vstore = vstore'; ostore = ostore'; env = env'}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))

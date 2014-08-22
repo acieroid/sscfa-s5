@@ -1,0 +1,7 @@
+// Expected: 'success'
+let (f = func(obj) { obj[delete "foo"] })
+let (obj1 = {[]}["foo" = 1])
+let (obj2 = {[]}["bar" = 1])
+f(obj1);
+f(obj2);
+"success"
