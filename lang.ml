@@ -41,7 +41,8 @@ struct
 
   type v = F.value (* shorthand *)
 
-  (* type clo = [`Clos of Env.t * id list * S.exp ] *)
+  type exc =
+    | Break of string * v
 
   type control =
     | Exp of S.exp
@@ -49,6 +50,7 @@ struct
     | PropVal of O.prop
     | Val of F.value
     | Frame of (control * F.t)
+    | Exception of exc
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
@@ -57,6 +59,7 @@ struct
     | Val (#AValue.t as v) -> "Val(" ^ (AValue.to_string v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
+    | Exception (Break (l, _)) -> "Break(" ^ l ^ ")"
 
   type state = {
     control : control;
@@ -163,6 +166,8 @@ struct
       | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
       | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
         Frame.addresses_of_vals (Frame.vals_of_prop prop)
+      | Exception (Break (_, v)) ->
+        Frame.addresses_of_vals [v]
 
     let root (state, ss) : AddressSet.t =
       AddressSet.union ss (control_root state.control state.env state.vstore state.ostore)
@@ -388,6 +393,12 @@ struct
         print_endline ("Identifier cannot be resolved for set!: " ^ id);
         raise Not_found
       end
+    | S.Label (p, label, body) ->
+      push (F.Label (label, state.env))
+        ({state with control = Exp body; time = Time.tick p state.time}, ss)
+    | S.Break (p, label, ret) ->
+      push (F.Break (label, state.env))
+        ({state with control = Exp ret; time = Time.tick p state.time}, ss)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args (state : state)
@@ -682,6 +693,10 @@ struct
       let vstore' = ValueStore.set a v' state.vstore in
       [{state with control = Val (v' :> v);
                    vstore = vstore'; ostore = ostore'; env = env'}]
+    | F.Label (_, env') ->
+      [{state with env = env'}]
+    | F.Break (lab, env) ->
+      [{state with control = Exception (Break (lab, v)); env = env}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
@@ -698,6 +713,11 @@ struct
       {state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
                   env = env'}
     | f -> failwith ("apply_frame_prop: not implemented: " ^ (string_of_frame f))
+
+  let apply_frame_exc e frame state : state = match e, frame with
+    | Break (label, v), F.Label (l, env') ->
+      {state with control = Val v; env = env'}
+    | Break _, _ -> state
 
   let step_prop p ((state, ss) : conf)
     : (stack_change * conf) list = match p with
@@ -720,8 +740,7 @@ struct
       | Val v -> begin match frame with
           | Some ((_, ss'), frame) ->
             BatList.map (fun state -> (StackPop frame, (state, ss'))) (apply_frame v frame state)
-          | None ->
-            []
+          | None -> []
         end
       | Frame (control', frame) ->
         [StackPush frame, ({state with control = control'},
@@ -729,9 +748,14 @@ struct
       | PropVal prop -> begin match frame with
           | Some ((state', ss'), frame) ->
             [StackPop frame, (apply_frame_prop prop frame state, ss')]
-          | None ->
-            []
-        end in
+          | None -> []
+        end
+      | Exception e -> begin match frame with
+        | Some ((state', ss'), frame) ->
+          [StackPop frame, (apply_frame_exc e frame state, ss')]
+        | None -> []
+        end
+    in
     (* print_endline ((string_of_state state) ^ " -> " ^
                    (string_of_list res
                       (fun (g, c) -> (string_of_stack_change g) ^ " -> " ^

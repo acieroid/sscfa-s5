@@ -1,2 +1,2 @@
 // Expected: 'success'
-label ret : { break ret "success" }
+label ret : { break ret "success"; "failure" }

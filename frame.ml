@@ -67,6 +67,10 @@ type t =
   | OwnFieldNames of Env.t
   (* id := val *)
   | SetBang of string * Address.t * Env.t
+  (* label lab : exp *)
+  | Label of string * Env.t
+  (* break lab ret *)
+  | Break of string * Env.t
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
@@ -101,6 +105,8 @@ let env_of_frame = function
   | SetObjAttrNewval (_, _, env)
   | OwnFieldNames env
   | SetBang (_, _, env)
+  | Label (_, env)
+  | Break (_, env)
   | RestoreEnv env ->
     env
 
@@ -173,6 +179,8 @@ let free_vars frame =
   | SetObjAttrNewval _
   | OwnFieldNames _
   | SetBang _
+  | Label _
+  | Break _
   | RestoreEnv _ -> IdSet.empty
 
 let touched_addresses = function
@@ -238,6 +246,8 @@ let touched_addresses_from_values frame =
   | SetObjAttr _
   | OwnFieldNames _
   | SetBang _
+  | Label _
+  | Break _
   | RestoreEnv _ ->
     addresses_of_vals []
 
@@ -303,6 +313,8 @@ let to_string = function
   | SetObjAttrNewval _ -> "SetObjAttrNewval"
   | OwnFieldNames _ -> "OwnFieldNames"
   | SetBang (id, _, _) -> "SetBang-" ^ id
+  | Label (lab, _) -> "Label-" ^ lab
+  | Break (lab, _) -> "Break-" ^ lab
 
 (* TODO: use ppx_deriving when 4.02 is out *)
 let compare f f' = match f, f' with
@@ -501,6 +513,15 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | SetBang _, _ -> 1
   | _, SetBang _ -> -1
-
+  | Label (lab, env), Label (lab', env') ->
+    order_concat [lazy (Pervasives.compare lab lab');
+                  lazy (Env.compare env env')]
+  | Label _, _ -> 1
+  | _, Label _ -> -1
+  | Break (lab, env), Break (lab', env') ->
+    order_concat [lazy (Pervasives.compare lab lab');
+                  lazy (Env.compare env env')]
+  | Break _, _ -> 1
+  | _, Break _ -> -1
   | RestoreEnv env, RestoreEnv env' ->
     Env.compare env env'
