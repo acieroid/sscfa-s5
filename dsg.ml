@@ -88,28 +88,30 @@ module BuildDSG =
       (* print_endline ("add_short" ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'));
          print_endline ("size of ECG: (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^ ", " ^
                      (string_of_int (G.nb_edges dsg.ecg)) ^ ")"); *)
-      let de = G.fold_edges_e
-          (fun e acc -> match e with
+      let (de, dh) = G.fold_edges_e
+          (fun e (de, dh) -> match e with
              | (c1, L.StackPush k, c1') when L.ConfOrdering.compare c1' c == 0 ->
-               EdgeSet.union acc
+               let de', dh' =
                  (List.fold_left (fun acc edge -> match edge with
                       | (L.StackPop k', c2) when L.FrameOrdering.compare k k' == 0 ->
-                        EdgeSet.add (c', L.StackPop k, c2) acc
+                        (EdgeSet.add (c', L.StackPop k, c2) de,
+                         EpsSet.add (c1, c2) dh)
                       | _ -> acc)
-                     EdgeSet.empty (L.step c' (Some (c, k))))
-             | _ -> acc)
-          dsg.g EdgeSet.empty in
+                     (EdgeSet.empty, EpsSet.empty) (L.step c' (Some (c, k)))) in
+               (EdgeSet.union de de', EpsSet.union dh dh')
+             | _ -> (de, dh))
+          dsg.g (EdgeSet.empty, EpsSet.empty) in
       let ds = EdgeSet.fold (fun (c1, g, c2) acc -> match g with
           | L.StackPop k -> ConfSet.add c2 acc
           | _ -> acc)
           de ConfSet.empty in
-      let dh =
+      let dh' =
         let (end_w_c, start_w_c') = G.fold_edges
             (fun c1 c2 (ec, sc') ->
                ((if L.ConfOrdering.compare c2 c == 0 then (c1, c2) :: ec else ec),
                 (if L.ConfOrdering.compare c1 c' == 0 then (c1, c2) :: sc' else sc')))
             dsg.ecg ([], []) in
-        List.fold_left EpsSet.union EpsSet.empty
+        List.fold_left EpsSet.union dh
           [List.fold_left (fun acc (c1, c2) -> EpsSet.add (c1, c') acc)
              EpsSet.empty end_w_c;
            List.fold_left (fun acc (c1, c2) -> EpsSet.add (c, c2) acc)
@@ -118,7 +120,7 @@ module BuildDSG =
              EpsSet.empty (BatList.cartesian_product end_w_c start_w_c')] in
       (ConfSet.filter (fun c -> not (G.mem_vertex dsg.g c)) ds,
        EdgeSet.filter (fun c -> not (G.mem_edge_e dsg.g c)) de,
-       EpsSet.filter (fun (c1, c2) -> not (G.mem_edge dsg.ecg c1 c2)) dh)
+       EpsSet.filter (fun (c1, c2) -> not (G.mem_edge dsg.ecg c1 c2)) dh')
 
     let add_edge dsg c g c' =
       (* print_endline ("add_edge " ^ (L.string_of_conf c) ^ " ->" ^ (L.string_of_stack_change g) ^ " " ^ (L.string_of_conf c')); *)

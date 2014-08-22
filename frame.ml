@@ -267,8 +267,8 @@ let to_string = function
   | ObjectProps (name, _, _, _) -> "ObjectProps-" ^ name
   | ObjectAttrs (_, name, _, _, _,  _) -> "ObjectAttrs-" ^ name
   | PropData _ -> "PropData"
-  | PropAccessor (Some _, _, _) -> "PropAccessor-Some"
-  | PropAccessor (None, _, _) -> "PropAccessor-None"
+  | PropAccessor (Some _, _, _) -> "PropAccessor-Get"
+  | PropAccessor (None, _, _) -> "PropAccessor-Set"
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
   | AppArgs _ -> "AppArgs"

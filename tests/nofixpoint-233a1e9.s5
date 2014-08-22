@@ -1,0 +1,10 @@
+// Expected: 'success'
+
+// Doesn't work with 233a1e91. As both properties x and y have the same value,
+// their state gets joined and the computation stops
+{[]
+ 'x' : {#getter 1,
+        #setter 2},
+ 'y' : {#getter 1,
+        #setter 2}};
+"success"

@@ -61,29 +61,16 @@ let eval exp =
       graph
   in aux G.empty [] (LJS.inject exp)
 
+let computation = `Dsg
 let _ =
   let s5 = load_s5 file in
-  print_endline (Shared.full_string_of_exp s5);
-  (* let dsg = DSG.build_dyck s5 in
-  DSG.output_dsg dsg "dsg.dot";
-  DSG.output_ecg dsg "ecg.dot" *)
-  let g = eval s5 in
-  let out = open_out_bin "graph.dot" in
-  DSG.Dot.output_graph out g;
-  close_out out
-
-(*
-  let conf = LJS.inject s5 in
-  print_endline (LJS.string_of_conf conf);
-  let [g, conf] = LJS.step conf [] in
-  print_endline (LJS.string_of_stack_change g);
-  print_endline (LJS.string_of_conf conf)
-*)
-(*  let s =
-    ValueStore.empty |>
-    ValueStore.join (Address.alloc 1) `True |>
-    ValueStore.join (Address.alloc 1) `False in
-  Printf.printf "%s\n" (ValueStore.to_string s) *)
-(*  let s5 = load_s5 file in
-  print_endline (string_of_exp s5)
-*)
+  match computation with
+  | `Dsg ->
+    let dsg = DSG.build_dyck s5 in
+    DSG.output_dsg dsg "dsg.dot";
+    DSG.output_ecg dsg "ecg.dot"
+  | `Eval ->
+    let g = eval s5 in
+    let out = open_out_bin "graph.dot" in
+    DSG.Dot.output_graph out g;
+    close_out out

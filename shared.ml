@@ -169,7 +169,7 @@ let rec full_string_of_exp exp = match exp with
   | DeleteField (_, _, _) -> "deletefield"
   | OwnFieldNames (_, _) -> "ownfieldnames"
   | SetBang (_, s, e) -> s ^ " := " ^ (full_string_of_exp e)
-  | Op1 (_, s, e) -> s ^ (full_string_of_exp e)
+  | Op1 (_, s, e) -> s ^ "(" ^ (full_string_of_exp e) ^ ")"
   | Op2 (_, s, e1, e2) -> (full_string_of_exp e1) ^ " " ^ s ^ " " ^ (full_string_of_exp e2)
   | If (_, cond, cons, alt) -> "if (" ^ (full_string_of_exp cond) ^ ") {" ^
                                (full_string_of_exp cons) ^ "} else {" ^
