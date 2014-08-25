@@ -25,7 +25,7 @@ type prop =
   | Data of data * AValue.t * AValue.t
   | Accessor of accessor * AValue.t * AValue.t
 
-let string_of_prop = function
+let string_of_prop : prop -> string = function
   | Data ({value = v; _}, _, _) -> "Data(" ^ (AValue.to_string v) ^ ")"
   | Accessor ({getter = g; setter = s}, _, _) -> "Accessor(" ^ (AValue.to_string g) ^ ", " ^ (AValue.to_string s) ^ ")"
 
@@ -35,54 +35,56 @@ type t = attrs * (prop IdMap.t)
 (* TODO: should use AValue.compare, as its definition could change *)
 let compare : t -> t -> int = Pervasives.compare
 
-let to_string o = "Obj"
+let to_string (o : t) = "Obj"
 
-let set_attr_str (attrs, props) attr value = match attr with
+let set_attr_str ((attrs, props) : t) (attr : string) (value : AValue.t) = match attr with
   | "proto" -> ({ attrs with proto = value }, props)
   | "code" -> ({ attrs with code = value }, props)
   | "prim" -> ({ attrs with primval = value }, props)
   | _ -> failwith ("Invalid attr for object: " ^ attr)
 
-let set_prop (attrs, props) prop value =
+let set_prop ((attrs, props) : t) (prop : string) (value : prop) =
   (attrs, IdMap.add prop value props)
 
-let has_prop (attrs, props) = function
+let has_prop ((attrs, props) : t) : AValue.t -> bool = function
   | `Str prop -> IdMap.mem prop props
   | `StrT -> failwith "has_prop on abstract string"
   | _ -> failwith "has_prop: invalid field name"
 
-let lookup_prop (attrs, props) = function
+let lookup_prop ((attrs, props) : t) : AValue.t -> prop = function
   | `Str prop -> IdMap.find prop props
   | `StrT -> failwith "lookup_prop on abstract string"
   | _ -> failwith "lookup_prop: invalid field name"
 
-let remove_prop (attrs, props) = function
+let remove_prop ((attrs, props) : t) : AValue.t -> t = function
   | `Str prop -> (attrs, IdMap.remove prop props)
   | `StrT -> failwith "remove_prop on abstract string"
   | _ -> failwith "remove_prop: invalid field name"
 
 (* Mostly taken from Ljs_eval.get_attr *)
-let get_attr (attrs, props) attr = function
+let get_attr ((attrs, props) : t) (attr : S.pattr)
+  : AValue.t -> AValue.t = function
   | `Str field ->
     if not (IdMap.mem field props) then
       `Undef
     else
       begin match (IdMap.find field props), attr with
-      | Data (_, _, config), S.Config
-      | Accessor (_, _, config), S.Config -> config
-      | Data (_, enum, _), S.Enum
-      | Accessor (_, enum, _), S.Enum -> enum
-      | Data ({writable = w; _}, _, _), S.Writable -> w
-      | Data ({value = v; _}, _, _), S.Value -> v
-      | Accessor ({ getter = g; _}, _, _), S.Getter -> g
-      | Accessor ({ setter = s; _}, _, _), S.Setter -> s
-      | _ -> failwith "bad access of attriubte"
+        | Data (_, _, config), S.Config
+        | Accessor (_, _, config), S.Config -> config
+        | Data (_, enum, _), S.Enum
+        | Accessor (_, enum, _), S.Enum -> enum
+        | Data ({writable = w; _}, _, _), S.Writable -> w
+        | Data ({value = v; _}, _, _), S.Value -> v
+        | Accessor ({ getter = g; _}, _, _), S.Getter -> g
+        | Accessor ({ setter = s; _}, _, _), S.Setter -> s
+        | _ -> failwith "bad access of attriubte"
       end
   | `StrT -> failwith "get_attr on abstract string"
   | _ -> failwith "get_attr: invalid field name"
 
 (* Mostly taken from Ljs_eval.set_attr *)
-let set_attr ({extensible = ext; _} as attrs, props) attr field value =
+let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
+    (field : string) (value : AValue.t) : t =
   let newprop =
     if not (IdMap.mem field props) then
       match ext with
@@ -138,7 +140,8 @@ let set_attr ({extensible = ext; _} as attrs, props) attr field value =
   in
   (attrs, IdMap.add field newprop props)
 
-let get_obj_attr (attrs, _) attr = match attrs, attr with
+let get_obj_attr ((attrs, _) : t) (attr : S.oattr) : AValue.t =
+  match attrs, attr with
   | {proto = v; _}, S.Proto
   | {extensible = v; _}, S.Extensible
   | {code = v; _}, S.Code

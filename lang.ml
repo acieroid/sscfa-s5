@@ -592,20 +592,26 @@ struct
               end
             | `ObjT -> failwith "SetFieldArgs: object too abstracted"
           end
+        | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
         | _ -> failwith "update field"
       end
     | F.GetAttrObj (pattr, field, env') ->
       [{state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
                    env = env'}]
     | F.GetAttrField (pattr, obj, env') ->
-      let field = v in
-      begin match obj with
-        | `Obj a ->
+      begin match obj, v with
+        | `Obj a, `Str s ->
           begin match ObjectStore.lookup a state.ostore with
-            | `Obj o -> let attr = O.get_attr o pattr field in
+            | `Obj o -> let attr = O.get_attr o pattr (`Str s) in
               [{state with control = Val (attr :> v); env = env'}]
             | `ObjT -> failwith "GetAttrField: object too abstracted"
           end
+        | `StackObj obj, `Str s ->
+          let attr = O.get_attr obj pattr (`Str s) in
+          [{state with control = Val (attr :> v); env = env'}]
+        | `Obj _, `StrT | `StackObj _, `StrT ->
+          failwith "GetAttrField with a top string as field"
+        | `ObjT, _ -> failwith "GetAttrField on a top object"
         | _ -> failwith "GetAttrField on a non-object"
       end
     | F.SetAttrObj (pattr, field, newval, env') ->
