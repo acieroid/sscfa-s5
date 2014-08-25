@@ -69,7 +69,7 @@ module KCFA : functor (K : KCFA_arg) -> Time_signature =
     let compare = Pervasives.compare
     let to_string t = string_of_list t Pos.string_of_pos
     let tick p t =
-      print_endline ("\027[34mtick\027[0m");
+      print_endline ("\027[34mtick " ^ (Pos.string_of_pos p) ^ "\027[0m");
       BatList.take K.k (p :: t)
   end
 

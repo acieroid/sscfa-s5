@@ -43,6 +43,7 @@ struct
 
   type exc =
     | Break of string * v
+    | Throw of v
 
   type control =
     | Exp of S.exp
@@ -60,6 +61,7 @@ struct
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
     | Exception (Break (l, _)) -> "Break(" ^ l ^ ")"
+    | Exception (Throw v) -> "Throw"
 
   type state = {
     control : control;
@@ -166,7 +168,8 @@ struct
       | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
       | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
         Frame.addresses_of_vals (Frame.vals_of_prop prop)
-      | Exception (Break (_, v)) ->
+      | Exception (Break (_, v))
+      | Exception (Throw v) ->
         Frame.addresses_of_vals [v]
 
     let root (state, ss) : AddressSet.t =
@@ -399,6 +402,12 @@ struct
     | S.Break (p, label, ret) ->
       push (F.Break (label, state.env))
         ({state with control = Exp ret; time = Time.tick p state.time}, ss)
+    | S.Throw (p, exp) ->
+      push (F.Throw state.env)
+        ({state with control = Exp exp; time = Time.tick p state.time}, ss)
+    | S.TryCatch (p, body, catch) ->
+      push (F.TryCatch (catch, state.env))
+        ({state with control = Exp body; time = Time.tick p state.time}, ss)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
   let rec apply_fun f args (state : state)
@@ -695,8 +704,17 @@ struct
                    vstore = vstore'; ostore = ostore'; env = env'}]
     | F.Label (_, env') ->
       [{state with env = env'}]
-    | F.Break (lab, env) ->
-      [{state with control = Exception (Break (lab, v)); env = env}]
+    | F.Break (lab, env') ->
+      [{state with control = Exception (Break (lab, v)); env = env'}]
+    | F.Throw env' ->
+      [{state with control = Exception (Throw v); env = env'}]
+    | F.TryCatch (_, env') ->
+      (* No exception has been caught, continue normal execution *)
+      [{state with control = Val v; env = env'}]
+    | F.TryCatchHandler (exc, env') ->
+      (* Exception should be handled by the handler *)
+      let (body, state') = apply_fun v [exc] state in
+      [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
@@ -718,6 +736,10 @@ struct
     | Break (label, v), F.Label (l, env') ->
       {state with control = Val v; env = env'}
     | Break _, _ -> state
+    | Throw v, F.TryCatch (handler, env') ->
+      {state with control = Frame (Exp handler, F.TryCatchHandler (v, env'));
+                  env = env'}
+    | Throw _, _ -> state
 
   let step_prop p ((state, ss) : conf)
     : (stack_change * conf) list = match p with

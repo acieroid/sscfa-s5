@@ -1,0 +1,5 @@
+try {
+    throw "error"
+} catch {
+    func(e) { "success" }
+}

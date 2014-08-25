@@ -71,6 +71,13 @@ type t =
   | Label of string * Env.t
   (* break lab ret *)
   | Break of string * Env.t
+  (* throw exp *)
+  | Throw of Env.t
+  (* try { exp } catch { func (e) { body } }
+                         ^^^^^^^^^^^^^^^^^
+                              exp'           *)
+  | TryCatch of S.exp * Env.t
+  | TryCatchHandler of value * Env.t
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
@@ -107,6 +114,9 @@ let env_of_frame = function
   | SetBang (_, _, env)
   | Label (_, env)
   | Break (_, env)
+  | Throw env
+  | TryCatch (_, env)
+  | TryCatchHandler (_, env)
   | RestoreEnv env ->
     env
 
@@ -163,7 +173,8 @@ let free_vars frame =
   | SetAttrField (_, _, exp, _)
   | SetObjAttr (_, exp, _)
   | PropAccessor (Some exp, _, _)
-  | Rec (_, _, exp, _) ->
+  | Rec (_, _, exp, _)
+  | TryCatch (exp, _) ->
     S.free_vars exp
 
   (* No exp *)
@@ -181,6 +192,8 @@ let free_vars frame =
   | SetBang _
   | Label _
   | Break _
+  | Throw _
+  | TryCatchHandler _
   | RestoreEnv _ -> IdSet.empty
 
 let touched_addresses = function
@@ -248,6 +261,8 @@ let touched_addresses_from_values frame =
   | SetBang _
   | Label _
   | Break _
+  | Throw _
+  | TryCatch _
   | RestoreEnv _ ->
     addresses_of_vals []
 
@@ -257,7 +272,8 @@ let touched_addresses_from_values frame =
   | GetAttrField (_, v, _)
   | SetAttrField (_, v, _, _)
   | GetFieldField (v, _, _)
-  | SetObjAttrNewval (_, v, _) ->
+  | SetObjAttrNewval (_, v, _)
+  | TryCatchHandler (v, _) ->
     addresses_of_vals [v]
 
   (* Two values *)
@@ -298,7 +314,6 @@ let to_string = function
   | GetFieldObj _ -> "GetFieldObj"
   | GetFieldField _ -> "GetFieldField"
   | GetFieldBody _ -> "GetFieldBody"
-  | RestoreEnv _ -> "RestoreEnv"
   | SetFieldObj _ -> "SetFieldObj"
   | SetFieldField _ -> "SetFieldField"
   | SetFieldNewval _ -> "SetFieldNewval"
@@ -315,6 +330,11 @@ let to_string = function
   | SetBang (id, _, _) -> "SetBang-" ^ id
   | Label (lab, _) -> "Label-" ^ lab
   | Break (lab, _) -> "Break-" ^ lab
+  | Throw _ -> "Throw"
+  | TryCatch _ -> "TryCatch"
+  | TryCatchHandler _ -> "TryCatchHandler"
+  | RestoreEnv _ -> "RestoreEnv"
+
 
 (* TODO: use ppx_deriving when 4.02 is out *)
 let compare f f' = match f, f' with
@@ -523,5 +543,19 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | Break _, _ -> 1
   | _, Break _ -> -1
+  | Throw env, Throw env' ->
+    Env.compare env env'
+  | Throw _, _ -> 1
+  | _, Throw _ -> 1
+  | TryCatch (exp, env), TryCatch (exp', env') ->
+    order_concat [lazy (Pervasives.compare exp exp');
+                  lazy (Env.compare env env')]
+  | TryCatch _, _ -> 1
+  | _, TryCatch _ -> -1
+  | TryCatchHandler (v, env), TryCatchHandler (v', env') ->
+    order_concat [lazy (compare_value v v');
+                  lazy (Env.compare env env')]
+  | TryCatchHandler _, _ -> 1
+  | _, TryCatchHandler _ -> -1
   | RestoreEnv env, RestoreEnv env' ->
     Env.compare env env'

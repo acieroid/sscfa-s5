@@ -1,0 +1,6 @@
+let (foo = "failure")
+label ret :
+  {foo := "success";
+   break ret 0;
+   foo := "failure"};
+foo
