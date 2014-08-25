@@ -1,8 +1,11 @@
-// Expected: Throw('success')
+// Expected: 'success'
 let (x = 1)
-
 try {
-  throw "success"
-} finally {
-  "failure"
-}
+  try {
+    throw "success"
+  } finally {
+    "failure"
+  }
+} catch { func (e) {
+  e
+}}

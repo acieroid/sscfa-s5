@@ -56,6 +56,11 @@ let lookup_prop (attrs, props) = function
   | `StrT -> failwith "lookup_prop on abstract string"
   | _ -> failwith "lookup_prop: invalid field name"
 
+let remove_prop (attrs, props) = function
+  | `Str prop -> (attrs, IdMap.remove prop props)
+  | `StrT -> failwith "remove_prop on abstract string"
+  | _ -> failwith "remove_prop: invalid field name"
+
 (* Mostly taken from Ljs_eval.get_attr *)
 let get_attr (attrs, props) attr = function
   | `Str field ->

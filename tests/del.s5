@@ -1,7 +1,9 @@
-// Expected: 'success'
+// Expected: 'undefinedsuccess'
 let (f = func(obj) { obj[delete "foo"] })
-let (obj1 = {[]}["foo" = 1])
-let (obj2 = {[]}["bar" = 1])
+let (obj1 = {[]})
+let (obj2 = {[]})
+obj1["foo" = "failure"];
+obj2["bar" = "success"];
 f(obj1);
 f(obj2);
-"success"
+prim("string+", prim("prim->str", obj1["foo"]), obj2["bar"])

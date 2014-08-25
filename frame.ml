@@ -81,6 +81,9 @@ type t =
   | SetObjAttrNewval of S.oattr * value * Env.t
   (* get-own-field-names(obj) *)
   | OwnFieldNames of Env.t
+  (* obj[delete exp] *)
+  | DeleteFieldObj of S.exp * Env.t
+  | DeleteFieldField of value * Env.t
   (* id := val *)
   | SetBang of string * Address.t * Env.t
   (* label lab : exp *)
@@ -130,6 +133,8 @@ let env_of_frame = function
   | SetObjAttr (_, _, env)
   | SetObjAttrNewval (_, _, env)
   | OwnFieldNames env
+  | DeleteFieldObj (_, env)
+  | DeleteFieldField (_, env)
   | SetBang (_, _, env)
   | Label (_, env)
   | Break (_, env)
@@ -193,6 +198,7 @@ let free_vars frame =
   | GetAttrObj (_, exp, _)
   | SetAttrField (_, _, exp, _)
   | SetObjAttr (_, exp, _)
+  | DeleteFieldObj (exp, _)
   | PropAccessor (Some exp, _, _)
   | Rec (_, _, exp, _)
   | TryCatch (exp, _)
@@ -211,6 +217,7 @@ let free_vars frame =
   | GetObjAttr _
   | SetObjAttrNewval _
   | OwnFieldNames _
+  | DeleteFieldField _
   | SetBang _
   | Label _
   | Break _
@@ -281,6 +288,7 @@ let touched_addresses_from_values frame =
   | GetObjAttr _
   | SetObjAttr _
   | OwnFieldNames _
+  | DeleteFieldObj _
   | SetBang _
   | Label _
   | Break _
@@ -297,6 +305,7 @@ let touched_addresses_from_values frame =
   | SetAttrField (_, v, _, _)
   | GetFieldField (v, _, _)
   | SetObjAttrNewval (_, v, _)
+  | DeleteFieldField (v, _)
   | TryCatchHandler (v, _)
   | TryFinallyExc (`Break (_, v), _)
   | TryFinallyExc (`Throw v, _) ->
@@ -353,6 +362,8 @@ let to_string = function
   | SetObjAttr _ -> "SetObjAttr"
   | SetObjAttrNewval _ -> "SetObjAttrNewval"
   | OwnFieldNames _ -> "OwnFieldNames"
+  | DeleteFieldObj _ -> "DeleteFieldObj"
+  | DeleteFieldField _ -> "DeleteFieldField"
   | SetBang (id, _, _) -> "SetBang-" ^ id
   | Label (lab, _) -> "Label-" ^ lab
   | Break (lab, _) -> "Break-" ^ lab
@@ -560,6 +571,16 @@ let compare f f' = match f, f' with
     order_concat [lazy (Pervasives.compare id id');
                   lazy (Address.compare a a');
                   lazy (Env.compare env env')]
+  | DeleteFieldObj (exp, env), DeleteFieldObj (exp', env') ->
+    order_concat [lazy (Pervasives.compare exp exp');
+                  lazy (Env.compare env env')]
+  | DeleteFieldObj _, _ -> 1
+  | _, DeleteFieldObj _ -> -1
+  | DeleteFieldField (v, env), DeleteFieldField (v', env') ->
+    order_concat [lazy (compare_value v v');
+                  lazy (Env.compare env env')]
+  | DeleteFieldField _, _ -> 1
+  | _, DeleteFieldField _ -> -1
   | SetBang _, _ -> 1
   | _, SetBang _ -> -1
   | Label (lab, env), Label (lab', env') ->

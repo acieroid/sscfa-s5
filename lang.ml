@@ -285,9 +285,7 @@ struct
      (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
      etc.) *)
   let step_exp (exp : S.exp) ((state, ss) as conf : conf)
-    : (stack_change * conf) list =
-    let e = match exp with S.Hint (_, _, e) -> e | _ -> exp in
-    match e with
+    : (stack_change * conf) list = match exp with
     | S.Null _ -> unch (Val `Null) conf
     | S.Undefined _ -> unch (Val `Undef) conf
     | S.String (_, s) -> unch (Val (`Str s)) conf
@@ -302,6 +300,8 @@ struct
           print_endline ("Identifier cannot be resolved: " ^ id);
           raise Not_found
       end
+    | S.Hint (_, _, e) ->
+      unch (Exp e) conf
     | S.Lambda (_, args, body) ->
       let free = S.free_vars body in
       let env' = Env.keep free state.env in
@@ -406,7 +406,11 @@ struct
     | S.TryFinally (p, body, finally) ->
       push (F.TryFinally (finally, state.env))
         ({state with control = Exp body; time = Time.tick p state.time}, ss)
-    | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
+    | S.DeleteField (p, obj, field) ->
+      print_endline ("DeleteField: " ^ (string_of_exp obj));
+      push (F.DeleteFieldObj (field, state.env))
+        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+    | S.Eval _ -> failwith ("Eval not yet handled")
 
   let rec apply_fun f args (state : state)
     : (S.exp * state) = match f with
@@ -689,6 +693,40 @@ struct
           end
         | `ObjT -> failwith "OwnFieldNames: object too abstracted"
         | _ -> failwith "OwnFieldNames on a non-object"
+      end
+    | F.DeleteFieldObj (field, env') ->
+      [{state with control = Frame (Exp field, F.DeleteFieldField (v, env'))}]
+    | F.DeleteFieldField (obj, env') ->
+      begin match obj, v with
+        | `Obj a, `Str s -> begin match ObjectStore.lookup a state.ostore with
+            | `Obj obj ->
+              if O.has_prop obj (`Str s) then
+                match O.lookup_prop obj (`Str s) with
+                (* TODO: BoolT *)
+                | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
+                  let newobj = O.remove_prop obj (`Str s) in
+                  let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
+                  [{state with control = Val `True; env = env'; ostore = ostore'}]
+                | _ ->
+                  [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                               env = env'}]
+              else
+                [{state with control = Val `False; env = env'}]
+            | `ObjT -> failwith "DeleteFieldField: object too abstracted"
+          end
+      | `StackObj obj, `Str s ->
+        (* This stack object will not be reachable when this is reached *)
+        if O.has_prop obj (`Str s) then
+          match O.lookup_prop obj (`Str s) with
+          (* TODO: BoolT *)
+          | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
+            [{state with control = Val `True; env = env'}]
+          | _ ->
+            [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                         env = env'}]
+        else
+          [{state with control = Val `False; env = env'}]
+      | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
     | F.Rec (name, a, body, env') ->
       let ostore', v' = alloc_if_necessary state ("rec-" ^ name) v in
