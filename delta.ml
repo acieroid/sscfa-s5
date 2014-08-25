@@ -115,6 +115,7 @@ let pretty store v =
 let is_extensible ostore obj = match obj with
   | `Obj loc -> begin match ObjectStore.lookup loc ostore with
     | `Obj ({ O.extensible = ext; _ }, _) -> ext
+    | `ObjT -> `BoolT
     end
   | `ObjT -> `BoolT
   | _ -> raise (PrimErr "is-extensible")
