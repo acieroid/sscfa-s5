@@ -1,0 +1,8 @@
+// Expected: Throw('success')
+let (x = 1)
+
+try {
+  throw "success"
+} finally {
+  "failure"
+}

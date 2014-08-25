@@ -20,6 +20,22 @@ let compare_value (x : value) (y : value) = match x, y with
   | _, #AValue.t -> -1
   | `StackObj o, `StackObj o' -> O.compare o o'
 
+let string_of_value = function
+  | #AValue.t as v -> AValue.to_string v
+  | `StackObj o -> "StackObj(" ^ (O.to_string o) ^ ")"
+
+type exc =
+  [ `Break of string * value | `Throw of value ]
+
+let compare_exc x y = match x, y with
+  | `Break (l, v), `Break (l', v') ->
+    order_concat [lazy (Pervasives.compare l l');
+                  lazy (compare_value v v')]
+  | `Break _, _ -> 1
+  | _, `Break _ -> -1
+  | `Throw v, `Throw v' ->
+    compare_value v v'
+
 type t =
   (* {let (id = exp) body}, where the exp in the frame is body *)
   | Let of id * S.exp * Env.t
@@ -78,6 +94,9 @@ type t =
                               exp'           *)
   | TryCatch of S.exp * Env.t
   | TryCatchHandler of value * Env.t
+  (* try { exp } finally { exp' } *)
+  | TryFinally of S.exp * Env.t
+  | TryFinallyExc of exc * Env.t
   (* frame to restore the contained environment *)
   | RestoreEnv of Env.t
 
@@ -117,6 +136,8 @@ let env_of_frame = function
   | Throw env
   | TryCatch (_, env)
   | TryCatchHandler (_, env)
+  | TryFinally (_, env)
+  | TryFinallyExc (_, env)
   | RestoreEnv env ->
     env
 
@@ -174,7 +195,8 @@ let free_vars frame =
   | SetObjAttr (_, exp, _)
   | PropAccessor (Some exp, _, _)
   | Rec (_, _, exp, _)
-  | TryCatch (exp, _) ->
+  | TryCatch (exp, _)
+  | TryFinally (exp, _) ->
     S.free_vars exp
 
   (* No exp *)
@@ -194,6 +216,7 @@ let free_vars frame =
   | Break _
   | Throw _
   | TryCatchHandler _
+  | TryFinallyExc _
   | RestoreEnv _ -> IdSet.empty
 
 let touched_addresses = function
@@ -263,6 +286,7 @@ let touched_addresses_from_values frame =
   | Break _
   | Throw _
   | TryCatch _
+  | TryFinally _
   | RestoreEnv _ ->
     addresses_of_vals []
 
@@ -273,7 +297,9 @@ let touched_addresses_from_values frame =
   | SetAttrField (_, v, _, _)
   | GetFieldField (v, _, _)
   | SetObjAttrNewval (_, v, _)
-  | TryCatchHandler (v, _) ->
+  | TryCatchHandler (v, _)
+  | TryFinallyExc (`Break (_, v), _)
+  | TryFinallyExc (`Throw v, _) ->
     addresses_of_vals [v]
 
   (* Two values *)
@@ -333,6 +359,9 @@ let to_string = function
   | Throw _ -> "Throw"
   | TryCatch _ -> "TryCatch"
   | TryCatchHandler _ -> "TryCatchHandler"
+  | TryFinally _ -> "TryFinally"
+  | TryFinallyExc (`Break _, _) -> "TryFinally-Break"
+  | TryFinallyExc (`Throw _, _) -> "TryFinally-Throw"
   | RestoreEnv _ -> "RestoreEnv"
 
 
@@ -557,5 +586,15 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | TryCatchHandler _, _ -> 1
   | _, TryCatchHandler _ -> -1
+  | TryFinally (exp, env), TryFinally (exp', env') ->
+    order_concat [lazy (Pervasives.compare exp exp');
+                  lazy (Env.compare env env')]
+  | TryFinally _, _ -> 1
+  | _, TryFinally _ -> -1
+  | TryFinallyExc (exc, env), TryFinallyExc (exc', env') ->
+    order_concat [lazy (compare_exc exc exc');
+                  lazy (Env.compare env env')]
+  | TryFinallyExc _, _ -> 1
+  | _, TryFinallyExc _ -> -1
   | RestoreEnv env, RestoreEnv env' ->
     Env.compare env env'

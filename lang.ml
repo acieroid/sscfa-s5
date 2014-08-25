@@ -41,27 +41,22 @@ struct
 
   type v = F.value (* shorthand *)
 
-  type exc =
-    | Break of string * v
-    | Throw of v
-
   type control =
     | Exp of S.exp
     | Prop of S.prop
     | PropVal of O.prop
     | Val of F.value
     | Frame of (control * F.t)
-    | Exception of exc
+    | Exception of F.exc
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
     | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
-    | Val (`StackObj o) -> "Val(StackObj(" ^ (O.to_string o) ^ "))"
-    | Val (#AValue.t as v) -> "Val(" ^ (AValue.to_string v) ^ ")"
+    | Val v -> "Val(" ^ (F.string_of_value v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
-    | Exception (Break (l, _)) -> "Break(" ^ l ^ ")"
-    | Exception (Throw v) -> "Throw"
+    | Exception (`Break (l, _)) -> "Break(" ^ l ^ ")"
+    | Exception (`Throw v) -> "Throw(" ^ (F.string_of_value v) ^ ")"
 
   type state = {
     control : control;
@@ -168,8 +163,8 @@ struct
       | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
       | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
         Frame.addresses_of_vals (Frame.vals_of_prop prop)
-      | Exception (Break (_, v))
-      | Exception (Throw v) ->
+      | Exception (`Break (_, v))
+      | Exception (`Throw v) ->
         Frame.addresses_of_vals [v]
 
     let root (state, ss) : AddressSet.t =
@@ -407,6 +402,9 @@ struct
         ({state with control = Exp exp; time = Time.tick p state.time}, ss)
     | S.TryCatch (p, body, catch) ->
       push (F.TryCatch (catch, state.env))
+        ({state with control = Exp body; time = Time.tick p state.time}, ss)
+    | S.TryFinally (p, body, finally) ->
+      push (F.TryFinally (finally, state.env))
         ({state with control = Exp body; time = Time.tick p state.time}, ss)
     | _ -> failwith ("Not yet handled " ^ (string_of_exp exp))
 
@@ -705,9 +703,9 @@ struct
     | F.Label (_, env') ->
       [{state with env = env'}]
     | F.Break (lab, env') ->
-      [{state with control = Exception (Break (lab, v)); env = env'}]
+      [{state with control = Exception (`Break (lab, v)); env = env'}]
     | F.Throw env' ->
-      [{state with control = Exception (Throw v); env = env'}]
+      [{state with control = Exception (`Throw v); env = env'}]
     | F.TryCatch (_, env') ->
       (* No exception has been caught, continue normal execution *)
       [{state with control = Val v; env = env'}]
@@ -715,6 +713,12 @@ struct
       (* Exception should be handled by the handler *)
       let (body, state') = apply_fun v [exc] state in
       [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
+    | F.TryFinally (finally, env') ->
+      (* No exception, execute the finally *)
+      [{state with control = Exp finally; env = env'}]
+    | F.TryFinallyExc (exc, env') ->
+      (* Finally has been executed, rethrow the exception *)
+      [{state with control = Exception exc; env = env'}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
@@ -733,13 +737,19 @@ struct
     | f -> failwith ("apply_frame_prop: not implemented: " ^ (string_of_frame f))
 
   let apply_frame_exc e frame state : state = match e, frame with
-    | Break (label, v), F.Label (l, env') ->
+    | `Break (label, v), F.Label (l, env') ->
       {state with control = Val v; env = env'}
-    | Break _, _ -> state
-    | Throw v, F.TryCatch (handler, env') ->
+    | `Break b, F.TryFinally (finally, env') ->
+      {state with control = Frame (Exp finally, F.TryFinallyExc (`Break b, env'));
+                  env = env'}
+    | `Break _, _ -> state
+    | `Throw v, F.TryCatch (handler, env') ->
       {state with control = Frame (Exp handler, F.TryCatchHandler (v, env'));
                   env = env'}
-    | Throw _, _ -> state
+    | `Throw v, F.TryFinally (finally, env') ->
+      {state with control = Frame (Exp finally, F.TryFinallyExc (`Throw v, env'));
+                  env = env'}
+    | `Throw _, _ -> state
 
   let step_prop p ((state, ss) : conf)
     : (stack_change * conf) list = match p with

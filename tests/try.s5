@@ -1,3 +1,4 @@
+// Expected: 'success'
 try {
     throw "error"
 } catch {

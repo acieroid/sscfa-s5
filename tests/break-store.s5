@@ -1,3 +1,4 @@
+// Expected: 'success'
 let (foo = "failure")
 label ret :
   {foo := "success";

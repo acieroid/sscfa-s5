@@ -1,0 +1,8 @@
+// Expected: 'success'
+let (x = "error")
+try {
+  x := "success";
+  throw "err"
+} catch { func (e) {
+  x
+}}
