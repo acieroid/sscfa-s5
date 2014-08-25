@@ -2,6 +2,7 @@ open Lang
 open Dsg
 open Lexing
 open Prelude
+open Shared
 
 module S = Ljs_syntax
 
@@ -61,12 +62,14 @@ let eval exp =
       graph
   in aux G.empty [] (LJS.inject exp)
 
-let computation = `Eval
+let computation = `Dsg
 let _ =
   let s5 = load_s5 file in
   match computation with
   | `Dsg ->
     let dsg = DSG.build_dyck s5 in
+    let final_states = DSG.final_states dsg in
+    print_endline ("Final states: " ^ (string_of_list final_states LJS.string_of_conf));
     DSG.output_dsg dsg "dsg.dot";
     DSG.output_ecg dsg "ecg.dot"
   | `Eval ->

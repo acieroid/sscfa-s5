@@ -246,6 +246,13 @@ module BuildDSG =
           end
       in loop { g = G.empty; q0 = c0; ecg = G.empty }
         (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
+
+    let final_states dsg =
+      G.fold_vertex (fun v acc -> if BatList.is_empty (G.succ dsg.g v) then
+                        v :: acc
+                      else
+                        acc)
+        dsg.g []
   end
 
 module L = LJS
