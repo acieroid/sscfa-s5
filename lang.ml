@@ -4,6 +4,8 @@ open Env
 open Store
 open Lattice
 
+let gc = ref true
+
 module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
@@ -14,6 +16,7 @@ sig
   type exp
   val string_of_exp : exp -> string
   type conf
+  type state
   val string_of_conf : conf -> string
   module ConfOrdering : BatInterfaces.OrderedType with type t = conf
   type frame
@@ -25,7 +28,7 @@ sig
     | StackUnchanged
   module StackChangeOrdering : BatInterfaces.OrderedType with type t = stack_change
   val string_of_stack_change : stack_change -> string
-  val inject : exp -> conf
+  val inject : exp -> state option -> conf (* can take an initial configuration as argument *)
   (* the frame list argument is the list of the potential frames that reside on
      the top of the stack, not the stack itself *)
   val step : conf -> (conf * frame) option -> (stack_change * conf) list
@@ -67,8 +70,8 @@ struct
   }
 
   let string_of_state state =
-(*    Printf.sprintf "Env: %d, VStore: %d, OStore: %d"
-      (Env.size state.env) (ValueStore.size state.vstore) (ObjectStore.size state.ostore) *)
+    (*    Printf.sprintf "Env: %d, VStore: %d, OStore: %d"
+          (Env.size state.env) (ValueStore.size state.vstore) (ObjectStore.size state.ostore) *)
     (string_of_control state.control)
 
   let compare_state state state' =
@@ -179,6 +182,7 @@ struct
         | `VarAddress _ -> touch vstore ostore ((ValueStore.lookup addr vstore) :> v)
       with Not_found ->
         print_endline ("Value not found at address " ^ (Address.to_string addr));
+        print_endline (ValueStore.to_string vstore);
         raise Not_found
 
     let touching_rel vstore ostore addr =
@@ -253,13 +257,13 @@ struct
       let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
       (ostore', `Obj a)
 
-  let inject (exp : S.exp) : conf = ({
-      control = Exp exp;
-      env = Env.empty;
-      vstore = ValueStore.empty;
-      ostore = ObjectStore.empty;
-      time = Time.initial;
-    }, StackSummary.empty)
+  let inject (exp : S.exp) (s : state option) : conf =
+    let empty = { control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
+                  ostore = ObjectStore.empty; time = Time.initial } in
+    (BatOption.map_default
+       (fun init -> {empty with env = init.env; vstore = init.vstore; ostore = init.ostore})
+       empty s,
+     StackSummary.empty)
 
   let unch (control : control) ((state, ss) : conf) =
     [StackUnchanged, ({state with control}, ss)]
@@ -344,6 +348,7 @@ struct
       push (F.Seq (right, state.env))
         ({state with control = Exp left}, ss)
     | S.App (p, f, args) ->
+      print_endline ("Apply " ^ (string_of_exp f));
       push (F.AppFun (args, state.env))
         ({state with control = Exp f}, ss)
     | S.Op1 (p, op, arg) ->
@@ -386,12 +391,12 @@ struct
                      vstore = vstore'}, ss)
     | S.SetBang (p, id, exp) ->
       begin try
-        let a = Env.lookup id state.env in
-        push (F.SetBang (id, a, state.env))
-          ({state with control = Exp exp}, ss)
-      with Not_found ->
-        print_endline ("Identifier cannot be resolved for set!: " ^ id);
-        raise Not_found
+          let a = Env.lookup id state.env in
+          push (F.SetBang (id, a, state.env))
+            ({state with control = Exp exp}, ss)
+        with Not_found ->
+          print_endline ("Identifier cannot be resolved for set!: " ^ id);
+          raise Not_found
       end
     | S.Label (p, label, body) ->
       push (F.Label (label, state.env))
@@ -454,7 +459,7 @@ struct
       let ostore', v' = alloc_if_necessary state name v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore';
-                    time = Time.tick p state.time}]
+                   time = Time.tick p state.time}]
     | F.ObjectAttrs (_, name, obj, [], (name', prop) :: props, env') ->
       let ostore', v' = alloc_if_necessary state name v in
       let obj' = O.set_attr_str obj name v' in
@@ -480,9 +485,9 @@ struct
     | F.PropAccessor (Some exp, (accessor, enum, config), env') ->
       let ostore', v' = alloc_if_necessary state "propacc-get" v in
       [{state with control = Frame (Exp exp, (F.PropAccessor
-                                                 (None, ({accessor with O.getter = v'},
-                                                         enum, config), env')));
-                    ostore = ostore'; env = env'}]
+                                                (None, ({accessor with O.getter = v'},
+                                                        enum, config), env')));
+                   ostore = ostore'; env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
     | F.AppFun ([], env') ->
@@ -661,22 +666,22 @@ struct
         | S.Primval, _ -> {attrs with O.primval = v'}
         | S.Klass, _ -> failwith "Cannot update klass" in
       begin match obj with
-      | `Obj a -> begin match ObjectStore.lookup a state.ostore with
-        | `Obj (attrs, props) ->
-          let ostore', v' = alloc_if_necessary state
-              ("setobjattrnewval-" ^ (S.string_of_oattr oattr)) v in
-          let newobj = (helper attrs v', props) in
-          let ostore'' = ObjectStore.set a (`Obj newobj) ostore' in
-          [{state with control = Val (v' :> v);
-                      ostore = ostore''; env = env'}]
-        | `ObjT -> failwith "SetObjAttrNewval: object too abstract"
-        end
-      | `StackObj _ ->
-        (* TODO: this object lives on the stack and will not be returned by this
-           operation, it is therefore not reachable. Is this expected? *)
-        [{state with control = Val v; env = env'}]
-      | `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
-      | _ -> failwith "SetObjAttrNewval on a non-object"
+        | `Obj a -> begin match ObjectStore.lookup a state.ostore with
+            | `Obj (attrs, props) ->
+              let ostore', v' = alloc_if_necessary state
+                  ("setobjattrnewval-" ^ (S.string_of_oattr oattr)) v in
+              let newobj = (helper attrs v', props) in
+              let ostore'' = ObjectStore.set a (`Obj newobj) ostore' in
+              [{state with control = Val (v' :> v);
+                           ostore = ostore''; env = env'}]
+            | `ObjT -> failwith "SetObjAttrNewval: object too abstract"
+          end
+        | `StackObj _ ->
+          (* TODO: this object lives on the stack and will not be returned by this
+             operation, it is therefore not reachable. Is this expected? *)
+          [{state with control = Val v; env = env'}]
+        | `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
+        | _ -> failwith "SetObjAttrNewval on a non-object"
       end
     | F.OwnFieldNames env' -> begin match v with
         | `Obj a -> begin match ObjectStore.lookup a state.ostore with
@@ -722,19 +727,19 @@ struct
                 [{state with control = Val `False; env = env'}]
             | `ObjT -> failwith "DeleteFieldField: object too abstracted"
           end
-      | `StackObj obj, `Str s ->
-        (* This stack object will not be reachable when this is reached *)
-        if O.has_prop obj (`Str s) then
-          match O.lookup_prop obj (`Str s) with
-          (* TODO: BoolT *)
-          | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
-            [{state with control = Val `True; env = env'}]
-          | _ ->
-            [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
-                         env = env'}]
-        else
-          [{state with control = Val `False; env = env'}]
-      | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
+        | `StackObj obj, `Str s ->
+          (* This stack object will not be reachable when this is reached *)
+          if O.has_prop obj (`Str s) then
+            match O.lookup_prop obj (`Str s) with
+            (* TODO: BoolT *)
+            | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
+              [{state with control = Val `True; env = env'}]
+            | _ ->
+              [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                           env = env'}]
+          else
+            [{state with control = Val `False; env = env'}]
+        | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
     | F.Rec (name, a, body, env') ->
       let ostore', v' = alloc_if_necessary state ("rec-" ^ name) v in
@@ -829,9 +834,9 @@ struct
           | None -> []
         end
       | Exception e -> begin match frame with
-        | Some ((state', ss'), frame) ->
-          [StackPop frame, (apply_frame_exc e frame state, ss')]
-        | None -> []
+          | Some ((state', ss'), frame) ->
+            [StackPop frame, (apply_frame_exc e frame state, ss')]
+          | None -> []
         end
     in
     (* print_endline ((string_of_state state) ^ " -> " ^
@@ -840,5 +845,5 @@ struct
                                      (string_of_state c)))); *)
     res
 
-  let step conf = step_no_gc (GC.gc conf)
+  let step conf = step_no_gc (if !gc then GC.gc conf else conf)
 end

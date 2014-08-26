@@ -191,8 +191,8 @@ module BuildDSG =
        EdgeSet.filter (fun c -> not (G.mem_edge_e dsg.g c)) de,
        EpsSet.empty)
 
-    let build_dyck exp =
-      let c0 = L.inject exp in
+    let build_dyck exp init =
+      let c0 = L.inject exp init in
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;

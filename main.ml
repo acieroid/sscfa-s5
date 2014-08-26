@@ -4,13 +4,24 @@ open Lexing
 open Prelude
 open Shared
 
-module S = Ljs_syntax
+let env = ref None
+let dump = ref None
+let file = ref None
 
-let file =
-  if Array.length Sys.argv < 2 then
-    failwith "Expected a S5 file as argument"
-  else
-    Array.get Sys.argv 1
+let speclist = [
+  "-env", Arg.String (fun s -> env := Some s),
+  "environment file to load";
+  "-dump", Arg.String (fun s -> dump := Some s),
+  "where to dump the final environment (and store) of the execution";
+  (* TODO: it would be better to disable collection of variables prefixed with
+     % or #, except some (eg. %or) *)
+  "-no-gc", Arg.Unit (fun () -> gc := false),
+  "disable GC (needed when loading environments)";
+]
+
+let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"
+
+module S = Ljs_syntax
 
 (* Parse a S5 source code file *)
 let load_s5 file : S.exp =
@@ -35,13 +46,13 @@ let load_s5 file : S.exp =
 let save_state dsg file =
   match DSG.final_states dsg with
   | [] -> failwith "No final state found"
-  | [state] ->
+  | [((state : LJS.state), _)] ->
     let cout = open_out_bin file in
     Marshal.to_channel cout state [Marshal.Compat_32];
     close_out cout
   | _ -> failwith "More than one state found"
 
-let load_state file =
+let load_state file : LJS.state =
   let cin = open_in_bin file in
   let state = Marshal.from_channel cin in
   close_in cin;
@@ -52,7 +63,7 @@ module G = DSG.G
 (* Evaluate a program as a linear sequence of states. If one step leads to more
    than one state, only the first one is kept. (This allow easier debugging on
    simple programs.) *)
-let eval exp =
+let eval exp env =
   let push stack v = v :: stack in
   let pop = function
     | [] -> []
@@ -79,21 +90,32 @@ let eval exp =
       print_endline (Printexc.get_backtrace ());
       Printf.printf "Failed after computing %d states: %s" (G.nb_vertex graph) (Printexc.to_string e);
       graph
-  in aux G.empty [] (LJS.inject exp)
+  in aux G.empty [] (LJS.inject exp env)
 
-let computation = `Dsg
+let computation = `Eval
 
-let _ =
-  let s5 = load_s5 file in
-  match computation with
-  | `Dsg ->
-    let dsg = DSG.build_dyck s5 in
-    let final_states = DSG.final_states dsg in
-    print_endline ("Final states: " ^ (string_of_list final_states LJS.string_of_conf));
-    DSG.output_dsg dsg "dsg.dot";
-    DSG.output_ecg dsg "ecg.dot"
-  | `Eval ->
-    let g = eval s5 in
-    let out = open_out_bin "graph.dot" in
-    DSG.Dot.output_graph out g;
-    close_out out
+let () =
+  let () = Arg.parse speclist (fun x -> file := Some x) usage in
+  match !file with
+  | Some file ->
+    let s5 = load_s5 file in
+    let env = BatOption.map load_state !env in
+    begin match computation with
+      | `Dsg ->
+        let dsg = DSG.build_dyck s5 env in
+        let final_states = DSG.final_states dsg in
+        print_endline ("Final states: " ^ (string_of_list final_states LJS.string_of_conf));
+        DSG.output_dsg dsg "dsg.dot";
+        DSG.output_ecg dsg "ecg.dot";
+        begin match !dump with
+          | Some s -> save_state dsg s
+          | None -> ()
+        end
+      | `Eval ->
+        let g = eval s5 env in
+        let out = open_out_bin "graph.dot" in
+        DSG.Dot.output_graph out g;
+        close_out out
+    end
+  | None ->
+    print_endline usage
