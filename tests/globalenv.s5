@@ -1,0 +1,16 @@
+// Expected: 'foo'
+// Will not work with 1CFA addresses, as the call history at (*) is identical
+// (that is, (**)). To solve this, it becomes necessary to use another address
+// allocation scheme. This example might seem complex, but it is exactly what
+// happens when using S5's %defineGlobalVar
+let (%context = {[#proto: null, #class: "Object", #extensible: true]})
+let (bar = func(id) { func(this , args) { id }})
+//                                        ^--> (*)
+let (foo = func(id) {
+  %context[id<#configurable>=true];
+  %context[id<#getter>=bar(id)]
+//                     ^--> (**)
+})
+foo("foo");
+foo("bar");
+%context["foo"]
