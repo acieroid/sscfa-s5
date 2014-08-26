@@ -43,14 +43,10 @@ let load_s5 file : S.exp =
                                       (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))
 
-let save_state dsg file =
-  match DSG.final_states dsg with
-  | [] -> failwith "No final state found"
-  | [((state : LJS.state), _)] ->
-    let cout = open_out_bin file in
-    Marshal.to_channel cout state [Marshal.Compat_32];
-    close_out cout
-  | _ -> failwith "More than one state found"
+let save_state ((state : LJS.state), _) file =
+  let cout = open_out_bin file in
+  Marshal.to_channel cout state [Marshal.Compat_32];
+  close_out cout
 
 let load_state file : LJS.state =
   let cin = open_in_bin file in
@@ -77,7 +73,7 @@ let eval exp env =
       match confs' with
       | [] ->
         print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf));
-        graph
+        graph, conf
       | (g, conf') :: _ ->
         print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
         aux (G.add_edge_e graph (conf, g, conf'))
@@ -89,7 +85,7 @@ let eval exp env =
     with e ->
       print_endline (Printexc.get_backtrace ());
       Printf.printf "Failed after computing %d states: %s" (G.nb_vertex graph) (Printexc.to_string e);
-      graph
+      graph, conf
   in aux G.empty [] (LJS.inject exp env)
 
 let computation = `Eval
@@ -108,14 +104,18 @@ let () =
         DSG.output_dsg dsg "dsg.dot";
         DSG.output_ecg dsg "ecg.dot";
         begin match !dump with
-          | Some s -> save_state dsg s
+          | Some s -> save_state (List.hd final_states) s
           | None -> ()
         end
       | `Eval ->
-        let g = eval s5 env in
+        let g, final = eval s5 env in
         let out = open_out_bin "graph.dot" in
         DSG.Dot.output_graph out g;
-        close_out out
+        close_out out;
+        begin match !dump with
+          | Some s -> save_state final s
+          | None -> ()
+        end
     end
   | None ->
     print_endline usage
