@@ -330,6 +330,10 @@ struct
                   O.klass=(`Str kls);
                   O.extensible = AValue.bool ext},
                  IdMap.empty) in
+      (* We *need* to tick here, to avoid losing precision when multiple objects
+         are defined without funcalls in between (see tests/objs-imprecision.s5)
+      *)
+      let state = {state with time = Time.tick p state.time} in
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)

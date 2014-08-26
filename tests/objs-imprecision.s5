@@ -1,0 +1,7 @@
+// Expected: 0
+// This example shows that k-CFA with the last k call sites is not enough
+let (foo = {[]
+            'baz': {#value 0, #writable true, #configurable false}})
+let (bar = {[]
+            'baz': {#value 1, #writable true, #configurable false}})
+foo["baz"]
