@@ -12,6 +12,7 @@ let file =
   else
     Array.get Sys.argv 1
 
+(* Parse a S5 source code file *)
 let load_s5 file : S.exp =
   let cin = open_in_bin file in
   let lexbuf = Lexing.from_channel cin in
@@ -31,8 +32,26 @@ let load_s5 file : S.exp =
                                       (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))
 
+let save_state dsg file =
+  match DSG.final_states dsg with
+  | [] -> failwith "No final state found"
+  | [state] ->
+    let cout = open_out_bin file in
+    Marshal.to_channel cout state [Marshal.Compat_32];
+    close_out cout
+  | _ -> failwith "More than one state found"
+
+let load_state file =
+  let cin = open_in_bin file in
+  let state = Marshal.from_channel cin in
+  close_in cin;
+  state
+
 module G = DSG.G
 
+(* Evaluate a program as a linear sequence of states. If one step leads to more
+   than one state, only the first one is kept. (This allow easier debugging on
+   simple programs.) *)
 let eval exp =
   let push stack v = v :: stack in
   let pop = function
@@ -63,6 +82,7 @@ let eval exp =
   in aux G.empty [] (LJS.inject exp)
 
 let computation = `Dsg
+
 let _ =
   let s5 = load_s5 file in
   match computation with

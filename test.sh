@@ -3,11 +3,19 @@ echo -n > test.log
 LOGFILE=test.log
 RAN=0
 FAILED=0
+if [ -f main.byte ]; then
+    EXEC=./main.byte
+elif [ -f main.native ]; then
+    EXEC=./main.native
+else
+    echo "No main.byte nor main.native"
+    exit
+fi
 
 function run_test {
     TEST="$1"
     echo -n "Running $TEST ... "
-    RES=$(./main.byte "$TEST" | sed -En 's/Evaluation done: Val\((.*)\)/\1/p')
+    RES=$($EXEC "$TEST" | sed -En 's/Evaluation done: Val\((.*)\)/\1/p')
     EXPECTED=$(sed -En 's|// Expected: (.*)$|\1|p' "$TEST")
     if [ "$RES" != "$EXPECTED" ]; then
         echo "failure!"

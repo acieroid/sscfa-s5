@@ -99,13 +99,13 @@ struct
     | `ObjAddress _, `VarAddress _ -> 1
     | `VarAddress _, `ObjAddress _ -> -1
   let to_string = function
-    | `ObjAddress (id, t) -> "@obj-" ^ id
-    | `VarAddress (id, t) -> "@var-" ^ id
+    | `ObjAddress (id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
+    | `VarAddress (id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
   let alloc_obj id t =
-    print_endline ("\027[33malloc_obj(" ^ (T.to_string t) ^ ")\027[0m");
+    print_endline ("\027[33malloc_obj(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
     `ObjAddress (id, t)
   let alloc_var id t =
-    print_endline ("\027[33malloc_var(" ^ (T.to_string t) ^ ")\027[0m");
+    print_endline ("\027[33malloc_var(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
     `VarAddress (id, t)
 end
 

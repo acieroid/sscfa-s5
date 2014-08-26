@@ -66,7 +66,10 @@ struct
     time : Time.t;
   }
 
-  let string_of_state state = string_of_control state.control
+  let string_of_state state =
+(*    Printf.sprintf "Env: %d, VStore: %d, OStore: %d"
+      (Env.size state.env) (ValueStore.size state.vstore) (ObjectStore.size state.ostore) *)
+    (string_of_control state.control)
 
   let compare_state state state' =
     order_concat [lazy (Pervasives.compare state.control state'.control);
@@ -336,43 +339,43 @@ struct
     | S.Let (p, id, exp, body) ->
       print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p));
       push (F.Let (id, body, state.env))
-        ({state with control = Exp exp; time = Time.tick p state.time}, ss)
+        ({state with control = Exp exp}, ss)
     | S.Seq (p, left, right) ->
       push (F.Seq (right, state.env))
-        ({state with control = Exp left; time = Time.tick p state.time}, ss)
+        ({state with control = Exp left}, ss)
     | S.App (p, f, args) ->
       push (F.AppFun (args, state.env))
-        ({state with control = Exp f; time = Time.tick p state.time}, ss)
+        ({state with control = Exp f}, ss)
     | S.Op1 (p, op, arg) ->
       push (F.Op1App (op, state.env))
-        ({state with control = Exp arg; time = Time.tick p state.time}, ss)
+        ({state with control = Exp arg}, ss)
     | S.Op2 (p, op, arg1, arg2) ->
       push (F.Op2Arg (op, arg2, state.env))
-        ({state with control = Exp arg1; time = Time.tick p state.time}, ss)
+        ({state with control = Exp arg1}, ss)
     | S.If (p, pred, cons, alt) ->
       push (F.If (cons, alt, state.env))
-        ({state with control = Exp pred; time = Time.tick p state.time}, ss)
+        ({state with control = Exp pred}, ss)
     | S.GetField (p, obj, field, body) ->
       push (F.GetFieldObj (field, body, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.SetField (p, obj, field, newval, body) ->
       push (F.SetFieldObj (field, newval, body, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.GetAttr (p, pattr, obj, field) ->
       push (F.GetAttrObj (pattr, field, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.SetAttr (p, pattr, obj, field, newval) ->
       push (F.SetAttrObj (pattr, field, newval, state.env))
         ({state with control = Exp obj; time = Time.tick p state.time}, ss)
     | S.GetObjAttr (p, oattr, obj) ->
       push (F.GetObjAttr (oattr, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.SetObjAttr (p, oattr, obj, newval) ->
       push (F.SetObjAttr (oattr, newval, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.OwnFieldNames (p, obj) ->
       push (F.OwnFieldNames state.env)
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.Rec (p, name, exp, body) ->
       let a = alloc_var name `Undef state in
       let env' = Env.extend name a state.env in
@@ -380,36 +383,35 @@ struct
       push (F.Rec (name, a, body, env'))
         ({state with control = Exp exp;
                      env = env';
-                     vstore = vstore';
-                     time = Time.tick p state.time}, ss)
+                     vstore = vstore'}, ss)
     | S.SetBang (p, id, exp) ->
       begin try
         let a = Env.lookup id state.env in
         push (F.SetBang (id, a, state.env))
-          ({state with control = Exp exp; time = Time.tick p state.time}, ss)
+          ({state with control = Exp exp}, ss)
       with Not_found ->
         print_endline ("Identifier cannot be resolved for set!: " ^ id);
         raise Not_found
       end
     | S.Label (p, label, body) ->
       push (F.Label (label, state.env))
-        ({state with control = Exp body; time = Time.tick p state.time}, ss)
+        ({state with control = Exp body}, ss)
     | S.Break (p, label, ret) ->
       push (F.Break (label, state.env))
-        ({state with control = Exp ret; time = Time.tick p state.time}, ss)
+        ({state with control = Exp ret}, ss)
     | S.Throw (p, exp) ->
       push (F.Throw state.env)
-        ({state with control = Exp exp; time = Time.tick p state.time}, ss)
+        ({state with control = Exp exp}, ss)
     | S.TryCatch (p, body, catch) ->
       push (F.TryCatch (catch, state.env))
-        ({state with control = Exp body; time = Time.tick p state.time}, ss)
+        ({state with control = Exp body}, ss)
     | S.TryFinally (p, body, finally) ->
       push (F.TryFinally (finally, state.env))
-        ({state with control = Exp body; time = Time.tick p state.time}, ss)
+        ({state with control = Exp body}, ss)
     | S.DeleteField (p, obj, field) ->
       print_endline ("DeleteField: " ^ (string_of_exp obj));
       push (F.DeleteFieldObj (field, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
     | S.Eval _ -> failwith ("Eval not yet handled")
 
   let rec apply_fun f args (state : state)

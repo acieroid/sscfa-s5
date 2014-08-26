@@ -1,10 +1,10 @@
 TARGET     = main
 TEST       = test
 OPTS       = -use-ocamlfind
-TAGS       = annot,debug
+TAGS       = annot,debug,profile
 LIBS       = unix,str,graph,oUnit
 PKGS       = batteries,ocamlgraph
-EXTENSION  = byte
+EXTENSION  = native
 RUN_TEST   = ./$(TEST).$(EXTENSION)
 CFLAGS     = -w A -w -4 -w -27 -short-paths
 OCAMLBUILD = ocamlbuild $(OPTS) -tags $(TAGS) -pkgs $(PKGS) -cflags "$(CFLAGS)"
