@@ -98,7 +98,7 @@ module BuildDSG =
                          EpsSet.add (c1, c2) dh)
                       | _ -> acc)
                      (EdgeSet.empty, EpsSet.empty)
-                     (L.step c' (Some (c, k)) dsg.global)) in
+                     (L.step c' dsg.global (Some (c, k)))) in
                (EdgeSet.union de de', EpsSet.union dh dh')
              | _ -> (de, dh))
           dsg.g (EdgeSet.empty, EpsSet.empty) in
@@ -136,7 +136,7 @@ module BuildDSG =
                if L.ConfOrdering.compare c_ c' == 0 then
                  let c2s = List.filter (fun (g', c2) -> match g' with
                      | L.StackPop k' -> L.FrameOrdering.compare k k' == 0
-                     | _ -> false) (L.step c1 (Some (c1, k)) dsg.global) in
+                     | _ -> false) (L.step c1 dsg.global (Some (c1, k))) in
                  List.fold_left (fun acc (g, c2) -> EdgeSet.add (c1, g, c2) acc)
                    acc c2s
                else
@@ -181,7 +181,7 @@ module BuildDSG =
 
     let explore dsg c =
       (* print_endline ("explore " ^ (L.string_of_conf c)); *)
-      let stepped = L.step c None dsg.global in
+      let stepped = L.step c dsg.global None in
       let ds = (List.fold_left
                   (fun set (_, conf) -> ConfSet.add conf set)
                   ConfSet.empty stepped)

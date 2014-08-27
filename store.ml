@@ -10,7 +10,8 @@ module type Store_signature =
     val empty : t
     val join : Address.t -> elt -> t -> t
     val lookup : Address.t -> t -> elt
-   (* Keep only addresses in the given set *)
+    val contains : Address.t -> t -> bool
+    (* Keep only addresses in the given set *)
     val restrict : AddressSet.t -> t -> t
     val compare : t -> t -> int
     val size : t -> int
@@ -59,6 +60,9 @@ module Make =
     let lookup (a : Address.t) (store : t) =
       let (v, _) = AddrMap.find a store in
       v
+
+    let contains (a : Address.t) (store : t) =
+      AddrMap.mem a store
 
     let restrict (addrs : AddressSet.t) : t -> t =
       AddrMap.filter (fun a _ ->

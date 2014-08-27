@@ -54,7 +54,7 @@ sig
       value as argument, but can't modify this global value. It should return
       a list of new configurations, paired with the corresponding stack change.
    *)
-  val step : conf -> (conf * frame) option -> global -> (stack_change * conf) list
+  val step : conf -> global -> (conf * frame) option -> (stack_change * conf) list
 end
 
 module LJS =
@@ -125,13 +125,42 @@ struct
   let compare_conf (state, ss) (state', ss') =
     order_comp (compare_state state state') (StackSummary.compare ss ss')
 
-  type global = Empty
+  type global = {
+    genv : Env.t;
+    gvstore : ValueStore.t;
+    gostore : ObjectStore.t;
+  }
+
+
+  let which_ostore (a : Address.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
+    : ObjectStore.t =
+    if ObjectStore.contains a ostore then
+      ostore
+    else if ObjectStore.contains a ostore' then
+      ostore'
+    else begin
+      print_endline ("Object lives at an unreachable address: " ^
+                     (Address.to_string a));
+      raise Not_found
+    end
+
+  let which_vstore (a : Address.t) (vstore : ValueStore.t) (vstore' : ValueStore.t)
+      : ValueStore.t =
+    if ValueStore.contains a vstore then
+      vstore
+    else if ValueStore.contains a vstore' then
+      vstore'
+    else begin
+      print_endline ("Value lives at an unreachable address: " ^
+                     (Address.to_string a));
+      raise Not_found
+    end
 
   (** Isolate garbage collection specific functions *)
   module GC =
   struct
 
-    let touch vstore ostore v =
+    let touch vstore ostore global v =
       let rec aux acc visited_objs : AValue.t -> StackSummary.t = function
         | `Null | `True | `False | `BoolT | `Num _ | `NumT
         | `Str _ | `StrT | `Undef | `Bot -> acc
@@ -178,14 +207,15 @@ struct
       | #AValue.t as v -> aux AddressSet.empty AddressSet.empty v
       | `StackObj obj -> aux_obj AddressSet.empty AddressSet.empty obj
 
-    let rec control_root control env vstore ostore : AddressSet.t = match control with
+    let rec control_root control env vstore ostore global
+      : AddressSet.t = match control with
       | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
       | Prop (S.Data ({S.value = v; _}, _, _)) -> Frame.addresses_of_vars (S.free_vars v) env
       | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
         Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s)) env
       | Frame (control, frame) ->
-        AddressSet.union (control_root control env vstore ostore) (Frame.touch frame)
-      | Val v -> touch vstore ostore v
+        AddressSet.union (control_root control env vstore ostore global) (Frame.touch frame)
+      | Val v -> touch vstore ostore global v
       | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
       | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
         Frame.addresses_of_vals (Frame.vals_of_prop prop)
@@ -193,19 +223,21 @@ struct
       | Exception (`Throw v) ->
         Frame.addresses_of_vals [v]
 
-    let root (state, ss) : AddressSet.t =
-      AddressSet.union ss (control_root state.control state.env state.vstore state.ostore)
+    let root (state, ss) global : AddressSet.t =
+      AddressSet.union ss (control_root state.control state.env
+                             state.vstore state.ostore global)
 
-    let touching_rel1 vstore ostore addr =
-      try match addr with
-        | `ObjAddress _ -> touch vstore ostore (`Obj addr)
-        | `VarAddress _ -> touch vstore ostore ((ValueStore.lookup addr vstore) :> v)
-      with Not_found ->
-        print_endline ("Value not found at address " ^ (Address.to_string addr));
-        print_endline (ValueStore.to_string vstore);
-        raise Not_found
+    let touching_rel1 (vstore : ValueStore.t) (ostore : ObjectStore.t)
+        (global : global) (addr : Address.t)
+      : AddressSet.t = let v = match addr with
+        | `ObjAddress _ -> `Obj addr
+        | `VarAddress _ ->
+          let store = which_vstore addr vstore global.gvstore in
+          ((ValueStore.lookup addr store) :> v)
+      in
+      touch vstore ostore global v
 
-    let touching_rel vstore ostore addr =
+    let touching_rel vstore ostore global addr =
       let rec aux todo acc =
         if AddressSet.is_empty todo then
           acc
@@ -214,20 +246,20 @@ struct
           if AddressSet.mem a acc then
             aux (AddressSet.remove a todo) acc
           else
-            let addrs = touching_rel1 vstore ostore a in
+            let addrs = touching_rel1 vstore ostore global a in
             aux (AddressSet.remove a (AddressSet.union addrs todo))
               (AddressSet.add a acc)
       in
       aux (AddressSet.singleton addr) AddressSet.empty
 
-    let reachable ((state, ss) : conf) : AddressSet.t =
-      let r = root (state, ss) in
+    let reachable ((state, ss) : conf) (global : global) : AddressSet.t =
+      let r = root (state, ss) global in
       AddressSet.fold (fun a acc ->
-          AddressSet.union acc (touching_rel state.vstore state.ostore a))
+          AddressSet.union acc (touching_rel state.vstore state.ostore global a))
         r AddressSet.empty
 
-    let gc ((state, ss) : conf) : conf =
-      let r = reachable (state, ss) in
+    let gc ((state, ss) : conf) (global : global) : conf =
+      let r = reachable (state, ss) global in
       ({state with
         vstore = ValueStore.restrict r state.vstore;
         ostore = ObjectStore.restrict r state.ostore},
@@ -280,30 +312,32 @@ struct
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = { control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
                   ostore = ObjectStore.empty; time = Time.initial } in
-    (BatOption.map_default
-       (fun (init, _) -> {empty with env = init.env; vstore = init.vstore;
-                                     ostore = init.ostore})
-       empty c,
-     StackSummary.empty),
-    Empty
+    let empty_global = { genv = Env.empty; gvstore = ValueStore.empty;
+                         gostore = ObjectStore.empty } in
+    (empty, StackSummary.empty),
+    BatOption.map_default
+      (fun (init, ss) ->
+         {genv = init.env; gvstore = init.vstore; gostore = init.ostore})
+      empty_global c
 
   let unch (control : control) ((state, ss) : conf) =
     [StackUnchanged, ({state with control}, ss)]
   let push (frame : F.t) ((state, ss) : conf) =
     [StackPush frame, (state, StackSummary.push ss frame)]
 
-  let rec get_prop obj prop ostore = match obj with
+  let rec get_prop obj prop ostore global = match obj with
     | `Obj a ->
-      begin match ObjectStore.lookup a ostore with
+      let store = which_ostore a ostore global.gostore in
+      begin match ObjectStore.lookup a store with
         | `Obj ({O.proto = pvalue; _}, props) ->
           begin try Some (IdMap.find prop props)
-            with Not_found -> get_prop (pvalue :> v) prop ostore
+            with Not_found -> get_prop (pvalue :> v) prop ostore global
           end
         | `ObjT -> failwith "get_prop: too abstracted"
       end
     | `StackObj ({O.proto = pvalue; _}, props) ->
       begin try Some (IdMap.find prop props)
-        with Not_found -> get_prop (pvalue :> v) prop ostore
+        with Not_found -> get_prop (pvalue :> v) prop ostore global
       end
     | `ObjT -> failwith "get_prop: too abstracted"
     | `Null -> None
@@ -313,7 +347,7 @@ struct
   (* TODO: currently, we call Time.tick only when an application takes place
      (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
      etc.) *)
-  let step_exp (exp : S.exp) ((state, ss) as conf : conf)
+  let step_exp (exp : S.exp) ((state, ss) as conf : conf) (global : global)
     : (stack_change * conf) list = match exp with
     | S.Null _ -> unch (Val `Null) conf
     | S.Undefined _ -> unch (Val `Undef) conf
@@ -322,13 +356,26 @@ struct
     | S.True _ -> unch (Val `True) conf
     | S.False _ -> unch (Val `False) conf
     | S.Id (_, id) ->
-      begin try
-          unch (Val ((ValueStore.lookup (Env.lookup id state.env) state.vstore) :> v))
-            conf
-        with Not_found ->
+      (* TODO: It seems that identifiers from the global environment appears by
+         magic in the state environment, and it shouldn't be the case. *)
+      let a = if Env.contains id state.env then
+          Env.lookup id state.env
+        else if Env.contains id global.genv then
+          Env.lookup id global.genv
+        else begin
           print_endline ("Identifier cannot be resolved: " ^ id);
           raise Not_found
-      end
+        end in
+      let v = if ValueStore.contains a state.vstore then
+          ValueStore.lookup a state.vstore
+        else if ValueStore.contains a global.gvstore then
+          ValueStore.lookup a global.gvstore
+        else begin
+          print_endline ("Trying to access unreachable address: " ^
+                         (Address.to_string a));
+          raise Not_found
+        end in
+      unch (Val (v :> v)) conf
     | S.Hint (_, _, e) ->
       unch (Exp e) conf
     | S.Lambda (_, args, body) ->
@@ -416,13 +463,15 @@ struct
                      env = env';
                      vstore = vstore'}, ss)
     | S.SetBang (p, id, exp) ->
-      begin try
-          let a = Env.lookup id state.env in
-          push (F.SetBang (id, a, state.env))
-            ({state with control = Exp exp}, ss)
-        with Not_found ->
-          print_endline ("Identifier cannot be resolved for set!: " ^ id);
-          raise Not_found
+      if Env.contains id state.env then
+        let a = Env.lookup id state.env in
+        push (F.SetBang (id, a, state.env))
+          ({state with control = Exp exp}, ss)
+      else if Env.contains id global.genv then
+        failwith "Cannot update global environment (TODO)"
+      else begin
+        print_endline ("Identifier cannot be resolved for set!: " ^ id);
+        raise Not_found
       end
     | S.Label (p, label, body) ->
       push (F.Label (label, state.env))
@@ -445,7 +494,7 @@ struct
         ({state with control = Exp obj}, ss)
     | S.Eval _ -> failwith ("Eval not yet handled")
 
-  let rec apply_fun f args (state : state)
+  let rec apply_fun f args (state : state) (global : global)
     : (S.exp * state) = match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
@@ -462,18 +511,22 @@ struct
         (body, {state with env = env'; vstore = vstore'; ostore = ostore';
                            time = Time.tick (S.pos_of body) state.time})
     | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
-    | `Obj a -> begin match ObjectStore.lookup a state.ostore with
+    | `Obj a ->
+      let store = which_ostore a state.ostore global.gostore in
+      begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `Clos f; _}, _) ->
-          apply_fun (`Clos f) args state
+          apply_fun (`Clos f) args state global
+        | `ObjT -> failwith "Applied too abstracted object"
         | _ -> failwith "Applied object without code attribute"
       end
     | `ObjT -> failwith "Object too abstracted when applying function"
     | `StackObj ({O.code = `Clos f; _}, _) ->
-      apply_fun (`Clos f) args state
+      apply_fun (`Clos f) args state global
     | `StackObj _ -> failwith "Applied object without code attribute"
     | _ -> failwith "Applied non-function"
 
-  let apply_frame (v : v) (frame :frame) (state : state) : state list = match frame with
+  let apply_frame (v : v) (frame : frame) (state : state) (global : global)
+    : state list = match frame with
     | F.Let (id, body, env') ->
       let a = alloc_var id id state in
       let env'' = Env.extend id a env' in
@@ -517,14 +570,14 @@ struct
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
     | F.AppFun ([], env') ->
-      let (exp, state') = apply_fun v [] state in
+      let (exp, state') = apply_fun v [] state global in
       [{state' with control = Exp exp}]
     | F.AppFun (arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (v, [], args, env')));
                    env = env'}]
     | F.AppArgs (f, vals, [], env') ->
       let args = BatList.rev (v :: vals) in
-      let (exp, state') = apply_fun f args state in
+      let (exp, state') = apply_fun f args state global in
       [{state' with control = Exp exp}]
     | F.AppArgs (f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (f, v :: vals, args, env')));
@@ -558,11 +611,11 @@ struct
     | F.GetFieldBody (obj, field, env') ->
       begin match obj, field with
         | `Obj a, `Str s ->
-          begin match get_prop (`Obj a) s state.ostore with
+          begin match get_prop (`Obj a) s state.ostore global with
             | Some (O.Data ({O.value = v; _}, _, _)) ->
               [{state with control = Val (v :> v); env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun (g :> v) [obj; v] state in
+              let (body, state') = apply_fun (g :> v) [obj; v] state global in
               [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
@@ -593,7 +646,7 @@ struct
         | `Obj a, `Str s ->
           begin match ObjectStore.lookup a state.ostore with
             | `Obj ({O.extensible = extensible; _} as attrs, props) ->
-              begin match get_prop obj s state.ostore with
+              begin match get_prop obj s state.ostore global with
                 | Some (O.Data ({O.writable = `True; _}, enum, config)) ->
                   let (enum, config) = if O.has_prop (attrs, props) (`Str s) then
                       (enum, config)
@@ -609,7 +662,7 @@ struct
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
                   failwith "unwritable" (* TODO: throw *)
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, state') = apply_fun (setter :> v) [obj; body] state in
+                  let (exp, state') = apply_fun (setter :> v) [obj; body] state global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
                 | None ->
                   match extensible with
@@ -738,22 +791,26 @@ struct
       [{state with control = Frame (Exp field, F.DeleteFieldField (v, env'))}]
     | F.DeleteFieldField (obj, env') ->
       begin match obj, v with
-        | `Obj a, `Str s -> begin match ObjectStore.lookup a state.ostore with
-            | `Obj obj ->
-              if O.has_prop obj (`Str s) then
-                match O.lookup_prop obj (`Str s) with
-                (* TODO: BoolT *)
-                | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
-                  let newobj = O.remove_prop obj (`Str s) in
-                  let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                  [{state with control = Val `True; env = env'; ostore = ostore'}]
-                | _ ->
-                  [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
-                               env = env'}]
-              else
-                [{state with control = Val `False; env = env'}]
-            | `ObjT -> failwith "DeleteFieldField: object too abstracted"
-          end
+        | `Obj a, `Str s ->
+          if ObjectStore.contains a global.gostore then
+            failwith "Cannot modify object from the global store (TODO)"
+          else
+            begin match ObjectStore.lookup a state.ostore with
+              | `Obj obj ->
+                if O.has_prop obj (`Str s) then
+                  match O.lookup_prop obj (`Str s) with
+                  (* TODO: BoolT *)
+                  | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
+                    let newobj = O.remove_prop obj (`Str s) in
+                    let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
+                    [{state with control = Val `True; env = env'; ostore = ostore'}]
+                  | _ ->
+                    [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                                 env = env'}]
+                else
+                  [{state with control = Val `False; env = env'}]
+              | `ObjT -> failwith "DeleteFieldField: object too abstracted"
+            end
         | `StackObj obj, `Str s ->
           (* This stack object will not be reachable when this is reached *)
           if O.has_prop obj (`Str s) then
@@ -789,7 +846,7 @@ struct
       [{state with control = Val v; env = env'}]
     | F.TryCatchHandler (exc, env') ->
       (* Exception should be handled by the handler *)
-      let (body, state') = apply_fun v [exc] state in
+      let (body, state') = apply_fun v [exc] state global in
       [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
     | F.TryFinally (finally, env') ->
       (* No exception, execute the finally *)
@@ -801,7 +858,8 @@ struct
       [{state with control = Val v; env = env'}]
     | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
 
-  let apply_frame_prop v frame (state : state) : state = match frame with
+  let apply_frame_prop v frame (state : state) (global : global)
+    : state = match frame with
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
     | F.ObjectProps (name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
@@ -814,7 +872,8 @@ struct
                   env = env'}
     | f -> failwith ("apply_frame_prop: not implemented: " ^ (string_of_frame f))
 
-  let apply_frame_exc e frame state : state = match e, frame with
+  let apply_frame_exc e (frame : frame) (state : state) (global : global)
+    : state = match e, frame with
     | `Break (label, v), F.Label (l, env') ->
       {state with control = Val v; env = env'}
     | `Break b, F.TryFinally (finally, env') ->
@@ -829,7 +888,7 @@ struct
                   env = env'}
     | `Throw _, _ -> state
 
-  let step_prop p ((state, ss) : conf)
+  let step_prop p ((state, ss) : conf) (global : global)
     : (stack_change * conf) list = match p with
     | S.Data ({S.value = v; S.writable = w}, enum, config) ->
       push (F.PropData (({O.value = `Undef; O.writable = AValue.bool w},
@@ -842,14 +901,15 @@ struct
                             state.env))
         ({state with control = Exp g}, ss)
 
-  let step_no_gc ((state, ss) as conf : conf) (frame : (conf * F.t) option)
-      (global : global) : (stack_change * conf) list =
+  let step_no_gc ((state, ss) as conf : conf) (global : global)
+      (frame : (conf * F.t) option) : (stack_change * conf) list =
     match state.control with
-    | Exp e -> step_exp e conf
-    | Prop p -> step_prop p conf
+    | Exp e -> step_exp e conf global
+    | Prop p -> step_prop p conf global
     | Val v -> begin match frame with
         | Some ((_, ss'), frame) ->
-          BatList.map (fun state -> (StackPop frame, (state, ss'))) (apply_frame v frame state)
+          BatList.map (fun state -> (StackPop frame, (state, ss')))
+            (apply_frame v frame state global)
         | None -> []
       end
     | Frame (control', frame) ->
@@ -857,14 +917,15 @@ struct
                          StackSummary.push ss frame)]
     | PropVal prop -> begin match frame with
         | Some ((state', ss'), frame) ->
-          [StackPop frame, (apply_frame_prop prop frame state, ss')]
+          [StackPop frame, (apply_frame_prop prop frame state global, ss')]
         | None -> []
       end
     | Exception e -> begin match frame with
         | Some ((state', ss'), frame) ->
-          [StackPop frame, (apply_frame_exc e frame state, ss')]
+          [StackPop frame, (apply_frame_exc e frame state global, ss')]
         | None -> []
       end
 
-  let step conf = step_no_gc (if !gc then GC.gc conf else conf)
+  let step conf global =
+    step_no_gc (if !gc then GC.gc conf global else conf) global
 end

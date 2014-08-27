@@ -73,7 +73,7 @@ let eval exp env =
   let (c0, global) = LJS.inject exp env in
   let rec aux graph stack conf =
     try
-      let confs' = LJS.step conf (top stack) global in
+      let confs' = LJS.step conf global (top stack) in
       match confs' with
       | [] ->
         (* print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf)); *)
