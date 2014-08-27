@@ -112,6 +112,7 @@ let () =
       | `Eval ->
         let g, final = eval s5 env in
         let out = open_out_bin "graph.dot" in
+        print_endline ("Final state: " ^ (LJS.string_of_conf final));
         DSG.Dot.output_graph out g;
         close_out out;
         begin match !dump with
