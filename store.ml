@@ -66,7 +66,7 @@ module Make =
 
     let restrict (addrs : AddressSet.t) : t -> t =
       AddrMap.filter (fun a _ ->
-          if (AddressSet.mem a addrs) then
+          if not (Address.is_reclaimable a) || (AddressSet.mem a addrs) then
             true
           else begin
             print_endline ("\027[32mreclaim(" ^ (Address.to_string a) ^ ")\027[0m");

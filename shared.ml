@@ -126,7 +126,7 @@ struct
     `VarAddress (id, t)
 end
 
-module K1 = struct let k = 1 end
+module K1 = struct let k = 2 end
 module Time = KCFA(K1)
 module Address = MakeAddress(Time)
 module AddressSet = BatSet.Make(Address)

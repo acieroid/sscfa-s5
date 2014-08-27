@@ -326,11 +326,6 @@ struct
          {genv = init'.env; gvstore = init'.vstore; gostore = init'.ostore})
       empty_global c
 
-  let unch (control : control) ((state, ss) : conf) =
-    [StackUnchanged, ({state with control}, ss)]
-  let push (frame : F.t) ((state, ss) : conf) =
-    [StackPush frame, (state, StackSummary.push ss frame)]
-
   let rec get_prop obj prop ostore global = match obj with
     | `Obj a ->
       let store = which_ostore a ostore global.gostore in
@@ -349,149 +344,6 @@ struct
     | `Null -> None
     | #AValue.t as v -> failwith ("get_prop on non-object: " ^ (AValue.to_string v))
 
-  (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
-  (* TODO: currently, we call Time.tick only when an application takes place
-     (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
-     etc.) *)
-  let step_exp (exp : S.exp) ((state, ss) as conf : conf) (global : global)
-    : (stack_change * conf) list = match exp with
-    | S.Null _ -> unch (Val `Null) conf
-    | S.Undefined _ -> unch (Val `Undef) conf
-    | S.String (_, s) -> unch (Val (`Str s)) conf
-    | S.Num (_, n) -> unch (Val (`Num n)) conf
-    | S.True _ -> unch (Val `True) conf
-    | S.False _ -> unch (Val `False) conf
-    | S.Id (_, id) ->
-      (* TODO: It seems that identifiers from the global environment appears by
-         magic in the state environment, and it shouldn't be the case. *)
-      let a = if Env.contains id state.env then
-          Env.lookup id state.env
-        else if Env.contains id global.genv then
-          Env.lookup id global.genv
-        else begin
-          print_endline ("Identifier cannot be resolved: " ^ id);
-          raise Not_found
-        end in
-      let store = which_vstore a state.vstore global.gvstore in
-      let v = ValueStore.lookup a store in
-      unch (Val (v :> v)) conf
-    | S.Hint (_, _, e) ->
-      unch (Exp e) conf
-    | S.Lambda (_, args, body) ->
-      let free = S.free_vars body in
-      let env' = Env.keep free state.env in
-      unch (Val (`Clos (env', args, body))) conf
-    | S.Object (p, attrs, props) ->
-      let {S.primval = pexp;
-           S.code = cexp;
-           S.proto = proexp;
-           S.klass = kls;
-           S.extensible = ext} = attrs in
-      let opt_add name ox xs = match ox with
-        | Some x -> (name, x)::xs
-        | None -> xs in
-      let attrs = [] |>
-                  opt_add "proto" proexp |>
-                  opt_add "code" cexp |>
-                  opt_add "prim" pexp in
-      let obj = ({O.code=`Undef; O.proto=`Undef; O.primval=`Undef;
-                  O.klass=(`Str kls);
-                  O.extensible = AValue.bool ext},
-                 IdMap.empty) in
-      (* We *need* to tick here, to avoid losing precision when multiple objects
-         are defined without funcalls in between (see tests/objs-imprecision.s5)
-      *)
-      let state = {state with time = Time.tick p state.time} in
-      begin match attrs, props with
-        | [], [] ->
-          unch (Val (`StackObj obj)) (state, ss)
-        | [], (prop, exp)::props ->
-          push (F.ObjectProps (prop, obj, props, state.env))
-            ({state with control = Prop exp}, ss)
-        | (attr, exp)::attrs, props ->
-          push (F.ObjectAttrs (p, attr, obj, attrs, props, state.env))
-            ({state with control = Exp exp}, ss)
-      end
-    | S.Let (p, id, exp, body) ->
-      (* print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p)); *)
-      push (F.Let (id, body, state.env))
-        ({state with control = Exp exp}, ss)
-    | S.Seq (p, left, right) ->
-      push (F.Seq (right, state.env))
-        ({state with control = Exp left}, ss)
-    | S.App (p, f, args) ->
-      (* print_endline ("Apply " ^ (string_of_exp f)); *)
-      push (F.AppFun (args, state.env))
-        ({state with control = Exp f}, ss)
-    | S.Op1 (p, op, arg) ->
-      push (F.Op1App (op, state.env))
-        ({state with control = Exp arg}, ss)
-    | S.Op2 (p, op, arg1, arg2) ->
-      push (F.Op2Arg (op, arg2, state.env))
-        ({state with control = Exp arg1}, ss)
-    | S.If (p, pred, cons, alt) ->
-      push (F.If (cons, alt, state.env))
-        ({state with control = Exp pred}, ss)
-    | S.GetField (p, obj, field, body) ->
-      push (F.GetFieldObj (field, body, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.SetField (p, obj, field, newval, body) ->
-      push (F.SetFieldObj (field, newval, body, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.GetAttr (p, pattr, obj, field) ->
-      push (F.GetAttrObj (pattr, field, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.SetAttr (p, pattr, obj, field, newval) ->
-      push (F.SetAttrObj (pattr, field, newval, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
-    | S.GetObjAttr (p, oattr, obj) ->
-      push (F.GetObjAttr (oattr, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.SetObjAttr (p, oattr, obj, newval) ->
-      push (F.SetObjAttr (oattr, newval, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.OwnFieldNames (p, obj) ->
-      push (F.OwnFieldNames state.env)
-        ({state with control = Exp obj}, ss)
-    | S.Rec (p, name, exp, body) ->
-      let a = alloc_var name `Undef state in
-      let env' = Env.extend name a state.env in
-      let vstore' = ValueStore.join a `Undef state.vstore in
-      push (F.Rec (name, a, body, env'))
-        ({state with control = Exp exp;
-                     env = env';
-                     vstore = vstore'}, ss)
-    | S.SetBang (p, id, exp) ->
-      if Env.contains id state.env then
-        let a = Env.lookup id state.env in
-        push (F.SetBang (id, a, state.env))
-          ({state with control = Exp exp}, ss)
-      else if Env.contains id global.genv then
-        failwith "Cannot update global environment (TODO)"
-      else begin
-        print_endline ("Identifier cannot be resolved for set!: " ^ id);
-        raise Not_found
-      end
-    | S.Label (p, label, body) ->
-      push (F.Label (label, state.env))
-        ({state with control = Exp body}, ss)
-    | S.Break (p, label, ret) ->
-      push (F.Break (label, state.env))
-        ({state with control = Exp ret}, ss)
-    | S.Throw (p, exp) ->
-      push (F.Throw state.env)
-        ({state with control = Exp exp}, ss)
-    | S.TryCatch (p, body, catch) ->
-      push (F.TryCatch (catch, state.env))
-        ({state with control = Exp body}, ss)
-    | S.TryFinally (p, body, finally) ->
-      push (F.TryFinally (finally, state.env))
-        ({state with control = Exp body}, ss)
-    | S.DeleteField (p, obj, field) ->
-      print_endline ("DeleteField: " ^ (string_of_exp obj));
-      push (F.DeleteFieldObj (field, state.env))
-        ({state with control = Exp obj}, ss)
-    | S.Eval _ -> failwith ("Eval not yet handled")
 
   let rec apply_fun f args (state : state) (global : global)
     : (S.exp * state) = match f with
@@ -724,7 +576,8 @@ struct
               [{state with control = Val `True; env = env'; ostore = ostore'''}]
             | `ObjT -> failwith "SetAttrNewval: object too abstracted"
           else if ObjectStore.contains a global.gostore then
-            failwith "SetAttrNewval: cannot update object in global store (TODO)"
+            failwith ("SetAttrNewval: cannot update object in global store (TODO): " ^
+                      (Address.to_string a))
           else
             failwith ("SetAttrNewval: no object found at address " ^
                       (Address.to_string a))
@@ -910,18 +763,193 @@ struct
                   env = env'}
     | `Throw _, _ -> state
 
+  let rec is_atomic = function
+    | S.Null _ | S.Undefined _ | S.String _ | S.Num _
+    | S.True _ | S.False _ | S.Id _ | S.Lambda _ ->
+      true
+    (* TODO: there are probably other compound expressions that can be
+       considered atomic *)
+    | S.Hint (_, _, e) -> is_atomic e
+    | _ -> false
+
+  let eval_atomic state global = function
+    | S.Null _ -> `Null
+    | S.Undefined _ -> `Undef
+    | S.String (_, s) -> `Str s
+    | S.Num (_, n) -> `Num n
+    | S.True _ -> `True
+    | S.False _ -> `False
+    | S.Id (_, id) ->
+      (* TODO: It seems that identifiers from the global environment appears by
+         magic in the state environment, and it shouldn't be the case. *)
+      let a = if Env.contains id state.env then
+          Env.lookup id state.env
+        else if Env.contains id global.genv then
+          Env.lookup id global.genv
+        else begin
+          print_endline ("Identifier cannot be resolved: " ^ id);
+          raise Not_found
+        end in
+      let store = which_vstore a state.vstore global.gvstore in
+      let v = ValueStore.lookup a store in
+      (v :> v)
+    | S.Lambda (_, args, body) ->
+      let free = S.free_vars body in
+      let env' = Env.keep free state.env in
+      `Clos (env', args, body)
+    | e -> failwith ("eval_atomic on a non-atomic expression: " ^
+                     (string_of_exp e))
+
+  let unch (control : control) ((state, ss) : conf) =
+    [StackUnchanged, ({state with control}, ss)]
+  let push (frame : F.t) ((state, ss) : conf) global
+    : (stack_change * conf) list =
+    match state.control with
+    | Exp e when is_atomic e ->
+      let v = eval_atomic state global e in
+      BatList.map (fun state -> (StackUnchanged, (state, ss)))
+        (apply_frame v frame state global)
+    | _ ->
+      [StackPush frame, (state, StackSummary.push ss global frame)]
+
   let step_prop p ((state, ss) : conf) (global : global)
     : (stack_change * conf) list = match p with
     | S.Data ({S.value = v; S.writable = w}, enum, config) ->
       push (F.PropData (({O.value = `Undef; O.writable = AValue.bool w},
                          AValue.bool enum, AValue.bool config),
                         state.env))
-        ({state with control = Exp v}, ss)
+        ({state with control = Exp v}, ss) global
     | S.Accessor ({S.getter = g; S.setter = s}, enum, config) ->
       push (F.PropAccessor (Some s, ({O.getter = `Undef; O.setter = `Undef},
                                      AValue.bool enum, AValue.bool config),
                             state.env))
-        ({state with control = Exp g}, ss)
+        ({state with control = Exp g}, ss) global
+
+
+  (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
+  (* TODO: currently, we call Time.tick only when an application takes place
+     (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
+     etc.) *)
+  let step_exp (exp : S.exp) ((state, ss) as conf : conf) (global : global)
+    : (stack_change * conf) list = match exp with
+    | S.Null _ | S.Undefined _ | S.String _ | S.Num _ | S.True _ | S.False _
+    | S.Id _ | S.Lambda _ ->
+      let v = eval_atomic state global exp in
+      unch (Val v) conf
+    | S.Hint (_, _, e) ->
+      unch (Exp e) conf
+    | S.Object (p, attrs, props) ->
+      let {S.primval = pexp;
+           S.code = cexp;
+           S.proto = proexp;
+           S.klass = kls;
+           S.extensible = ext} = attrs in
+      let opt_add name ox xs = match ox with
+        | Some x -> (name, x)::xs
+        | None -> xs in
+      let attrs = [] |>
+                  opt_add "proto" proexp |>
+                  opt_add "code" cexp |>
+                  opt_add "prim" pexp in
+      let obj = ({O.code=`Undef; O.proto=`Undef; O.primval=`Undef;
+                  O.klass=(`Str kls);
+                  O.extensible = AValue.bool ext},
+                 IdMap.empty) in
+      (* We *need* to tick here, to avoid losing precision when multiple objects
+         are defined without funcalls in between (see tests/objs-imprecision.s5)
+      *)
+      let state = {state with time = Time.tick p state.time} in
+      begin match attrs, props with
+        | [], [] ->
+          unch (Val (`StackObj obj)) (state, ss)
+        | [], (prop, exp)::props ->
+          push (F.ObjectProps (prop, obj, props, state.env))
+            ({state with control = Prop exp}, ss) global
+        | (attr, exp)::attrs, props ->
+          push (F.ObjectAttrs (p, attr, obj, attrs, props, state.env))
+            ({state with control = Exp exp}, ss) global
+      end
+    | S.Let (p, id, exp, body) ->
+      (* print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p)); *)
+      push (F.Let (id, body, state.env))
+        ({state with control = Exp exp}, ss) global
+    | S.Seq (p, left, right) ->
+      push (F.Seq (right, state.env))
+        ({state with control = Exp left}, ss) global
+    | S.App (p, f, args) ->
+      (* print_endline ("Apply " ^ (string_of_exp f)); *)
+      push (F.AppFun (args, state.env))
+        ({state with control = Exp f}, ss) global
+    | S.Op1 (p, op, arg) ->
+      push (F.Op1App (op, state.env))
+        ({state with control = Exp arg}, ss) global
+    | S.Op2 (p, op, arg1, arg2) ->
+      push (F.Op2Arg (op, arg2, state.env))
+        ({state with control = Exp arg1}, ss) global
+    | S.If (p, pred, cons, alt) ->
+      push (F.If (cons, alt, state.env))
+        ({state with control = Exp pred}, ss) global
+    | S.GetField (p, obj, field, body) ->
+      push (F.GetFieldObj (field, body, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.SetField (p, obj, field, newval, body) ->
+      push (F.SetFieldObj (field, newval, body, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.GetAttr (p, pattr, obj, field) ->
+      push (F.GetAttrObj (pattr, field, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.SetAttr (p, pattr, obj, field, newval) ->
+      push (F.SetAttrObj (pattr, field, newval, state.env))
+        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        global
+    | S.GetObjAttr (p, oattr, obj) ->
+      push (F.GetObjAttr (oattr, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.SetObjAttr (p, oattr, obj, newval) ->
+      push (F.SetObjAttr (oattr, newval, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.OwnFieldNames (p, obj) ->
+      push (F.OwnFieldNames state.env)
+        ({state with control = Exp obj}, ss) global
+    | S.Rec (p, name, exp, body) ->
+      let a = alloc_var name `Undef state in
+      let env' = Env.extend name a state.env in
+      let vstore' = ValueStore.join a `Undef state.vstore in
+      push (F.Rec (name, a, body, env'))
+        ({state with control = Exp exp;
+                     env = env';
+                     vstore = vstore'}, ss) global
+    | S.SetBang (p, id, exp) ->
+      if Env.contains id state.env then
+        let a = Env.lookup id state.env in
+        push (F.SetBang (id, a, state.env))
+          ({state with control = Exp exp}, ss) global
+      else if Env.contains id global.genv then
+        failwith "Cannot update global environment (TODO)"
+      else begin
+        print_endline ("Identifier cannot be resolved for set!: " ^ id);
+        raise Not_found
+      end
+    | S.Label (p, label, body) ->
+      push (F.Label (label, state.env))
+        ({state with control = Exp body}, ss) global
+    | S.Break (p, label, ret) ->
+      push (F.Break (label, state.env))
+        ({state with control = Exp ret}, ss) global
+    | S.Throw (p, exp) ->
+      push (F.Throw state.env)
+        ({state with control = Exp exp}, ss) global
+    | S.TryCatch (p, body, catch) ->
+      push (F.TryCatch (catch, state.env))
+        ({state with control = Exp body}, ss) global
+    | S.TryFinally (p, body, finally) ->
+      push (F.TryFinally (finally, state.env))
+        ({state with control = Exp body}, ss) global
+    | S.DeleteField (p, obj, field) ->
+      print_endline ("DeleteField: " ^ (string_of_exp obj));
+      push (F.DeleteFieldObj (field, state.env))
+        ({state with control = Exp obj}, ss) global
+    | S.Eval _ -> failwith ("Eval not yet handled")
 
   let step_no_gc ((state, ss) as conf : conf) (global : global)
       (frame : (conf * F.t) option) : (stack_change * conf) list =
