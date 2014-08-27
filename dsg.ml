@@ -240,6 +240,7 @@ module BuildDSG =
           else
             dsg
         with e -> begin
+            print_endline (Printexc.get_backtrace ());
             print_endline ("Failed at i = " ^ (string_of_int !i));
             output_dsg dsg ("/tmp/dsg-" ^ (string_of_int !i) ^ ".dot");
             print_endline (Printexc.to_string e);

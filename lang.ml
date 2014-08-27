@@ -582,7 +582,7 @@ struct
     | F.Op1App (op, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
       let ostore', v' = alloc_if_necessary state ("op1-" ^ op) v in
-      [{state with control = Val ((D.op1 ostore' op v') :> v);
+      [{state with control = Val ((D.op1 ostore' global.gostore op v') :> v);
                    ostore = ostore'; env = env'}]
     | F.Op2Arg (op, arg2, env') ->
       [{state with control = Frame (Exp arg2, (F.Op2App (op, v, env')));
@@ -591,7 +591,7 @@ struct
       (* TODO: we should avoid allocating for op1 and op2 *)
       let ostore', arg1' = alloc_if_necessary state ("op2-" ^ op ^ "arg1") arg1 in
       let ostore'', arg2' = alloc_if_necessary {state with ostore = ostore'} ("op2-" ^ op ^ "arg2") v in
-      [{state with control = Val ((D.op2 state.ostore op arg1' arg2') :> v);
+      [{state with control = Val ((D.op2 ostore'' global.gostore op arg1' arg2') :> v);
                    ostore = ostore''; env = env'}]
     | F.If (cons, alt, env') -> begin match v with
         | `True -> [{state with control = Exp cons; env = env'}]

@@ -7,18 +7,27 @@
 open Prelude
 open Lattice
 open Store
+open Shared
 
 module O = Obj_val
 
 exception PrimErr of string
 
-let typeof ostore = function
+let to_lookup ostore ostore' = fun a ->
+  if ObjectStore.contains a ostore then
+    ObjectStore.lookup a ostore
+  else if ObjectStore.contains a ostore' then
+    ObjectStore.lookup a ostore'
+  else
+    failwith ("No object found at address " ^ (Address.to_string a))
+
+let typeof lookup = function
   | `Undef -> AValue.str "undefined"
   | `Null -> AValue.str "null"
   | `Str _ -> AValue.str "string"
   | `Num _ -> AValue.str "number"
   | `True | `False -> AValue.str "boolean"
-  | `Obj a -> begin match ObjectStore.lookup a ostore with
+  | `Obj a -> begin match lookup a with
       | `Obj ({ O.code = `Bot; _ }, _) -> AValue.str "object"
       | _ -> AValue.str "function"
     end
@@ -112,8 +121,8 @@ let print store v = match v with
 let pretty store v =
   printf "%s\n%!" (AValue.to_string v); `Undef
 
-let is_extensible ostore obj = match obj with
-  | `Obj loc -> begin match ObjectStore.lookup loc ostore with
+let is_extensible lookup obj = match obj with
+  | `Obj loc -> begin match lookup loc with
     | `Obj ({ O.extensible = ext; _ }, _) -> ext
     | `ObjT -> `BoolT
     end
@@ -122,8 +131,8 @@ let is_extensible ostore obj = match obj with
 
   (* Implement this here because there's no need to expose the class
      property outside of the delta function *)
-let object_to_string (ostore : ObjectStore.t) obj = match obj with
-  | `Obj loc -> begin match ObjectStore.lookup loc ostore with
+let object_to_string lookup obj = match obj with
+  | `Obj loc -> begin match lookup loc with
       | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
         | `Str s -> AValue.str ("[object " ^ s ^ "]")
         | _ -> `StrT
@@ -133,8 +142,8 @@ let object_to_string (ostore : ObjectStore.t) obj = match obj with
   | `ObjT -> `StrT
   | _ -> raise (PrimErr "object-to-string, wasn't given object")
 
-let is_array ostore obj = match obj with
-  | `Obj loc -> begin match ObjectStore.lookup loc ostore with
+let is_array lookup obj = match obj with
+  | `Obj loc -> begin match lookup loc with
     | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
       | `Str "Array" -> `True
       | `Str _ -> `False
@@ -224,43 +233,47 @@ let numstr store = function
 let current_utc store = function
   | _ -> `NumT
 
-let op1 (store : ObjectStore.t) op : AValue.t -> AValue.t =
-  match op with
-(* return undef *)
-  | "print" -> print store
-  | "pretty" -> pretty store
-  | "void" -> void store
+let op1 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
+  : AValue.t -> AValue.t =
+  let lookup = to_lookup store gstore in
+  let f = match op with
+    (* return undef *)
+    | "print" -> print
+    | "pretty" -> pretty
+    | "void" -> void
 
-(* return string *)
-  | "typeof" -> typeof store
-  | "prim->str" -> prim_to_str store
-  | "object-to-string" -> object_to_string store
-  | "ascii_ntoc" -> ascii_ntoc store
-  | "to-lower" -> to_lower store
-  | "to-upper" -> to_upper store
+    (* return string *)
+    | "typeof" -> typeof
+    | "prim->str" -> prim_to_str
+    | "object-to-string" -> object_to_string
+    | "ascii_ntoc" -> ascii_ntoc
+    | "to-lower" -> to_lower
+    | "to-upper" -> to_upper
 
-(* return num *)
-  | "prim->num" -> prim_to_num store
-  | "strlen" -> strlen store
-  | "to-int32" -> to_int32 store
-  | "floor" -> floor' store
-  | "ceil" -> ceil' store
-  | "abs" -> absolute store
-  | "log" -> log' store
-  | "ascii_cton" -> ascii_cton store
-  | "~" -> bnot store
-  | "numstr->num" -> numstr store
-  | "current-utc-millis" -> current_utc store
+    (* return num *)
+    | "prim->num" -> prim_to_num
+    | "strlen" -> strlen
+    | "to-int32" -> to_int32
+    | "floor" -> floor'
+    | "ceil" -> ceil'
+    | "abs" -> absolute
+    | "log" -> log'
+    | "ascii_cton" -> ascii_cton
+    | "~" -> bnot
+    | "numstr->num" -> numstr
+    | "current-utc-millis" -> current_utc
 
-(* return bool *)
-  | "closure?" -> is_closure store
-  | "primitive?" -> is_primitive store
-  | "prim->bool" -> prim_to_bool store
-  | "is-array" -> is_array store
-  | "!" -> nnot store
-  | "sin" -> sine store
-  | _ ->
-    raise (PrimErr ("no implementation of unary operator: " ^ op))
+    (* return bool *)
+    | "closure?" -> is_closure
+    | "primitive?" -> is_primitive
+    | "prim->bool" -> prim_to_bool
+    | "is-array" -> is_array
+    | "!" -> nnot
+    | "sin" -> sine
+    | _ ->
+      raise (PrimErr ("no implementation of unary operator: " ^ op))
+  in
+  f lookup
 
 let arith store s f_op v1 v2 = match v1, v2 with
   | `Num x, `Num y -> `Num (f_op x y)
@@ -359,20 +372,20 @@ let same_value store v1 v2 = match v1, v2 with
   | `BoolT, `BoolT -> `BoolT
   | _ -> AValue.bool (Pervasives.compare v1 v2 = 0)
 
-let rec has_property ostore obj field = match obj, field with
-  | `Obj loc, _ -> begin match ObjectStore.lookup loc ostore with
+let rec has_property lookup obj field = match obj, field with
+  | `Obj loc, _ -> begin match lookup loc with
     | `Obj (({ O.proto = proto; _ }, _) as o) ->
       if O.has_prop o field then
         `True
       else
-        has_property ostore proto field
+        has_property lookup proto field
     | `ObjT -> `BoolT
     end
   | `ObjT, _ -> `BoolT
   | _ -> `False
 
-let has_own_property ostore obj field = match obj, field with
-  | `Obj loc, `Str _ -> begin match ObjectStore.lookup loc ostore with
+let has_own_property lookup obj field = match obj, field with
+  | `Obj loc, `Str _ -> begin match lookup loc with
       | `Obj (({ O.proto = proto; _ }, _) as o) ->
         AValue.bool (O.has_prop o field)
       | `ObjT -> `BoolT
@@ -454,8 +467,8 @@ let to_fixed store a b = match a, b with
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `NumT
   | _ -> raise (PrimErr "to-fixed didn't get 2 numbers")
 
-let rec is_accessor ostore a b = match a, b with
-  | `Obj loc, _ -> begin match ObjectStore.lookup loc ostore with
+let rec is_accessor lookup a b = match a, b with
+  | `Obj loc, _ -> begin match lookup loc with
     | `Obj o ->
       if O.has_prop o b then
         begin match O.lookup_prop o b with
@@ -464,41 +477,45 @@ let rec is_accessor ostore a b = match a, b with
         end
       else
         let ({ O.proto = proto; _ }, _) = o in
-        is_accessor ostore proto b
+        is_accessor lookup proto b
     | `ObjT -> `BoolT
     end
   | `ObjT, `Str _ -> `BoolT
   | `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
   | _ -> raise (PrimErr "isAccessor")
 
-let op2 (store : ObjectStore.t) op = match op with
-  | "+" -> arith_sum store
-  | "-" -> arith_sub store
-  | "/" -> arith_div store
-  | "*" -> arith_mul store
-  | "%" -> arith_mod store
-  | "&" -> bitwise_and store
-  | "|" -> bitwise_or store
-  | "^" -> bitwise_xor store
-  | "<<" -> bitwise_shiftl store
-  | ">>" -> bitwise_shiftr store
-  | ">>>" -> bitwise_zfshiftr store
-  | "<" -> arith_lt store
-  | "<=" -> arith_le store
-  | ">" -> arith_gt store
-  | ">=" -> arith_ge store
-  | "stx=" -> stx_eq store
-  | "abs=" -> abs_eq store
-  | "sameValue" -> same_value store
-  | "hasProperty" -> has_property store
-  | "hasOwnProperty" -> has_own_property store
-  | "string+" -> string_plus store
-  | "string<" -> string_lessthan store
-  | "base" -> get_base store
-  | "char-at" -> char_at store
-  | "locale-compare" -> locale_compare store
-  | "pow" -> pow store
-  | "to-fixed" -> to_fixed store
-  | "isAccessor" -> is_accessor store
-  | _ ->
-    raise (PrimErr ("no implementation of binary operator: " ^ op))
+let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
+  : AValue.t -> AValue.t -> AValue.t =
+  let lookup = to_lookup store gstore in
+  let f = match op with
+    | "+" -> arith_sum
+    | "-" -> arith_sub
+    | "/" -> arith_div
+    | "*" -> arith_mul
+    | "%" -> arith_mod
+    | "&" -> bitwise_and
+    | "|" -> bitwise_or
+    | "^" -> bitwise_xor
+    | "<<" -> bitwise_shiftl
+    | ">>" -> bitwise_shiftr
+    | ">>>" -> bitwise_zfshiftr
+    | "<" -> arith_lt
+    | "<=" -> arith_le
+    | ">" -> arith_gt
+    | ">=" -> arith_ge
+    | "stx=" -> stx_eq
+    | "abs=" -> abs_eq
+    | "sameValue" -> same_value
+    | "hasProperty" -> has_property
+    | "hasOwnProperty" -> has_own_property
+    | "string+" -> string_plus
+    | "string<" -> string_lessthan
+    | "base" -> get_base
+    | "char-at" -> char_at
+    | "locale-compare" -> locale_compare
+    | "pow" -> pow
+    | "to-fixed" -> to_fixed
+    | "isAccessor" -> is_accessor
+    | _ ->
+      raise (PrimErr ("no implementation of binary operator: " ^ op))
+  in f lookup
