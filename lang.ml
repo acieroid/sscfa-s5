@@ -15,23 +15,46 @@ module type Lang_signature =
 sig
   type exp
   val string_of_exp : exp -> string
+
+  (** A configuration is like a state, but can contain more information, such as
+      a stack summary. This is what will be contained in the state graph. *)
   type conf
-  type state
   val string_of_conf : conf -> string
   module ConfOrdering : BatInterfaces.OrderedType with type t = conf
+
+  (** Global information that can be useful. It remains constant throughout the
+      evaluation, and is passed to the step function at each step. It can for
+      example be used to model a global environment and/or store *)
+  type global
+
+  (** The frame is what the stack is made up from *)
   type frame
   val string_of_frame : frame -> string
   module FrameOrdering : BatInterfaces.OrderedType with type t = frame
+
+  (** A frame can be either pushed on or popped off the stack. A transition can
+      also leave the stack unchange *)
   type stack_change =
     | StackPop of frame
     | StackPush of frame
     | StackUnchanged
   module StackChangeOrdering : BatInterfaces.OrderedType with type t = stack_change
   val string_of_stack_change : stack_change -> string
-  val inject : exp -> state option -> conf (* can take an initial configuration as argument *)
-  (* the frame list argument is the list of the potential frames that reside on
-     the top of the stack, not the stack itself *)
-  val step : conf -> (conf * frame) option -> (stack_change * conf) list
+
+  (** The injection function injects an expression into an initial
+      configuration. It can take a previous configuration as argument,
+      to extract some useful information from it (eg. the environment/store).
+      It should also construct the global value that will be passed to the step
+      function. *)
+  val inject : exp -> conf option -> conf * global
+
+  (** The step function steps from one configuratino to the next. It takes a
+      potential (configuration, frame) pair that respectively represents the
+      previous configuration and the top of the stack. It also takes the global
+      value as argument, but can't modify this global value. It should return
+      a list of new configurations, paired with the corresponding stack change.
+   *)
+  val step : conf -> (conf * frame) option -> global -> (stack_change * conf) list
 end
 
 module LJS =
@@ -102,13 +125,11 @@ struct
   let compare_conf (state, ss) (state', ss') =
     order_comp (compare_state state state') (StackSummary.compare ss ss')
 
+  type global = Empty
+
+  (** Isolate garbage collection specific functions *)
   module GC =
   struct
-    (* Garbage collection.
-       TODO:
-         - for now, we only perform GC on the value store. It could be worth
-           investigating it on the the object store as well
-    *)
 
     let touch vstore ostore v =
       let rec aux acc visited_objs : AValue.t -> StackSummary.t = function
@@ -156,7 +177,6 @@ struct
       match v with
       | #AValue.t as v -> aux AddressSet.empty AddressSet.empty v
       | `StackObj obj -> aux_obj AddressSet.empty AddressSet.empty obj
-
 
     let rec control_root control env vstore ostore : AddressSet.t = match control with
       | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
@@ -257,13 +277,15 @@ struct
       let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
       (ostore', `Obj a)
 
-  let inject (exp : S.exp) (s : state option) : conf =
+  let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = { control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
                   ostore = ObjectStore.empty; time = Time.initial } in
     (BatOption.map_default
-       (fun init -> {empty with env = init.env; vstore = init.vstore; ostore = init.ostore})
-       empty s,
-     StackSummary.empty)
+       (fun (init, _) -> {empty with env = init.env; vstore = init.vstore;
+                                     ostore = init.ostore})
+       empty c,
+     StackSummary.empty),
+    Empty
 
   let unch (control : control) ((state, ss) : conf) =
     [StackUnchanged, ({state with control}, ss)]
@@ -345,14 +367,14 @@ struct
             ({state with control = Exp exp}, ss)
       end
     | S.Let (p, id, exp, body) ->
-      print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p));
+      (* print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p)); *)
       push (F.Let (id, body, state.env))
         ({state with control = Exp exp}, ss)
     | S.Seq (p, left, right) ->
       push (F.Seq (right, state.env))
         ({state with control = Exp left}, ss)
     | S.App (p, f, args) ->
-      print_endline ("Apply " ^ (string_of_exp f));
+      (* print_endline ("Apply " ^ (string_of_exp f)); *)
       push (F.AppFun (args, state.env))
         ({state with control = Exp f}, ss)
     | S.Op1 (p, op, arg) ->
@@ -550,7 +572,8 @@ struct
           print_endline "Trying to access a field with a stringT name";
           [{state with control = Val `Top; env = env'}]
         | `ObjT, _ -> failwith "GetFieldBody: object too abstracted"
-        | _ -> failwith "GetFieldBody on a non-object or non-string field"
+        | o, s -> failwith ("GetFieldBody on a non-object or non-string field: " ^
+                            (F.string_of_value o) ^ ", " ^ (F.string_of_value s))
       end
     | F.SetFieldObj (field, newval, body, env') ->
       [{state with control = Frame (Exp field, F.SetFieldField (v, newval, body, env'));
@@ -820,34 +843,28 @@ struct
         ({state with control = Exp g}, ss)
 
   let step_no_gc ((state, ss) as conf : conf) (frame : (conf * F.t) option)
-    : (stack_change * conf) list =
-    let res = match state.control with
-      | Exp e -> step_exp e conf
-      | Prop p -> step_prop p conf
-      | Val v -> begin match frame with
-          | Some ((_, ss'), frame) ->
-            BatList.map (fun state -> (StackPop frame, (state, ss'))) (apply_frame v frame state)
-          | None -> []
-        end
-      | Frame (control', frame) ->
-        [StackPush frame, ({state with control = control'},
-                           StackSummary.push ss frame)]
-      | PropVal prop -> begin match frame with
-          | Some ((state', ss'), frame) ->
-            [StackPop frame, (apply_frame_prop prop frame state, ss')]
-          | None -> []
-        end
-      | Exception e -> begin match frame with
-          | Some ((state', ss'), frame) ->
-            [StackPop frame, (apply_frame_exc e frame state, ss')]
-          | None -> []
-        end
-    in
-    (* print_endline ((string_of_state state) ^ " -> " ^
-                   (string_of_list res
-                      (fun (g, c) -> (string_of_stack_change g) ^ " -> " ^
-                                     (string_of_state c)))); *)
-    res
+      (global : global) : (stack_change * conf) list =
+    match state.control with
+    | Exp e -> step_exp e conf
+    | Prop p -> step_prop p conf
+    | Val v -> begin match frame with
+        | Some ((_, ss'), frame) ->
+          BatList.map (fun state -> (StackPop frame, (state, ss'))) (apply_frame v frame state)
+        | None -> []
+      end
+    | Frame (control', frame) ->
+      [StackPush frame, ({state with control = control'},
+                         StackSummary.push ss frame)]
+    | PropVal prop -> begin match frame with
+        | Some ((state', ss'), frame) ->
+          [StackPop frame, (apply_frame_prop prop frame state, ss')]
+        | None -> []
+      end
+    | Exception e -> begin match frame with
+        | Some ((state', ss'), frame) ->
+          [StackPop frame, (apply_frame_exc e frame state, ss')]
+        | None -> []
+      end
 
   let step conf = step_no_gc (if !gc then GC.gc conf else conf)
 end

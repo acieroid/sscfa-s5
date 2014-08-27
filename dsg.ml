@@ -80,7 +80,7 @@ module BuildDSG =
     end
     module EpsSet = BatSet.Make(EpsOrdering)
 
-    type dsg = { g : G.t; q0 : L.conf; ecg : G.t }
+    type dsg = { g : G.t; q0 : L.conf; ecg : G.t; global : L.global }
     let output_dsg dsg = output_graph dsg.g
     let output_ecg dsg = output_graph dsg.ecg
 
@@ -97,7 +97,8 @@ module BuildDSG =
                         (EdgeSet.add (c', L.StackPop k, c2) de,
                          EpsSet.add (c1, c2) dh)
                       | _ -> acc)
-                     (EdgeSet.empty, EpsSet.empty) (L.step c' (Some (c, k)))) in
+                     (EdgeSet.empty, EpsSet.empty)
+                     (L.step c' (Some (c, k)) dsg.global)) in
                (EdgeSet.union de de', EpsSet.union dh dh')
              | _ -> (de, dh))
           dsg.g (EdgeSet.empty, EpsSet.empty) in
@@ -135,7 +136,7 @@ module BuildDSG =
                if L.ConfOrdering.compare c_ c' == 0 then
                  let c2s = List.filter (fun (g', c2) -> match g' with
                      | L.StackPop k' -> L.FrameOrdering.compare k k' == 0
-                     | _ -> false) (L.step c1 (Some (c1, k))) in
+                     | _ -> false) (L.step c1 (Some (c1, k)) dsg.global) in
                  List.fold_left (fun acc (g, c2) -> EdgeSet.add (c1, g, c2) acc)
                    acc c2s
                else
@@ -180,7 +181,7 @@ module BuildDSG =
 
     let explore dsg c =
       (* print_endline ("explore " ^ (L.string_of_conf c)); *)
-      let stepped = L.step c None in
+      let stepped = L.step c None dsg.global in
       let ds = (List.fold_left
                   (fun set (_, conf) -> ConfSet.add conf set)
                   ConfSet.empty stepped)
@@ -192,7 +193,7 @@ module BuildDSG =
        EpsSet.empty)
 
     let build_dyck exp init =
-      let c0 = L.inject exp init in
+      let (c0, global) = L.inject exp init in
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;
@@ -244,7 +245,7 @@ module BuildDSG =
             print_endline (Printexc.to_string e);
             dsg
           end
-      in loop { g = G.empty; q0 = c0; ecg = G.empty }
+      in loop { g = G.empty; q0 = c0; ecg = G.empty; global = global }
         (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
 
     let final_states dsg =

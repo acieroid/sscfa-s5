@@ -7,6 +7,7 @@ open Shared
 let env = ref None
 let dump = ref None
 let file = ref None
+let computation = ref `Dsg
 
 let speclist = [
   "-env", Arg.String (fun s -> env := Some s),
@@ -17,6 +18,8 @@ let speclist = [
      % or #, except some (eg. %or) *)
   "-no-gc", Arg.Unit (fun () -> gc := false),
   "disable GC (needed when loading environments)";
+  "-deterministic", Arg.Unit (fun () -> computation := `Eval),
+  "assume all transitions are deterministic, resulting in a list of states instead of a graph"
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"
@@ -43,12 +46,12 @@ let load_s5 file : S.exp =
                                       (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))
 
-let save_state ((state : LJS.state), _) file =
+let save_state (c : LJS.conf) file =
   let cout = open_out_bin file in
-  Marshal.to_channel cout state [Marshal.Compat_32];
+  Marshal.to_channel cout c [Marshal.Compat_32];
   close_out cout
 
-let load_state file : LJS.state =
+let load_state file : LJS.conf =
   let cin = open_in_bin file in
   let state = Marshal.from_channel cin in
   close_in cin;
@@ -67,15 +70,16 @@ let eval exp env =
   let top = function
     | [] -> None
     | hd :: tl -> Some hd in
+  let (c0, global) = LJS.inject exp env in
   let rec aux graph stack conf =
     try
-      let confs' = LJS.step conf (top stack) in
+      let confs' = LJS.step conf (top stack) global in
       match confs' with
       | [] ->
-        print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf));
+        (* print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf)); *)
         graph, conf
       | (g, conf') :: _ ->
-        print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
+        (* print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf')); *)
         aux (G.add_edge_e graph (conf, g, conf'))
           (match g with
            | LJS.StackPush f -> push stack (conf', f)
@@ -85,10 +89,8 @@ let eval exp env =
     with e ->
       print_endline (Printexc.get_backtrace ());
       Printf.printf "Failed after computing %d states: %s" (G.nb_vertex graph) (Printexc.to_string e);
-      graph, conf
-  in aux G.empty [] (LJS.inject exp env)
-
-let computation = `Eval
+      graph, conf in
+  aux G.empty [] c0
 
 let () =
   let () = Arg.parse speclist (fun x -> file := Some x) usage in
@@ -96,7 +98,7 @@ let () =
   | Some file ->
     let s5 = load_s5 file in
     let env = BatOption.map load_state !env in
-    begin match computation with
+    begin match !computation with
       | `Dsg ->
         let dsg = DSG.build_dyck s5 env in
         let final_states = DSG.final_states dsg in
