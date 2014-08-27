@@ -5,16 +5,41 @@ module AddrMap = BatMap.Make(Address)
 
 module type Store_signature =
   sig
+    (** The type of elements stored in the store *)
     type elt
+
+    (** The type of the store itself *)
     type t
+
+    (** The empty store *)
     val empty : t
+
+    (** Add an element to the store, joining if a value is already present at
+        the same address (no strong update) *)
     val join : Address.t -> elt -> t -> t
-    val lookup : Address.t -> t -> elt
+
+    (** Add an element to the store, and avoid the join when possible (that is,
+        when only one value is present *)
+    val set : Address.t -> elt -> t -> t
+
+    (** Check wheter a value exists in the store *)
     val contains : Address.t -> t -> bool
-    (* Keep only addresses in the given set *)
+
+    (** Fetch a value from the store, raising Not_found if it is not present *)
+    val lookup : Address.t -> t -> elt
+
+    (** Keep only the elements corresponding to the addresses in the given set
+     *)
     val restrict : AddressSet.t -> t -> t
+
+    (** Compare two stores *)
     val compare : t -> t -> int
+
+    (** Return the number of addresses where there are elements stored. It can
+        be different from the number of values themselves *)
     val size : t -> int
+
+    (** Give a string representation of the store *)
     val to_string : t -> string
   end
 

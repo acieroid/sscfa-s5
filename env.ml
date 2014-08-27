@@ -3,17 +3,41 @@ open Prelude
 
 module type Env_signature =
   sig
+    (** Type of the environment itself *)
     type t
+
+    (** The empty environment *)
     val empty : t
+
+    (** Add a mapping to the environment *)
     val extend : string -> Address.t -> t -> t
+
+    (** Check whether the environment contains a mapping for the given name *)
     val contains : string -> t -> bool
+
+    (** Fetch the address of a name in the environment, raising Not_found if no
+        such mapping exist *)
     val lookup : string -> t -> Address.t
+
+    (** Keep only the mappings corresponding to the names in the given set *)
     val keep : IdSet.t -> t -> t
+
+    (** Compare two environments *)
     val compare : t -> t -> int
+
+    (** Gives the number of bindings stored in this environment *)
     val size : t -> int
+
+    (** Give a string representation of this environment *)
     val to_string : t -> string
+
+    (** Check whether an environment subsumes another *)
     val subsumes : t -> t -> bool
+
+    (** Extract the domain of the environment (that is, the set of names) *)
     val domain : t -> IdSet.t
+
+    (** Extract the range of the environment (that is, the set of addresses) *)
     val range : t -> AddressSet.t
   end
 

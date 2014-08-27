@@ -300,7 +300,6 @@ struct
     let compare = compare_stack_change
   end
 
-  (* TODO: put that somewhere else? *)
   let alloc_var id _ state = Address.alloc_var id state.time
 
   let alloc_obj id _ state = Address.alloc_obj id state.time
@@ -349,6 +348,10 @@ struct
     : (S.exp * state) = match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
+        (* This is *not* about Javascript closures, as an arity mismatch when
+           applying a function in Javascript does not lead to an error. However,
+           such a mismatch should not happen in S5 code, and that is why this
+           is an internal error *)
         failwith "Arity mismatch"
       else
         let alloc_arg v name (vstore, ostore, env) =
@@ -361,19 +364,21 @@ struct
           BatList.fold_right2 alloc_arg args args' (state.vstore, state.ostore, env') in
         (body, {state with env = env'; vstore = vstore'; ostore = ostore';
                            time = Time.tick (S.pos_of body) state.time})
-    | `ClosT -> failwith "Closure too abstracted" (* TODO: what to do in this case? *)
+    | `ClosT -> failwith "Closure too abstracted"
     | `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `Clos f; _}, _) ->
           apply_fun (`Clos f) args state global
         | `ObjT -> failwith "Applied too abstracted object"
+        (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith "Applied object without code attribute"
       end
     | `ObjT -> failwith "Object too abstracted when applying function"
     | `StackObj ({O.code = `Clos f; _}, _) ->
       apply_fun (`Clos f) args state global
     | `StackObj _ -> failwith "Applied object without code attribute"
+    (* TODO: S5 or JS error? *)
     | _ -> failwith "Applied non-function"
 
   let apply_frame (v : v) (frame : frame) (state : state) (global : global)
@@ -473,7 +478,6 @@ struct
         | `Obj _, `StrT ->
           (* We can handle this case more precisely by returning a state for
              each possible value of a field in this object *)
-          print_endline "Trying to access a field with a stringT name";
           [{state with control = Val `Top; env = env'}]
         | `ObjT, _ -> failwith "GetFieldBody: object too abstracted"
         | o, s -> failwith ("GetFieldBody on a non-object or non-string field: " ^
@@ -512,22 +516,23 @@ struct
                   [{state with control = Val (newval :> v); env = env'; ostore = ostore''}]
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
-                  failwith "unwritable" (* TODO: throw *)
+                  [{state with control = Exception (`Throw (`Str "uwritable-field"))}]
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
                   let (exp, state') = apply_fun (setter :> v) [obj; body] state global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
                 | None ->
-                  match extensible with
-                  | `True ->
+                  let t =
                     let ostore', newval' = alloc_if_necessary state ("setfieldargs" ^ s) newval in
                     let newobj = O.set_prop (attrs, props) s
                         (O.Data ({O.value = newval'; O.writable = `True},
                                  `True, `True)) in
                     let ostore'' = ObjectStore.set a (`Obj newobj) state.ostore in
-                    [{state with control = Val (newval' :> v); env = env'; ostore = ostore''}]
-                  | `False ->
-                    [{state with control = Val `Undef}]
-                  | _ -> failwith "TODO: SetFieldArgs frame"
+                    {state with control = Val (newval' :> v); env = env'; ostore = ostore''} in
+                  let f = {state with control = Val `Undef} in
+                  match Delta.prim_to_bool extensible with
+                  | `True -> [t]
+                  | `False -> [f]
+                  | `BoolT -> [t; f]
               end
             | `ObjT -> failwith "SetFieldArgs: object too abstracted"
           else if ObjectStore.contains a global.gostore then
@@ -535,7 +540,7 @@ struct
           else
             failwith ("No object found at address" ^ (Address.to_string a))
         | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
-        | _ -> failwith "update field"
+        | _ -> failwith "SetFieldArgs on a non-object or non-string"
       end
     | F.GetAttrObj (pattr, field, env') ->
       [{state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
@@ -555,7 +560,7 @@ struct
         | `Obj _, `StrT | `StackObj _, `StrT ->
           failwith "GetAttrField with a top string as field"
         | `ObjT, _ -> failwith "GetAttrField on a top object"
-        | _ -> failwith "GetAttrField on a non-object"
+        | _ -> failwith "GetAttrField on a non-object or non-string"
       end
     | F.SetAttrObj (pattr, field, newval, env') ->
       [{state with control = Frame (Exp field, F.SetAttrField (pattr, v, newval, env'));
@@ -627,8 +632,8 @@ struct
             failwith ("SetObjAttrNewval: no object found at address " ^
                       (Address.to_string a))
         | `StackObj _ ->
-          (* TODO: this object lives on the stack and will not be returned by this
-             operation, it is therefore not reachable. Is this expected? *)
+          (* TODO: this object lives on the stack and will not be returned by
+             this operation, it is therefore not reachable. Is this expected? *)
           [{state with control = Val v; env = env'}]
         | `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
         | _ -> failwith "SetObjAttrNewval on a non-object"
@@ -668,15 +673,20 @@ struct
             begin match ObjectStore.lookup a state.ostore with
               | `Obj obj ->
                 if O.has_prop obj (`Str s) then
-                  match O.lookup_prop obj (`Str s) with
-                  (* TODO: BoolT *)
-                  | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
+                  let t =
                     let newobj = O.remove_prop obj (`Str s) in
                     let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
-                    [{state with control = Val `True; env = env'; ostore = ostore'}]
-                  | _ ->
-                    [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
-                                 env = env'}]
+                    {state with control = Val `True; env = env'; ostore = ostore'} in
+                  let f =
+                    {state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                                env = env'} in
+                  match O.lookup_prop obj (`Str s) with
+                  | O.Data (_, _, b) | O.Accessor (_, _, b) ->
+                    begin match Delta.prim_to_bool b with
+                      | `True -> [t]
+                      | `False -> [f]
+                      | `BoolT -> [t; f]
+                    end
                 else
                   [{state with control = Val `False; env = env'}]
               | `ObjT -> failwith "DeleteFieldField: object too abstracted"
@@ -689,13 +699,17 @@ struct
         | `StackObj obj, `Str s ->
           (* This stack object will not be reachable when this is reached *)
           if O.has_prop obj (`Str s) then
+            let t = {state with control = Val `True; env = env'} in
+            let f = {state with control = Exception (`Throw (`Str "unconfigurable-delete"));
+                                env = env'} in
             match O.lookup_prop obj (`Str s) with
             (* TODO: BoolT *)
-            | O.Data (_, _, `True) | O.Accessor (_, _, `True) ->
-              [{state with control = Val `True; env = env'}]
-            | _ ->
-              [{state with control = Exception (`Throw (`Str "unconfigurable-delete"));
-                           env = env'}]
+            | O.Data (_, _, b) | O.Accessor (_, _, b) ->
+              begin match Delta.prim_to_bool b with
+              | `True -> [t]
+              | `False -> [f]
+              | `BoolT -> [t; f]
+              end
           else
             [{state with control = Val `False; env = env'}]
         | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
@@ -731,7 +745,8 @@ struct
       [{state with control = Exception exc; env = env'}]
     | F.RestoreEnv env' ->
       [{state with control = Val v; env = env'}]
-    | f -> failwith ("apply_frame: not implemented: " ^ (string_of_frame f))
+    | F.ObjectProps _ ->
+      failwith "apply_frame should not handle ObjectProps frame!"
 
   let apply_frame_prop v frame (state : state) (global : global)
     : state = match frame with
@@ -745,7 +760,8 @@ struct
       let obj' = O.set_prop obj name v in
       {state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
                   env = env'}
-    | f -> failwith ("apply_frame_prop: not implemented: " ^ (string_of_frame f))
+    | f -> failwith ("apply_frame_prop should not handle a non-ObjectProps frame: " ^
+                     (string_of_frame f))
 
   let apply_frame_exc e (frame : frame) (state : state) (global : global)
     : state = match e, frame with
@@ -827,9 +843,6 @@ struct
 
 
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
-  (* TODO: currently, we call Time.tick only when an application takes place
-     (apply_fun). It could be worth ticking more (eg. on GetField, SetField,
-     etc.) *)
   let step_exp (exp : S.exp) ((state, ss) as conf : conf) (global : global)
     : (stack_change * conf) list = match exp with
     | S.Null _ | S.Undefined _ | S.String _ | S.Num _ | S.True _ | S.False _
@@ -946,7 +959,6 @@ struct
       push (F.TryFinally (finally, state.env))
         ({state with control = Exp body}, ss) global
     | S.DeleteField (p, obj, field) ->
-      print_endline ("DeleteField: " ^ (string_of_exp obj));
       push (F.DeleteFieldObj (field, state.env))
         ({state with control = Exp obj}, ss) global
     | S.Eval _ -> failwith ("Eval not yet handled")
