@@ -2,6 +2,7 @@ open Prelude
 open Ljs_syntax
 
 let debug = ref false
+let restricted_gc = ref false
 
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =
@@ -81,6 +82,7 @@ module type Address_signature =
     type a
     type t = a addr_kind
     val compare : t -> t -> int
+    val is_reclaimable : t -> bool
     val to_string : t -> string
     val alloc_obj : string -> T.t -> t
     val alloc_var : string -> T.t -> t
@@ -98,6 +100,21 @@ struct
       order_comp (Pervasives.compare id id') (T.compare t t')
     | `ObjAddress _, `VarAddress _ -> 1
     | `VarAddress _, `ObjAddress _ -> -1
+  let is_reclaimable a =
+    if !restricted_gc then
+      match a with
+      (* %or is a special variable frequetly present in desugared S5 code, but
+         it is *not* used to denote a global identifier *)
+      | `VarAddress ("%or", _) -> true
+      (* variables starting with % or # are global and should not be GCed, even
+         if they are not reachable, as we could be loading an environment where
+         they are not used, but they'll be used in a program using this
+         environment *)
+      | `ObjAddress (id, _)
+      | `VarAddress (id, _) ->
+        not (BatString.starts_with id "%" || BatString.starts_with id "#")
+    else
+      true
   let to_string = function
     | `ObjAddress (id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
     | `VarAddress (id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)

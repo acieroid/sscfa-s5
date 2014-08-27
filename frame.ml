@@ -146,11 +146,13 @@ let env_of_frame = function
   | RestoreEnv env ->
     env
 
-let addresses_of_vars (vars : IdSet.t) (env : Env.t) : AddressSet.t =
+let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet.t =
   IdSet.fold (fun v acc ->
       if Env.contains v env then
         AddressSet.add (Env.lookup v env) acc
-      else begin
+      else if Env.contains v genv then
+        AddressSet.add (Env.lookup v genv) acc
+      else  begin
         (* TODO: this should only happen for actual unbound variables.
            Shouldn't they be reported before doing the interpretation? *)
         print_endline ("Ignoring variable not found in env: " ^ v);
@@ -321,9 +323,9 @@ let touched_addresses_from_values frame =
   | SetFieldArgs (v1, v2, v3, _) ->
     addresses_of_vals [(v1 :> value); (v2 :> value); (v3 :> value)]
 
-let touch frame =
+let touch frame genv =
   AddressSet.union
-    (AddressSet.union (addresses_of_vars (free_vars frame) (env_of_frame frame))
+    (AddressSet.union (addresses_of_vars (free_vars frame) (env_of_frame frame) genv)
        (touched_addresses frame))
     (touched_addresses_from_values frame)
 

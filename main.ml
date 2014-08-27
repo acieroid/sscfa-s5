@@ -16,8 +16,10 @@ let speclist = [
   "where to dump the final environment (and store) of the execution";
   (* TODO: it would be better to disable collection of variables prefixed with
      % or #, except some (eg. %or) *)
+  "-restricted-gc", Arg.Unit (fun () -> restricted_gc := true),
+  "disable GC for global S5 variables (starting with %)";
   "-no-gc", Arg.Unit (fun () -> gc := false),
-  "disable GC (needed when loading environments)";
+  "entirely disable GC";
   "-deterministic", Arg.Unit (fun () -> computation := `Eval),
   "assume all transitions are deterministic, resulting in a list of states instead of a graph"
 ]

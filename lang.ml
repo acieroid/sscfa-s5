@@ -104,6 +104,12 @@ struct
                   lazy (ObjectStore.compare state.ostore state'.ostore);
                   lazy (Time.compare state.time state'.time)]
 
+  type global = {
+    genv : Env.t;
+    gvstore : ValueStore.t;
+    gostore : ObjectStore.t;
+  }
+
   module StackSummary =
   struct
     (* Stack summary used for garbage collection *)
@@ -114,8 +120,8 @@ struct
                                 (BatList.map Address.to_string
                                    (AddressSet.elements ss))) ^ "]"
 
-    let push ss f =
-      AddressSet.union ss (Frame.touch f)
+    let push (ss : t) (global : global) (f : F.t) =
+      AddressSet.union ss (Frame.touch f global.genv)
   end
 
   type conf = state * StackSummary.t
@@ -124,13 +130,6 @@ struct
 
   let compare_conf (state, ss) (state', ss') =
     order_comp (compare_state state state') (StackSummary.compare ss ss')
-
-  type global = {
-    genv : Env.t;
-    gvstore : ValueStore.t;
-    gostore : ObjectStore.t;
-  }
-
 
   let which_ostore (a : Address.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
     : ObjectStore.t =
@@ -210,12 +209,15 @@ struct
 
     let rec control_root control env vstore ostore global
       : AddressSet.t = match control with
-      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env
-      | Prop (S.Data ({S.value = v; _}, _, _)) -> Frame.addresses_of_vars (S.free_vars v) env
+      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env global.genv
+      | Prop (S.Data ({S.value = v; _}, _, _)) ->
+        Frame.addresses_of_vars (S.free_vars v) env global.genv
       | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
-        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s)) env
+        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s))
+          env global.genv
       | Frame (control, frame) ->
-        AddressSet.union (control_root control env vstore ostore global) (Frame.touch frame)
+        AddressSet.union (control_root control env vstore ostore global)
+          (Frame.touch frame global.genv)
       | Val v -> touch vstore ostore global v
       | PropVal (O.Data ({O.value = v1; O.writable = v2}, enum, config) as prop)
       | PropVal (O.Accessor ({O.getter = v1; O.setter = v2}, enum, config) as prop) ->
@@ -934,7 +936,7 @@ struct
       end
     | Frame (control', frame) ->
       [StackPush frame, ({state with control = control'},
-                         StackSummary.push ss frame)]
+                         StackSummary.push ss global frame)]
     | PropVal prop -> begin match frame with
         | Some ((state', ss'), frame) ->
           [StackPop frame, (apply_frame_prop prop frame state global, ss')]
