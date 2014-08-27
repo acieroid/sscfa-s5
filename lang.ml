@@ -317,7 +317,10 @@ struct
     (empty, StackSummary.empty),
     BatOption.map_default
       (fun (init, ss) ->
-         {genv = init.env; gvstore = init.vstore; gostore = init.ostore})
+         (* Perform GC to get rid of all non-needed values in the global
+            env/store *)
+         let (init', _) = GC.gc ({init with control = Exp exp}, ss) empty_global in
+         {genv = init'.env; gvstore = init'.vstore; gostore = init'.ostore})
       empty_global c
 
   let unch (control : control) ((state, ss) : conf) =
