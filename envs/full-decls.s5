@@ -1089,56 +1089,56 @@ let (%defineOwnProperty = func(obj , field , attr-obj)
                                    {undefined};
                                 true}}})
 let (%define15Property = func(obj , field , prop)
-                         {let (%mkPropObj = func(value , writable , enumerable , configurable)
-                                            {if (if (prim("stx=", value , null))
-                                                    {false}
-                                                    else
-                                                    {true})
-                                                {{[#proto: null,
-                                                   #class: "Object",
-                                                   #extensible: true,]
-                                                  'value' : {#value (value) ,
-                                                             #writable true ,
-                                                             #configurable false},
-                                                  'writable' : {#value (writable) ,
-                                                                #writable true ,
-                                                                #configurable false},
-                                                  'enumerable' : {#value (enumerable) ,
-                                                                  #writable true ,
-                                                                  #configurable false},
-                                                  'configurable' : {#value (configurable) ,
-                                                                    #writable true ,
-                                                                    #configurable false}}}
-                                                else
-                                                {{[#proto: null,
-                                                   #class: "Object",
-                                                   #extensible: true,]
-                                                  'writable' : {#value (writable) ,
-                                                                #writable true ,
-                                                                #configurable false},
-                                                  'enumerable' : {#value (enumerable) ,
-                                                                  #writable true ,
-                                                                  #configurable false},
-                                                  'configurable' : {#value (configurable) ,
-                                                                    #writable true ,
-                                                                    #configurable false}}}})
+                         {let (mkPropObj = func(value , writable , enumerable , configurable)
+                                           {if (if (prim("stx=", value , null))
+                                                   {false}
+                                                   else
+                                                   {true})
+                                               {{[#proto: null,
+                                                  #class: "Object",
+                                                  #extensible: true,]
+                                                 'value' : {#value (value) ,
+                                                            #writable true ,
+                                                            #configurable false},
+                                                 'writable' : {#value (writable) ,
+                                                               #writable true ,
+                                                               #configurable false},
+                                                 'enumerable' : {#value (enumerable) ,
+                                                                 #writable true ,
+                                                                 #configurable false},
+                                                 'configurable' : {#value (configurable) ,
+                                                                   #writable true ,
+                                                                   #configurable false}}}
+                                               else
+                                               {{[#proto: null,
+                                                  #class: "Object",
+                                                  #extensible: true,]
+                                                 'writable' : {#value (writable) ,
+                                                               #writable true ,
+                                                               #configurable false},
+                                                 'enumerable' : {#value (enumerable) ,
+                                                                 #writable true ,
+                                                                 #configurable false},
+                                                 'configurable' : {#value (configurable) ,
+                                                                   #writable true ,
+                                                                   #configurable false}}}})
                           if (if (prim("stx=", prim("typeof", obj) , "function"))
                                  {prim("stx=", field , "length")}
                                  else
                                  {false})
                              {%defineOwnProperty(obj,
                                                  field,
-                                                 %mkPropObj(prop,
-                                                            false,
-                                                            false,
-                                                            false))}
+                                                 mkPropObj(prop,
+                                                           false,
+                                                           false,
+                                                           false))}
                              else
                              {%defineOwnProperty(obj,
                                                  field,
-                                                 %mkPropObj(prop,
-                                                            true,
-                                                            false,
-                                                            true))}})
+                                                 mkPropObj(prop,
+                                                           true,
+                                                           false,
+                                                           true))}})
 let (%definePropertylambda = func(this , args)
                              {let (obj = args["0" , {[#proto: null,
                                                       #class: "Object",

@@ -1,1398 +1,1388 @@
-{let ($newVal = %functionToString)
- %FunctionProto["toString" = $newVal ,
-                {[#proto: null, #class: "Object", #extensible: true,]
-                 '0' : {#value ($newVal) ,
-                        #writable true ,
-                        #configurable true}}];
- %FunctionProto["toString"<#enumerable>=false];
- %defineOwnProperty(%FunctionProto,
-                    "call",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%call) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- %defineOwnProperty(%FunctionProto,
-                    "apply",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%apply) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- let ($newVal = %ErrorGlobalFuncObj)
- %ErrorProto["constructor" = $newVal ,
+let ($newVal = %functionToString)
+%FunctionProto["toString" = $newVal ,
+               {[#proto: null, #class: "Object", #extensible: true,]
+                '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%FunctionProto["toString"<#enumerable>=false];
+%defineOwnProperty(%FunctionProto,
+                   "call",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%call) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+%defineOwnProperty(%FunctionProto,
+                   "apply",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%apply) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+let ($newVal = %ErrorGlobalFuncObj)
+%ErrorProto["constructor" = $newVal ,
+            {[#proto: null, #class: "Object", #extensible: true,]
+             '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%defineOwnProperty(%ErrorProto,
+                   "toString",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%ets) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %NumberGlobalFuncObj)
+%NumberProto["constructor" = $newVal ,
              {[#proto: null, #class: "Object", #extensible: true,]
               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %defineOwnProperty(%ErrorProto,
-                    "toString",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%ets) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %NumberGlobalFuncObj)
- %NumberProto["constructor" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %defineOwnProperty(%StringProto,
-                    "toString",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%stringToString) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %define15Property(%booleanToString,
-                   "length",
-                   0.);
- %define15Property(%BooleanProto,
+%defineOwnProperty(%StringProto,
                    "toString",
-                   %booleanToString);
- %defineOwnProperty(%BooleanGlobalFuncObj,
-                    "prototype",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%BooleanProto) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %StringGlobalFuncObj)
- %StringProto["constructor" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %StringProto)
- %StringGlobalFuncObj["prototype" = $newVal ,
-                      {[#proto: null, #class: "Object", #extensible: true,]
-                       '0' : {#value ($newVal) ,
-                              #writable true ,
-                              #configurable true}}];
- %StringGlobalFuncObj["prototype"<#enumerable>=false];
- %StringGlobalFuncObj["prototype"<#writable>=false];
- %StringGlobalFuncObj["prototype"<#configurable>=false];
- %defineOwnProperty(%ObjectGlobalFuncObj,
-                    "getPrototypeOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%gpo) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ObjectGlobalFuncObj,
-                    "getOwnPropertyDescriptor",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%gopd) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%SyntaxErrorProto,
-                    "name",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value ("SyntaxError") ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %SyntaxErrorGlobalFuncObj)
- %SyntaxErrorProto["constructor" = $newVal ,
                    {[#proto: null, #class: "Object", #extensible: true,]
-                    '0' : {#value ($newVal) ,
-                           #writable true ,
-                           #configurable true}}];
- let ($newVal = %EvalErrorGlobalFuncObj)
- %EvalErrorProto["constructor" = $newVal ,
-                 {[#proto: null, #class: "Object", #extensible: true,]
-                  '0' : {#value ($newVal) ,
-                         #writable true ,
-                         #configurable true}}];
- let ($newVal = %RangeErrorGlobalFuncObj)
- %RangeErrorProto["constructor" = $newVal ,
+                    'value' : {#value (%stringToString) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%define15Property(%booleanToString,
+                  "length",
+                  0.);
+%define15Property(%BooleanProto,
+                  "toString",
+                  %booleanToString);
+%defineOwnProperty(%BooleanGlobalFuncObj,
+                   "prototype",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%BooleanProto) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %StringGlobalFuncObj)
+%StringProto["constructor" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %StringProto)
+%StringGlobalFuncObj["prototype" = $newVal ,
+                     {[#proto: null, #class: "Object", #extensible: true,]
+                      '0' : {#value ($newVal) ,
+                             #writable true ,
+                             #configurable true}}];
+%StringGlobalFuncObj["prototype"<#enumerable>=false];
+%StringGlobalFuncObj["prototype"<#writable>=false];
+%StringGlobalFuncObj["prototype"<#configurable>=false];
+%defineOwnProperty(%ObjectGlobalFuncObj,
+                   "getPrototypeOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%gpo) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ObjectGlobalFuncObj,
+                   "getOwnPropertyDescriptor",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%gopd) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%SyntaxErrorProto,
+                   "name",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value ("SyntaxError") ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %SyntaxErrorGlobalFuncObj)
+%SyntaxErrorProto["constructor" = $newVal ,
                   {[#proto: null, #class: "Object", #extensible: true,]
                    '0' : {#value ($newVal) ,
                           #writable true ,
                           #configurable true}}];
- %defineOwnProperty(%ReferenceErrorProto,
-                    "name",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value ("ReferenceError") ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %ReferenceErrorGlobalFuncObj)
- %ReferenceErrorProto["constructor" = $newVal ,
-                      {[#proto: null, #class: "Object", #extensible: true,]
-                       '0' : {#value ($newVal) ,
-                              #writable true ,
-                              #configurable true}}];
- %defineOwnProperty(%TypeErrorProto,
-                    "name",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value ("TypeError") ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %TypeErrorGlobalFuncObj)
- %TypeErrorProto["constructor" = $newVal ,
+let ($newVal = %EvalErrorGlobalFuncObj)
+%EvalErrorProto["constructor" = $newVal ,
+                {[#proto: null, #class: "Object", #extensible: true,]
+                 '0' : {#value ($newVal) ,
+                        #writable true ,
+                        #configurable true}}];
+let ($newVal = %RangeErrorGlobalFuncObj)
+%RangeErrorProto["constructor" = $newVal ,
                  {[#proto: null, #class: "Object", #extensible: true,]
                   '0' : {#value ($newVal) ,
                          #writable true ,
                          #configurable true}}];
- let ($newVal = %URIErrorGlobalFuncObj)
- %URIErrorProto["constructor" = $newVal ,
+%defineOwnProperty(%ReferenceErrorProto,
+                   "name",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value ("ReferenceError") ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %ReferenceErrorGlobalFuncObj)
+%ReferenceErrorProto["constructor" = $newVal ,
+                     {[#proto: null, #class: "Object", #extensible: true,]
+                      '0' : {#value ($newVal) ,
+                             #writable true ,
+                             #configurable true}}];
+%defineOwnProperty(%TypeErrorProto,
+                   "name",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value ("TypeError") ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %TypeErrorGlobalFuncObj)
+%TypeErrorProto["constructor" = $newVal ,
                 {[#proto: null, #class: "Object", #extensible: true,]
                  '0' : {#value ($newVal) ,
                         #writable true ,
                         #configurable true}}];
- %define15Property(%ObjectGlobalFuncObj,
-                   "getOwnPropertyNames",
-                   %gopn);
- %define15Property(%ObjectGlobalFuncObj,
-                   "defineProperty",
-                   %defineProperty);
- %defineOwnProperty(%ObjectGlobalFuncObj,
-                    "defineProperties",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%defineProperties) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ObjectGlobalFuncObj,
-                    "create",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%create) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %define15Property(%ObjectGlobalFuncObj,
-                   "seal",
-                   %seal);
- %define15Property(%ObjectGlobalFuncObj,
-                   "freeze",
-                   %freeze);
- %define15Property(%ObjectGlobalFuncObj,
-                   "preventExtensions",
-                   %preventExtensions);
- %define15Property(%ObjectGlobalFuncObj,
-                   "isFrozen",
-                   %isFrozen);
- %define15Property(%ObjectGlobalFuncObj,
-                   "isSealed",
-                   %isSealed);
- %define15Property(%ObjectGlobalFuncObj,
-                   "isExtensible",
-                   %isExtensible);
- %defineOwnProperty(%ObjectGlobalFuncObj,
-                    "keys",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%keys) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%StringGlobalFuncObj,
-                    "fromCharCode",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%fromCharCode) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- %defineOwnProperty(%join,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%pop,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (0.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "pop",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%pop) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%push,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "push",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%push) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%reverse,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (0.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "reverse",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%reverse) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%shift,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (0.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "shift",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%shift) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "toString",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%arrayToString) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "join",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%join) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "toLocaleString",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%arrayToLocaleString) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%concat,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "concat",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%concat) ,
-                                #writable true ,
-                                #configurable false}});
- %defineOwnProperty(%sort,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %define15Property(%ArrayProto,
-                   "sort",
-                   %sort);
- let ($newVal = 1.)
- %ArrayGlobalFuncObj["length" = $newVal ,
-                     {[#proto: null, #class: "Object", #extensible: true,]
-                      '0' : {#value ($newVal) ,
-                             #writable true ,
-                             #configurable true}}];
- %ArrayGlobalFuncObj["length"<#enumerable>=false];
- %ArrayGlobalFuncObj["length"<#configurable>=false];
- let ($newVal = %freeze)
- %ArrayGlobalFuncObj["notinspec" = $newVal ,
-                     {[#proto: null, #class: "Object", #extensible: true,]
-                      '0' : {#value ($newVal) ,
-                             #writable true ,
-                             #configurable true}}];
- %defineOwnProperty(%ArrayProto,
-                    "constructor",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%ArrayGlobalFuncObj) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%charat,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%StringProto,
-                    "charAt",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%charat) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%charcodeat,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%StringProto,
-                    "charCodeAt",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%charcodeat) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%strconcat,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%StringProto,
-                    "concat",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%strconcat) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%substring,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (2.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%StringProto,
-                    "substring",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%substring) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%splice,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (2.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "splice",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%splice) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%unshift,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "unshift",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%unshift) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%arrayIndexOf,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "indexOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%arrayIndexOf) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%arrayLastIndexOf,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "lastIndexOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%arrayLastIndexOf) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%foreach,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %define15Property(%ArrayProto,
-                   "forEach",
-                   %foreach);
- %defineOwnProperty(%map,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "map",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%map) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "filter",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%filter) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%reduce,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "reduce",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%reduce) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%every,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "every",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%every) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%some,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "some",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%some) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%reduceRight,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "reduceRight",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%reduceRight) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%slice,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (2.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%ArrayProto,
-                    "slice",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%slice) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%bind,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false}});
- %define15Property(%FunctionProto,
-                   "bind",
-                   %bind);
- %define15Property(%numberToString,
+let ($newVal = %URIErrorGlobalFuncObj)
+%URIErrorProto["constructor" = $newVal ,
+               {[#proto: null, #class: "Object", #extensible: true,]
+                '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%define15Property(%ObjectGlobalFuncObj,
+                  "getOwnPropertyNames",
+                  %gopn);
+%define15Property(%ObjectGlobalFuncObj,
+                  "defineProperty",
+                  %defineProperty);
+%defineOwnProperty(%ObjectGlobalFuncObj,
+                   "defineProperties",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%defineProperties) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ObjectGlobalFuncObj,
+                   "create",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%create) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%define15Property(%ObjectGlobalFuncObj,
+                  "seal",
+                  %seal);
+%define15Property(%ObjectGlobalFuncObj,
+                  "freeze",
+                  %freeze);
+%define15Property(%ObjectGlobalFuncObj,
+                  "preventExtensions",
+                  %preventExtensions);
+%define15Property(%ObjectGlobalFuncObj,
+                  "isFrozen",
+                  %isFrozen);
+%define15Property(%ObjectGlobalFuncObj,
+                  "isSealed",
+                  %isSealed);
+%define15Property(%ObjectGlobalFuncObj,
+                  "isExtensible",
+                  %isExtensible);
+%defineOwnProperty(%ObjectGlobalFuncObj,
+                   "keys",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%keys) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%StringGlobalFuncObj,
+                   "fromCharCode",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%fromCharCode) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+%defineOwnProperty(%join,
                    "length",
-                   1.);
- %define15Property(%NumberProto,
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%pop,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (0.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "pop",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%pop) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%push,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "push",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%push) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%reverse,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (0.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "reverse",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%reverse) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%shift,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (0.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "shift",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%shift) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
                    "toString",
-                   %numberToString);
- let ($newVal = 1.)
- %StringIndexOf["length" = $newVal ,
-                {[#proto: null, #class: "Object", #extensible: true,]
-                 '0' : {#value ($newVal) ,
-                        #writable true ,
-                        #configurable true}}];
- %StringIndexOf["length"<#enumerable>=false];
- %StringIndexOf["length"<#configurable>=false];
- %StringIndexOf["length"<#writable>=false];
- let ($newVal = %StringIndexOf)
- %StringProto["indexOf" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %replace)
- %StringProto["replace" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = 1.)
- %StringLastIndexOf["length" = $newVal ,
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%arrayToString) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "join",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%join) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "toLocaleString",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%arrayToLocaleString) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%concat,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "concat",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%concat) ,
+                               #writable true ,
+                               #configurable false}});
+%defineOwnProperty(%sort,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%define15Property(%ArrayProto,
+                  "sort",
+                  %sort);
+let ($newVal = 1.)
+%ArrayGlobalFuncObj["length" = $newVal ,
                     {[#proto: null, #class: "Object", #extensible: true,]
                      '0' : {#value ($newVal) ,
                             #writable true ,
                             #configurable true}}];
- %StringLastIndexOf["length"<#enumerable>=false];
- %StringLastIndexOf["length"<#configurable>=false];
- %StringLastIndexOf["length"<#writable>=false];
- let ($newVal = %StringLastIndexOf)
- %StringProto["lastIndexOf" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = 1.)
- %localeCompare["length" = $newVal ,
-                {[#proto: null, #class: "Object", #extensible: true,]
-                 '0' : {#value ($newVal) ,
-                        #writable true ,
-                        #configurable true}}];
- %localeCompare["length"<#enumerable>=false];
- %localeCompare["length"<#configurable>=false];
- %localeCompare["length"<#writable>=false];
- let ($newVal = %localeCompare)
- %StringProto["localeCompare" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = 2.)
- %stringSlice["length" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %stringSlice["length"<#enumerable>=false];
- %stringSlice["length"<#configurable>=false];
- %stringSlice["length"<#writable>=false];
- let ($newVal = %stringSlice)
- %StringProto["slice" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %toLowerCase)
- %StringProto["toLowerCase" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %toUpperCase)
- %StringProto["toUpperCase" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %toLowerCase)
- %StringProto["toLocaleLowerCase" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %toUpperCase)
- %StringProto["toLocaleUpperCase" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %defineOwnProperty(%StringProto,
-                    "split",
+%ArrayGlobalFuncObj["length"<#enumerable>=false];
+%ArrayGlobalFuncObj["length"<#configurable>=false];
+let ($newVal = %freeze)
+%ArrayGlobalFuncObj["notinspec" = $newVal ,
                     {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%split) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %define15Property(%DateProto,
-                   "toString",
-                   %dateToString);
- let ($newVal = %dateValueOf)
- %DateProto["valueOf" = $newVal ,
-            {[#proto: null, #class: "Object", #extensible: true,]
-             '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %define15Property(%DateProto,
-                   "getTimezoneOffset",
-                   %dateGetTimezoneOffset);
- %define15Property(%DateProto,
-                   "getDay",
-                   %dategetDay);
- %define15Property(%DateProto,
-                   "getDate",
-                   %dategetDate);
- %defineNYIProperty(%DateGlobalFuncObj,
-                    "parse");
- %defineNYIProperty(%DateGlobalFuncObj,
-                    "UTC");
- %defineNYIProperty(%DateProto,
-                    "getTime");
- %defineNYIProperty(%DateProto,
-                    "getFullYear");
- %defineNYIProperty(%DateProto,
-                    "getUTCFullYear");
- %defineNYIProperty(%DateProto,
-                    "getUTCMonth");
- %defineNYIProperty(%DateProto,
-                    "getUTCDate");
- %defineNYIProperty(%DateProto,
-                    "getUTCDay");
- %defineNYIProperty(%DateProto,
-                    "getHours");
- %defineNYIProperty(%DateProto,
-                    "getUTCHours");
- %defineNYIProperty(%DateProto,
-                    "getMinutes");
- %defineNYIProperty(%DateProto,
-                    "getUTCMinutes");
- %defineNYIProperty(%DateProto,
-                    "getSeconds");
- %defineNYIProperty(%DateProto,
-                    "getUTCSeconds");
- %defineNYIProperty(%DateProto,
-                    "getMilliseconds");
- %defineNYIProperty(%DateProto,
-                    "getUTCMilliseconds");
- %defineNYIProperty(%DateProto,
-                    "setTime");
- %defineNYIProperty(%DateProto,
-                    "setMilliseconds");
- %defineNYIProperty(%DateProto,
-                    "setUTCMilliseconds");
- %defineNYIProperty(%DateProto,
-                    "setSeconds");
- %defineNYIProperty(%DateProto,
-                    "setUTCSeconds");
- %defineNYIProperty(%DateProto,
-                    "setMinutes");
- %defineNYIProperty(%DateProto,
-                    "setUTCMinutes");
- %defineNYIProperty(%DateProto,
-                    "setHours");
- %defineNYIProperty(%DateProto,
-                    "setUTCHours");
- %defineNYIProperty(%DateProto,
-                    "setDate");
- %defineNYIProperty(%DateProto,
-                    "setUTCDate");
- %defineNYIProperty(%DateProto,
-                    "setMonth");
- %defineNYIProperty(%DateProto,
-                    "setUTCMonth");
- %defineNYIProperty(%DateProto,
-                    "setFullYear");
- %defineNYIProperty(%DateProto,
-                    "setUTCFullYear");
- %defineNYIProperty(%DateProto,
-                    "toUTCString");
- %defineNYIProperty(%DateProto,
-                    "toGMTString");
- %defineNYIProperty(%DateProto,
-                    "setYear");
- let ($newVal = %RegExpGlobalFuncObj)
- %RegExpProto["constructor" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %defineOwnProperty(%mathMin,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (2.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%Math,
-                    "min",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathMin) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%mathMax,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (2.) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (false) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false}});
- %defineOwnProperty(%Math,
-                    "max",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathMax) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "abs",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathAbs) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "acos",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%acos) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "asin",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%asin) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "atan",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%atan) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "atan2",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%atan2) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "cos",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%cos) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "random",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%random) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "round",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%round) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "sin",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%sin) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "sqrt",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%sqrt) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "tan",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%tan) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "log",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathLog) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "ceil",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathCeil) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "floor",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathFloor) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%Math,
-                    "pow",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%mathPow) ,
-                                #writable true ,
-                                #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%StringProto,
-                    "valueOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%stringValueOf) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%NumberProto,
-                    "valueOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%numValueOf) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%BooleanProto,
-                    "valueOf",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%booleanValueOf) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%toFixed,
-                    "length",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (1.) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%NumberProto,
-                    "toFixed",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%toFixed) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%NumberProto,
-                    "toLocaleString",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%numTLS) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%NumberProto,
-                    "toExponential",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%toExponential) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- %defineOwnProperty(%NumberProto,
-                    "toPrecision",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%toPrecision) ,
-                                #writable true ,
-                                #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false}});
- let ($newVal = %global)
- %global["window" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %print)
- %global["print" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %console)
- %global["console" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = %ArrayGlobalFuncObj)
- %global["Array" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Array"<#enumerable>=false];
- let ($newVal = %StringGlobalFuncObj)
- %global["String" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["String"<#enumerable>=false];
- let ($newVal = %ObjectGlobalFuncObj)
- %global["Object" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Object"<#enumerable>=false];
- let ($newVal = %NumberGlobalFuncObj)
- %global["Number" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Number"<#enumerable>=false];
- let ($newVal = %BooleanGlobalFuncObj)
- %global["Boolean" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Boolean"<#enumerable>=false];
- let ($newVal = %DateGlobalFuncObj)
- %global["Date" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Date"<#enumerable>=false];
- let ($newVal = %FunctionGlobalFuncObj)
- %global["Function" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Function"<#enumerable>=false];
- let ($newVal = %isNaN)
- %global["isNaN" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["isNaN"<#enumerable>=false];
- let ($newVal = %Math)
- %global["Math" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Math"<#enumerable>=false];
- let ($newVal = %parseInt)
- %global["parseInt" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["parseInt"<#enumerable>=false];
- let ($newVal = %decodeURI)
- %global["decodeURI" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["decodeURI"<#enumerable>=false];
- let ($newVal = %decodeURIComponent)
- %global["decodeURIComponent" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["decodeURIComponent"<#enumerable>=false];
- let ($newVal = %encodeURI)
- %global["encodeURI" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["encodeURI"<#enumerable>=false];
- let ($newVal = %encodeURIComponent)
- %global["encodeURIComponent" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["encodeURIComponent"<#enumerable>=false];
- let ($newVal = %TypeErrorGlobalFuncObj)
- %global["TypeError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["TypeError"<#enumerable>=false];
- let ($newVal = %ReferenceErrorGlobalFuncObj)
- %global["ReferenceError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["ReferenceError"<#enumerable>=false];
- let ($newVal = %SyntaxErrorGlobalFuncObj)
- %global["SyntaxError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["SyntaxError"<#enumerable>=false];
- let ($newVal = %RangeErrorGlobalFuncObj)
- %global["RangeError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["RangeError"<#enumerable>=false];
- let ($newVal = %EvalErrorGlobalFuncObj)
- %global["EvalError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["EvalError"<#enumerable>=false];
- let ($newVal = %URIErrorGlobalFuncObj)
- %global["URIError" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["URIError"<#enumerable>=false];
- let ($newVal = %ErrorGlobalFuncObj)
- %global["Error" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Error"<#enumerable>=false];
- let ($newVal = %RegExpGlobalFuncObj)
- %global["RegExp" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["RegExp"<#enumerable>=false];
- let ($newVal = %propertyIsEnumerable)
- %ObjectProto["propertyIsEnumerable" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["propertyIsEnumerable"<#enumerable>=false];
- let ($newVal = %eval)
- %global["eval" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["eval"<#enumerable>=false];
- let ($newVal = NaN)
- %global["NaN" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["NaN"<#enumerable>=false];
- %global["NaN"<#configurable>=false];
- %global["NaN"<#writable>=false];
- let ($newVal = +inf)
- %global["Infinity" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["Infinity"<#enumerable>=false];
- %global["Infinity"<#configurable>=false];
- %global["Infinity"<#writable>=false];
- let ($newVal = undefined)
- %global["undefined" = $newVal ,
-         {[#proto: null, #class: "Object", #extensible: true,]
-          '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %global["undefined"<#enumerable>=false];
- %global["undefined"<#configurable>=false];
- %global["undefined"<#writable>=false];
- %defineOwnProperty(%global,
-                    "isFinite",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%isFinite) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- %defineOwnProperty(%global,
-                    "parseFloat",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%parseFloat) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- %defineOwnProperty(%global,
-                    "escape",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%escape) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- %defineOwnProperty(%global,
-                    "unescape",
-                    {[#proto: null, #class: "Object", #extensible: true,]
-                     'value' : {#value (%unescape) ,
-                                #writable true ,
-                                #configurable false},
-                     'enumerable' : {#value (false) ,
-                                     #writable true ,
-                                     #configurable false},
-                     'configurable' : {#value (true) ,
-                                       #writable true ,
-                                       #configurable false},
-                     'writable' : {#value (true) ,
-                                   #writable true ,
-                                   #configurable false}});
- let ($newVal = %ObjectGlobalFuncObj)
- %ObjectProto["constructor" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["constructor"<#enumerable>=false];
- let ($newVal = %BooleanGlobalFuncObj)
- %BooleanProto["constructor" = $newVal ,
+                     '0' : {#value ($newVal) ,
+                            #writable true ,
+                            #configurable true}}];
+%defineOwnProperty(%ArrayProto,
+                   "constructor",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%ArrayGlobalFuncObj) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%charat,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%StringProto,
+                   "charAt",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%charat) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%charcodeat,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%StringProto,
+                   "charCodeAt",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%charcodeat) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%strconcat,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%StringProto,
+                   "concat",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%strconcat) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%substring,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (2.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%StringProto,
+                   "substring",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%substring) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%splice,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (2.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "splice",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%splice) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%unshift,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "unshift",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%unshift) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%arrayIndexOf,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "indexOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%arrayIndexOf) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%arrayLastIndexOf,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "lastIndexOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%arrayLastIndexOf) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%foreach,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%define15Property(%ArrayProto,
+                  "forEach",
+                  %foreach);
+%defineOwnProperty(%map,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "map",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%map) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "filter",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%filter) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%reduce,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "reduce",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%reduce) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%every,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "every",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%every) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%some,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "some",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%some) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%reduceRight,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "reduceRight",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%reduceRight) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%slice,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (2.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%ArrayProto,
+                   "slice",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%slice) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%bind,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false}});
+%define15Property(%FunctionProto,
+                  "bind",
+                  %bind);
+%define15Property(%numberToString,
+                  "length",
+                  1.);
+%define15Property(%NumberProto,
+                  "toString",
+                  %numberToString);
+let ($newVal = 1.)
+%StringIndexOf["length" = $newVal ,
                {[#proto: null, #class: "Object", #extensible: true,]
                 '0' : {#value ($newVal) , #writable true , #configurable true}}];
- let ($newVal = 1.)
- %BooleanGlobalFuncObj["length" = $newVal ,
-                       {[#proto: null, #class: "Object", #extensible: true,]
-                        '0' : {#value ($newVal) ,
+%StringIndexOf["length"<#enumerable>=false];
+%StringIndexOf["length"<#configurable>=false];
+%StringIndexOf["length"<#writable>=false];
+let ($newVal = %StringIndexOf)
+%StringProto["indexOf" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %replace)
+%StringProto["replace" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = 1.)
+%StringLastIndexOf["length" = $newVal ,
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    '0' : {#value ($newVal) ,
+                           #writable true ,
+                           #configurable true}}];
+%StringLastIndexOf["length"<#enumerable>=false];
+%StringLastIndexOf["length"<#configurable>=false];
+%StringLastIndexOf["length"<#writable>=false];
+let ($newVal = %StringLastIndexOf)
+%StringProto["lastIndexOf" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = 1.)
+%localeCompare["length" = $newVal ,
+               {[#proto: null, #class: "Object", #extensible: true,]
+                '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%localeCompare["length"<#enumerable>=false];
+%localeCompare["length"<#configurable>=false];
+%localeCompare["length"<#writable>=false];
+let ($newVal = %localeCompare)
+%StringProto["localeCompare" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = 2.)
+%stringSlice["length" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%stringSlice["length"<#enumerable>=false];
+%stringSlice["length"<#configurable>=false];
+%stringSlice["length"<#writable>=false];
+let ($newVal = %stringSlice)
+%StringProto["slice" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %toLowerCase)
+%StringProto["toLowerCase" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %toUpperCase)
+%StringProto["toUpperCase" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %toLowerCase)
+%StringProto["toLocaleLowerCase" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %toUpperCase)
+%StringProto["toLocaleUpperCase" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%defineOwnProperty(%StringProto,
+                   "split",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%split) ,
                                #writable true ,
-                               #configurable true}}];
- let ($newVal = %objectToString)
- %ObjectProto["toString" = $newVal ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%define15Property(%DateProto,
+                  "toString",
+                  %dateToString);
+let ($newVal = %dateValueOf)
+%DateProto["valueOf" = $newVal ,
+           {[#proto: null, #class: "Object", #extensible: true,]
+            '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%define15Property(%DateProto,
+                  "getTimezoneOffset",
+                  %dateGetTimezoneOffset);
+%define15Property(%DateProto,
+                  "getDay",
+                  %dategetDay);
+%define15Property(%DateProto,
+                  "getDate",
+                  %dategetDate);
+%defineNYIProperty(%DateGlobalFuncObj,
+                   "parse");
+%defineNYIProperty(%DateGlobalFuncObj,
+                   "UTC");
+%defineNYIProperty(%DateProto,
+                   "getTime");
+%defineNYIProperty(%DateProto,
+                   "getFullYear");
+%defineNYIProperty(%DateProto,
+                   "getUTCFullYear");
+%defineNYIProperty(%DateProto,
+                   "getUTCMonth");
+%defineNYIProperty(%DateProto,
+                   "getUTCDate");
+%defineNYIProperty(%DateProto,
+                   "getUTCDay");
+%defineNYIProperty(%DateProto,
+                   "getHours");
+%defineNYIProperty(%DateProto,
+                   "getUTCHours");
+%defineNYIProperty(%DateProto,
+                   "getMinutes");
+%defineNYIProperty(%DateProto,
+                   "getUTCMinutes");
+%defineNYIProperty(%DateProto,
+                   "getSeconds");
+%defineNYIProperty(%DateProto,
+                   "getUTCSeconds");
+%defineNYIProperty(%DateProto,
+                   "getMilliseconds");
+%defineNYIProperty(%DateProto,
+                   "getUTCMilliseconds");
+%defineNYIProperty(%DateProto,
+                   "setTime");
+%defineNYIProperty(%DateProto,
+                   "setMilliseconds");
+%defineNYIProperty(%DateProto,
+                   "setUTCMilliseconds");
+%defineNYIProperty(%DateProto,
+                   "setSeconds");
+%defineNYIProperty(%DateProto,
+                   "setUTCSeconds");
+%defineNYIProperty(%DateProto,
+                   "setMinutes");
+%defineNYIProperty(%DateProto,
+                   "setUTCMinutes");
+%defineNYIProperty(%DateProto,
+                   "setHours");
+%defineNYIProperty(%DateProto,
+                   "setUTCHours");
+%defineNYIProperty(%DateProto,
+                   "setDate");
+%defineNYIProperty(%DateProto,
+                   "setUTCDate");
+%defineNYIProperty(%DateProto,
+                   "setMonth");
+%defineNYIProperty(%DateProto,
+                   "setUTCMonth");
+%defineNYIProperty(%DateProto,
+                   "setFullYear");
+%defineNYIProperty(%DateProto,
+                   "setUTCFullYear");
+%defineNYIProperty(%DateProto,
+                   "toUTCString");
+%defineNYIProperty(%DateProto,
+                   "toGMTString");
+%defineNYIProperty(%DateProto,
+                   "setYear");
+let ($newVal = %RegExpGlobalFuncObj)
+%RegExpProto["constructor" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%defineOwnProperty(%mathMin,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (2.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%Math,
+                   "min",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathMin) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%mathMax,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (2.) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (false) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false}});
+%defineOwnProperty(%Math,
+                   "max",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathMax) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "abs",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathAbs) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "acos",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%acos) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "asin",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%asin) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "atan",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%atan) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "atan2",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%atan2) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "cos",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%cos) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "random",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%random) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "round",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%round) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "sin",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%sin) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "sqrt",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%sqrt) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "tan",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%tan) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "log",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathLog) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "ceil",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathCeil) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "floor",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathFloor) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%Math,
+                   "pow",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%mathPow) ,
+                               #writable true ,
+                               #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%StringProto,
+                   "valueOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%stringValueOf) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%NumberProto,
+                   "valueOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%numValueOf) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%BooleanProto,
+                   "valueOf",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%booleanValueOf) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%toFixed,
+                   "length",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (1.) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%NumberProto,
+                   "toFixed",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%toFixed) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%NumberProto,
+                   "toLocaleString",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%numTLS) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%NumberProto,
+                   "toExponential",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%toExponential) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+%defineOwnProperty(%NumberProto,
+                   "toPrecision",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%toPrecision) ,
+                               #writable true ,
+                               #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false}});
+let ($newVal = %global)
+%global["window" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %print)
+%global["print" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %console)
+%global["console" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+let ($newVal = %ArrayGlobalFuncObj)
+%global["Array" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Array"<#enumerable>=false];
+let ($newVal = %StringGlobalFuncObj)
+%global["String" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["String"<#enumerable>=false];
+let ($newVal = %ObjectGlobalFuncObj)
+%global["Object" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Object"<#enumerable>=false];
+let ($newVal = %NumberGlobalFuncObj)
+%global["Number" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Number"<#enumerable>=false];
+let ($newVal = %BooleanGlobalFuncObj)
+%global["Boolean" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Boolean"<#enumerable>=false];
+let ($newVal = %DateGlobalFuncObj)
+%global["Date" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Date"<#enumerable>=false];
+let ($newVal = %FunctionGlobalFuncObj)
+%global["Function" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Function"<#enumerable>=false];
+let ($newVal = %isNaN)
+%global["isNaN" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["isNaN"<#enumerable>=false];
+let ($newVal = %Math)
+%global["Math" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Math"<#enumerable>=false];
+let ($newVal = %parseInt)
+%global["parseInt" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["parseInt"<#enumerable>=false];
+let ($newVal = %decodeURI)
+%global["decodeURI" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["decodeURI"<#enumerable>=false];
+let ($newVal = %decodeURIComponent)
+%global["decodeURIComponent" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["decodeURIComponent"<#enumerable>=false];
+let ($newVal = %encodeURI)
+%global["encodeURI" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["encodeURI"<#enumerable>=false];
+let ($newVal = %encodeURIComponent)
+%global["encodeURIComponent" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["encodeURIComponent"<#enumerable>=false];
+let ($newVal = %TypeErrorGlobalFuncObj)
+%global["TypeError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["TypeError"<#enumerable>=false];
+let ($newVal = %ReferenceErrorGlobalFuncObj)
+%global["ReferenceError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["ReferenceError"<#enumerable>=false];
+let ($newVal = %SyntaxErrorGlobalFuncObj)
+%global["SyntaxError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["SyntaxError"<#enumerable>=false];
+let ($newVal = %RangeErrorGlobalFuncObj)
+%global["RangeError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["RangeError"<#enumerable>=false];
+let ($newVal = %EvalErrorGlobalFuncObj)
+%global["EvalError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["EvalError"<#enumerable>=false];
+let ($newVal = %URIErrorGlobalFuncObj)
+%global["URIError" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["URIError"<#enumerable>=false];
+let ($newVal = %ErrorGlobalFuncObj)
+%global["Error" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Error"<#enumerable>=false];
+let ($newVal = %RegExpGlobalFuncObj)
+%global["RegExp" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["RegExp"<#enumerable>=false];
+let ($newVal = %propertyIsEnumerable)
+%ObjectProto["propertyIsEnumerable" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["propertyIsEnumerable"<#enumerable>=false];
+let ($newVal = %eval)
+%global["eval" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["eval"<#enumerable>=false];
+let ($newVal = NaN)
+%global["NaN" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["NaN"<#enumerable>=false];
+%global["NaN"<#configurable>=false];
+%global["NaN"<#writable>=false];
+let ($newVal = +inf)
+%global["Infinity" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["Infinity"<#enumerable>=false];
+%global["Infinity"<#configurable>=false];
+%global["Infinity"<#writable>=false];
+let ($newVal = undefined)
+%global["undefined" = $newVal ,
+        {[#proto: null, #class: "Object", #extensible: true,]
+         '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%global["undefined"<#enumerable>=false];
+%global["undefined"<#configurable>=false];
+%global["undefined"<#writable>=false];
+%defineOwnProperty(%global,
+                   "isFinite",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%isFinite) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+%defineOwnProperty(%global,
+                   "parseFloat",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%parseFloat) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+%defineOwnProperty(%global,
+                   "escape",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%escape) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+%defineOwnProperty(%global,
+                   "unescape",
+                   {[#proto: null, #class: "Object", #extensible: true,]
+                    'value' : {#value (%unescape) ,
+                               #writable true ,
+                               #configurable false},
+                    'enumerable' : {#value (false) ,
+                                    #writable true ,
+                                    #configurable false},
+                    'configurable' : {#value (true) ,
+                                      #writable true ,
+                                      #configurable false},
+                    'writable' : {#value (true) ,
+                                  #writable true ,
+                                  #configurable false}});
+let ($newVal = %ObjectGlobalFuncObj)
+%ObjectProto["constructor" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["constructor"<#enumerable>=false];
+let ($newVal = %BooleanGlobalFuncObj)
+%BooleanProto["constructor" = $newVal ,
               {[#proto: null, #class: "Object", #extensible: true,]
                '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["toString"<#writable>=true];
- %ObjectProto["toString"<#enumerable>=false];
- let ($newVal = %toLocaleString)
- %ObjectProto["toLocaleString" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["toLocaleString"<#writable>=false];
- %ObjectProto["toLocaleString"<#enumerable>=false];
- let ($newVal = %valueOf)
- %ObjectProto["valueOf" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["valueOf"<#writable>=true];
- %ObjectProto["valueOf"<#enumerable>=false];
- let ($newVal = %hasOwnProperty)
- %ObjectProto["hasOwnProperty" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["hasOwnProperty"<#writable>=false];
- %ObjectProto["hasOwnProperty"<#enumerable>=false];
- let ($newVal = %isPrototypeOf)
- %ObjectProto["isPrototypeOf" = $newVal ,
-              {[#proto: null, #class: "Object", #extensible: true,]
-               '0' : {#value ($newVal) , #writable true , #configurable true}}];
- %ObjectProto["isPrototypeOf"<#writable>=false];
- %ObjectProto["isPrototypeOf"<#enumerable>=false];
- let ($newVal = %FunctionGlobalFuncObj)
- %FunctionProto["constructor" = $newVal ,
-                {[#proto: null, #class: "Object", #extensible: true,]
-                 '0' : {#value ($newVal) ,
-                        #writable true ,
-                        #configurable true}}];
- %FunctionProto["constructor"<#enumerable>=false];
- let (%context = %nonstrictContext)
- let (#strict = false)
- "success"}
+let ($newVal = 1.)
+%BooleanGlobalFuncObj["length" = $newVal ,
+                      {[#proto: null, #class: "Object", #extensible: true,]
+                       '0' : {#value ($newVal) ,
+                              #writable true ,
+                              #configurable true}}];
+let ($newVal = %objectToString)
+%ObjectProto["toString" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["toString"<#writable>=true];
+%ObjectProto["toString"<#enumerable>=false];
+let ($newVal = %toLocaleString)
+%ObjectProto["toLocaleString" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["toLocaleString"<#writable>=false];
+%ObjectProto["toLocaleString"<#enumerable>=false];
+let ($newVal = %valueOf)
+%ObjectProto["valueOf" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["valueOf"<#writable>=true];
+%ObjectProto["valueOf"<#enumerable>=false];
+let ($newVal = %hasOwnProperty)
+%ObjectProto["hasOwnProperty" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["hasOwnProperty"<#writable>=false];
+%ObjectProto["hasOwnProperty"<#enumerable>=false];
+let ($newVal = %isPrototypeOf)
+%ObjectProto["isPrototypeOf" = $newVal ,
+             {[#proto: null, #class: "Object", #extensible: true,]
+              '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%ObjectProto["isPrototypeOf"<#writable>=false];
+%ObjectProto["isPrototypeOf"<#enumerable>=false];
+let ($newVal = %FunctionGlobalFuncObj)
+%FunctionProto["constructor" = $newVal ,
+               {[#proto: null, #class: "Object", #extensible: true,]
+                '0' : {#value ($newVal) , #writable true , #configurable true}}];
+%FunctionProto["constructor"<#enumerable>=false];
+let (%context = %nonstrictContext)
+let (#strict = false)
+"success"
