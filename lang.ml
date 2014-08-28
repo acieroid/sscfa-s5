@@ -1004,4 +1004,10 @@ struct
 
   let step conf global =
     step_no_gc (if !gc then GC.gc conf global else conf) global
+
+  let merge ((state, ss) : conf) ((state', _) : conf) : conf =
+    ({state with env = Env.merge state.env state'.env;
+                 vstore = ValueStore.merge state.vstore state'.vstore;
+                 ostore = ObjectStore.merge state.ostore state'.ostore},
+     ss)
 end

@@ -46,9 +46,10 @@ let load_s5 file : S.exp =
                                       (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))
 
-let save_state (c : LJS.conf) file =
+let save_state (c : LJS.conf) (env : LJS.conf option) file =
   let cout = open_out_bin file in
-  Marshal.to_channel cout c [Marshal.Compat_32];
+  let c' = BatOption.map_default (fun env -> LJS.merge c env) c env in
+  Marshal.to_channel cout c' [Marshal.Compat_32];
   close_out cout
 
 let load_state file : LJS.conf =
@@ -106,7 +107,7 @@ let () =
         DSG.output_dsg dsg "dsg.dot";
         DSG.output_ecg dsg "ecg.dot";
         begin match !dump with
-          | Some s -> save_state (List.hd final_states) s
+          | Some s -> save_state (List.hd final_states) env s
           | None -> ()
         end
       | `Eval ->
@@ -116,7 +117,7 @@ let () =
         DSG.Dot.output_graph out g;
         close_out out;
         begin match !dump with
-          | Some s -> save_state final s
+          | Some s -> save_state final env s
           | None -> ()
         end
     end

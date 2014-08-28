@@ -41,6 +41,9 @@ module type Store_signature =
 
     (** Give a string representation of the store *)
     val to_string : t -> string
+
+    (** Merge two stores together, giving priority to values in the first
+        store *)
   end
 
 module type StoreArg =
@@ -107,6 +110,13 @@ module Make =
 
     let to_string : t -> string =
       string_of_map AddrMap.fold Address.to_string (fun (v, _) -> Elt.to_string v)
+
+    let merge e1 e2 =
+      let merge_val _ v1 v2 =
+        match v1, v2 with
+        | Some x, _ | None, Some x -> Some x
+        | None, None -> None in
+      AddrMap.merge merge_val e1 e2
   end
 
 module ValueStore = Make(AValue)

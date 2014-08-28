@@ -39,6 +39,10 @@ module type Env_signature =
 
     (** Extract the range of the environment (that is, the set of addresses) *)
     val range : t -> AddressSet.t
+
+    (** Merge two environments together, giving priority to values from the
+        first environment *)
+    val merge : t -> t -> t
   end
 
 (* S5 uses a map of identifier *)
@@ -78,5 +82,13 @@ module Env : Env_signature =
 
     (* urr *)
     let domain env = IdSet.from_list (BatList.of_enum (StringMap.keys env))
+
     let range env = AddressSet.of_enum (StringMap.values env)
+
+    let merge e1 e2 =
+      let merge_val _ v1 v2 =
+        match v1, v2 with
+        | Some x, _ | None, Some x -> Some x
+        | None, None -> None in
+      StringMap.merge merge_val e1 e2
   end
