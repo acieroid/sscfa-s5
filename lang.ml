@@ -425,8 +425,7 @@ struct
     | F.ObjectAttrs (p, name, obj, [], [], env') ->
       let ostore', v' = alloc_if_necessary state name v in
       let obj' = O.set_attr_str obj name v' in
-      [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore';
-                   time = Time.tick p state.time}]
+      [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore' }]
     | F.ObjectAttrs (_, name, obj, [], (name', prop) :: props, env') ->
       let ostore', v' = alloc_if_necessary state name v in
       let obj' = O.set_attr_str obj name v' in
@@ -933,7 +932,7 @@ struct
         ({state with control = Exp obj}, ss) global
     | S.SetAttr (p, pattr, obj, field, newval) ->
       push (F.SetAttrObj (pattr, field, newval, state.env))
-        ({state with control = Exp obj; time = Time.tick p state.time}, ss)
+        ({state with control = Exp obj}, ss)
         global
     | S.GetObjAttr (p, oattr, obj) ->
       push (F.GetObjAttr (oattr, state.env))
