@@ -151,7 +151,13 @@ let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet
       if Env.contains v env then
         AddressSet.add (Env.lookup v env) acc
       else if Env.contains v genv then
-        AddressSet.add (Env.lookup v genv) acc
+        (* AddressSet.add (Env.lookup v genv) acc *)
+        (* ignore variables in the global env because:
+             1. we won't be able to GC them
+             2. they can't point to addresses in the local stores, because this
+                global environment has been generated before loading the current
+                program *)
+        acc
       else  begin
         (* TODO: this should only happen for actual unbound variables.
            Shouldn't they be reported before doing the interpretation? *)

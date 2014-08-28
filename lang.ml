@@ -197,10 +197,18 @@ struct
         | `Obj a -> if AddressSet.mem a visited_objs then
             acc
           else
-            let store = which_ostore a ostore global.gostore in
-            begin match ObjectStore.lookup a store with
+            if ObjectStore.contains a ostore then
+              match ObjectStore.lookup a ostore with
               | `Obj obj -> aux_obj (AddressSet.add a acc) (AddressSet.add a visited_objs) obj
               | `ObjT -> failwith "touch: a value was too abtsract"
+            else if ObjectStore.contains a global.gostore then
+              (* ignore addresses in the global store, as they are not
+                 reclaimable and can't point to reclaimable addresses *)
+              acc
+            else begin
+              print_endline ("GC reached a non-reachable address: " ^
+                             (Address.to_string a));
+              raise Not_found
             end
         | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
@@ -902,7 +910,7 @@ struct
       push (F.Seq (right, state.env))
         ({state with control = Exp left}, ss) global
     | S.App (p, f, args) ->
-      (* print_endline ("Apply " ^ (string_of_exp f)); *)
+      print_endline ("Apply " ^ (Pos.string_of_pos p));
       push (F.AppFun (args, state.env))
         ({state with control = Exp f}, ss) global
     | S.Op1 (p, op, arg) ->

@@ -78,7 +78,7 @@ let eval exp env =
       | [] ->
         (* print_endline ("Evaluation done: " ^ (LJS.string_of_conf conf)); *)
         graph, conf
-      | (g, conf') :: _ ->
+      | (g, ((s, _) as conf')) :: _ ->
         (* print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf')); *)
         aux (G.add_edge_e graph (conf, g, conf'))
           (match g with
