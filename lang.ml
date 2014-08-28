@@ -131,6 +131,16 @@ struct
   let compare_conf (state, ss) (state', ss') =
     order_comp (compare_state state state') (StackSummary.compare ss ss')
 
+  let which_env id env env' : Env.t =
+    if Env.contains id env then
+      env
+    else if Env.contains id env' then
+      env'
+    else begin
+      print_endline ("Identifier cannot be resolved: " ^ id);
+      raise Not_found
+    end
+
   let which_ostore (a : Address.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
     : ObjectStore.t =
     if ObjectStore.contains a ostore then
@@ -139,6 +149,20 @@ struct
       ostore'
     else begin
       print_endline ("Object lives at an unreachable address: " ^
+                     (Address.to_string a));
+      raise Not_found
+    end
+
+  let ostore_set a obj ostore ostore' : ObjectStore.t =
+    if ObjectStore.contains a ostore then
+      (* Object already in the state store, update it *)
+      ObjectStore.set a obj ostore
+    else if ObjectStore.contains a ostore' then
+      (* Object is only in the global store, add the modified object to the
+         state store, using a join as it is a new object in this store *)
+      ObjectStore.join a obj ostore
+    else begin
+      print_endline ("Cannot set object at unreachable location: " ^
                      (Address.to_string a));
       raise Not_found
     end
@@ -499,8 +523,8 @@ struct
       let state = {state with ostore = ostore'} in
       begin match obj, field with
         | `Obj a, `Str s ->
-          if ObjectStore.contains a state.ostore then
-            match ObjectStore.lookup a state.ostore with
+          let store = which_ostore a state.ostore global.gostore in
+          begin match ObjectStore.lookup a store with
             | `Obj ({O.extensible = extensible; _} as attrs, props) ->
               begin match get_prop obj s state.ostore global with
                 | Some (O.Data ({O.writable = `True; _}, enum, config)) ->
@@ -512,7 +536,7 @@ struct
                   let newobj = O.set_prop (attrs, props) s
                       (O.Data ({O.value = newval'; O.writable = `True},
                                enum, config)) in
-                  let ostore'' = ObjectStore.set a (`Obj newobj) state.ostore in
+                  let ostore'' = ostore_set a (`Obj newobj) state.ostore global.gostore in
                   [{state with control = Val (newval :> v); env = env'; ostore = ostore''}]
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
@@ -526,7 +550,7 @@ struct
                     let newobj = O.set_prop (attrs, props) s
                         (O.Data ({O.value = newval'; O.writable = `True},
                                  `True, `True)) in
-                    let ostore'' = ObjectStore.set a (`Obj newobj) state.ostore in
+                    let ostore'' = ostore_set a (`Obj newobj) state.ostore global.gostore in
                     {state with control = Val (newval' :> v); env = env'; ostore = ostore''} in
                   let f = {state with control = Val `Undef} in
                   match Delta.prim_to_bool extensible with
@@ -535,10 +559,7 @@ struct
                   | `BoolT -> [t; f]
               end
             | `ObjT -> failwith "SetFieldArgs: object too abstracted"
-          else if ObjectStore.contains a global.gostore then
-            failwith "SetFieldArgs: cannot update an object that lives in the global store (TODO)"
-          else
-            failwith ("No object found at address" ^ (Address.to_string a))
+          end
         | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
         | _ -> failwith "SetFieldArgs on a non-object or non-string"
       end
@@ -573,19 +594,14 @@ struct
       let ostore'', newval = alloc_if_necessary {state with ostore = ostore'} "setattrnewvalv" v in
       begin match obj, field with
         | `Obj a, `Str s ->
-          if ObjectStore.contains a ostore'' then
-            match ObjectStore.lookup a ostore'' with
+          let store = which_ostore a ostore'' global.gostore in
+          begin match ObjectStore.lookup a store with
             | `Obj o ->
               let newobj = O.set_attr o pattr s newval in
-              let ostore''' = ObjectStore.set a (`Obj newobj) ostore'' in
+              let ostore''' = ostore_set a (`Obj newobj) ostore'' global.gostore in
               [{state with control = Val `True; env = env'; ostore = ostore'''}]
             | `ObjT -> failwith "SetAttrNewval: object too abstracted"
-          else if ObjectStore.contains a global.gostore then
-            failwith ("SetAttrNewval: cannot update object in global store (TODO): " ^
-                      (Address.to_string a))
-          else
-            failwith ("SetAttrNewval: no object found at address " ^
-                      (Address.to_string a))
+          end
         | `ObjT, _ -> failwith "SetAttrNewval: object too abstracted"
         | _ -> failwith "SetAttrNewval on a non-object or non-string attribute"
       end
@@ -616,21 +632,17 @@ struct
         | S.Klass, _ -> failwith "Cannot update klass" in
       begin match obj with
         | `Obj a ->
-          if ObjectStore.contains a state.ostore then
-            match ObjectStore.lookup a state.ostore with
+          let store = which_ostore a state.ostore global.gostore in
+          begin match ObjectStore.lookup a store with
             | `Obj (attrs, props) ->
               let ostore', v' = alloc_if_necessary state
                   ("setobjattrnewval-" ^ (S.string_of_oattr oattr)) v in
               let newobj = (helper attrs v', props) in
-              let ostore'' = ObjectStore.set a (`Obj newobj) ostore' in
+              let ostore'' = ostore_set a (`Obj newobj) ostore' global.gostore in
               [{state with control = Val (v' :> v);
                            ostore = ostore''; env = env'}]
             | `ObjT -> failwith "SetObjAttrNewval: object too abstract"
-          else if ObjectStore.contains a global.gostore then
-            failwith "SetObjAttrNewval: cannot update object that live in the global store (TODO)"
-          else
-            failwith ("SetObjAttrNewval: no object found at address " ^
-                      (Address.to_string a))
+          end
         | `StackObj _ ->
           (* TODO: this object lives on the stack and will not be returned by
              this operation, it is therefore not reachable. Is this expected? *)
@@ -933,16 +945,10 @@ struct
                      env = env';
                      vstore = vstore'}, ss) global
     | S.SetBang (p, id, exp) ->
-      if Env.contains id state.env then
-        let a = Env.lookup id state.env in
-        push (F.SetBang (id, a, state.env))
-          ({state with control = Exp exp}, ss) global
-      else if Env.contains id global.genv then
-        failwith "Cannot update global environment (TODO)"
-      else begin
-        print_endline ("Identifier cannot be resolved for set!: " ^ id);
-        raise Not_found
-      end
+      let env = which_env id state.env global.genv in
+      let a = Env.lookup id env in
+      push (F.SetBang (id, a, state.env))
+        ({state with control = Exp exp}, ss) global
     | S.Label (p, label, body) ->
       push (F.Label (label, state.env))
         ({state with control = Exp body}, ss) global
