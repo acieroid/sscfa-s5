@@ -1,8 +1,7 @@
 #!/bin/sh
-echo -n > test.log
-LOGFILE=test.log
-RAN=0
-FAILED=0
+
+ARGS="-deterministic"
+
 if [ -f main.byte ]; then
     EXEC=./main.byte
 elif [ -f main.native ]; then
@@ -12,10 +11,17 @@ else
     exit
 fi
 
+LOGFILE=test.log
+echo -n > "$LOGFILE"
+
+TESTDIR=tests/simple
+RAN=0
+FAILED=0
+
 function run_test {
     TEST="$1"
     echo -n "Running $TEST ... "
-    RES=$($EXEC "$TEST" | sed -En 's/Evaluation done: Val\((.*)\)/\1/p')
+    RES=$($EXEC "$TEST" | tail -1 | sed -En 's/.*Val\((.*)\).*/\1/p')
     EXPECTED=$(sed -En 's|// Expected: (.*)$|\1|p' "$TEST")
     if [ "$RES" != "$EXPECTED" ]; then
         echo "failure!"
@@ -27,7 +33,7 @@ function run_test {
     RAN=$(($RAN+1))
 }
 
-for TEST in $(ls tests/*.s5); do
+for TEST in $(ls $TESTDIR/*.s5); do
     run_test "$TEST"
 done
 

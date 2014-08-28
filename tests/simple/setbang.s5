@@ -1,0 +1,4 @@
+// Expected: true
+let (foo = 5)
+foo := "success";
+prim("stx=", foo, "success")

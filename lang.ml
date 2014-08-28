@@ -200,7 +200,7 @@ struct
             if ObjectStore.contains a ostore then
               match ObjectStore.lookup a ostore with
               | `Obj obj -> aux_obj (AddressSet.add a acc) (AddressSet.add a visited_objs) obj
-              | `ObjT -> failwith "touch: a value was too abtsract"
+              | `ObjT -> failwith "touch: an object was too abtsract"
             else if ObjectStore.contains a global.gostore then
               (* ignore addresses in the global store, as they are not
                  reclaimable and can't point to reclaimable addresses *)

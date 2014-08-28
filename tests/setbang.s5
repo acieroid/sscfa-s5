@@ -1,4 +1,0 @@
-// Expected: 'success'
-let (foo = 5)
-foo := "success";
-foo
