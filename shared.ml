@@ -41,37 +41,32 @@ module StringSet = BatSet.Make(struct
 module type Time_signature =
 sig
   type t
+  type arg
   val initial : t
   val compare : t -> t -> int
   val to_string : t -> string
-  val tick : Pos.t -> t -> t
+  val tick : arg -> t -> t
 end
 
-module OneCFA : Time_signature =
-struct
-  type t = Pos.t option
-  let initial = None
-  let compare = Pervasives.compare
-  let to_string = function
-    | Some p -> "[" ^ (Pos.string_of_pos p) ^ "]"
-    | None -> "[]"
-  let tick p = function
-    | None -> Some p
-    | Some _ -> Some p
+module type KCFA_k = sig val k : int end
+
+module type KCFA_arg = sig
+  type t
+  val compare : t -> t -> int
+  val to_string : t -> string
 end
 
-module type KCFA_arg = sig val k : int end
-
-module KCFA : functor (K : KCFA_arg) -> Time_signature =
-  functor (K : sig val k : int end) ->
+module KCFABased =
+  functor (Arg : KCFA_arg) -> functor (K : KCFA_k) ->
   struct
-    type t = Pos.t list
+    type arg = Arg.t
+    type t = Arg.t list
     let initial = []
-    let compare = Pervasives.compare
-    let to_string t = string_of_list t Pos.string_of_pos
-    let tick p t =
-      print_endline ("\027[34mtick " ^ (Pos.string_of_pos p) ^ "\027[0m");
-      BatList.take K.k (p :: t)
+    let compare = compare_list Arg.compare
+    let to_string t = string_of_list t Arg.to_string
+    let tick x t =
+      print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m");
+      BatList.take K.k (x :: t)
   end
 
 type 'a addr_kind = [ `ObjAddress of 'a | `VarAddress of 'a ]
@@ -95,7 +90,7 @@ struct
   type a = (string * T.t)
   type t = a addr_kind
   let compare x y = match x, y with
-    | `ObjAddress (id, t), `ObjAddress (id', t') 
+    | `ObjAddress (id, t), `ObjAddress (id', t')
     | `VarAddress (id, t), `VarAddress (id', t') ->
       order_comp (Pervasives.compare id id') (T.compare t t')
     | `ObjAddress _, `VarAddress _ -> 1
@@ -127,7 +122,8 @@ struct
 end
 
 module K1 = struct let k = 2 end
-module Time = KCFA(K1)
+module KPos = struct include Pos let to_string = string_of_pos end
+module Time = KCFABased(KPos)(K1)
 module Address = MakeAddress(Time)
 module AddressSet = BatSet.Make(Address)
 
