@@ -361,13 +361,17 @@ struct
     let compare = compare_stack_change
   end
 
-  (* let alloc_var id _ state = Address.alloc_var id state.time *)
-  let alloc_var (p : Pos.t option) (id : string) _ ((_, (_, ss)) : conf) =
+  let alloc_var (p : Pos.t option) (id : string) _ ((state, (_, ss)) : conf) =
+    (* m-CFA *)
     Address.alloc_var p id ss.MCFAStackSummary.mtime
+    (* k-CFA *)
+    (* Address.alloc_var p id state.time *)
 
-  (* let alloc_obj id _ state = Address.alloc_obj id state.time *)
-  let alloc_obj (p : Pos.t option) (id : string) _ ((_, (_, ss)) : conf) =
+  let alloc_obj (p : Pos.t option) (id : string) _ ((state, (_, ss)) : conf) =
+    (* m-CFA *)
     Address.alloc_obj p id ss.MCFAStackSummary.mtime
+    (* k-CFA *)
+    (* Address.alloc_obj p id state.time *)
 
   let alloc_if_necessary ((state, _) as conf : conf) id = function
     | #AValue.t as v -> (state.ostore, v)
@@ -410,13 +414,11 @@ struct
 
   (** Do the selection of parameters that will be used in timestamps (for
       parameter sensitive addresses) *)
-  (*
-  let select_params args : (string * Time.v) list =
+  let select_params args : (string * PSTime.v) list =
     let f (n, v) = match v with
-        | #Time.v as v' -> Some (n, v')
+        | #PSTime.v as v' -> Some (n, v')
         | _ -> None in
     BatList.filter_map f args
-  *)
 
   let rec apply_fun (p : Pos.t) f args ((state, ss) as conf : conf) (global : global)
     : (S.exp * state) = match f with
@@ -438,10 +440,12 @@ struct
         let (vstore', ostore', env') =
           BatList.fold_right2 alloc_arg args args' (state.vstore, state.ostore, env') in
         (body, {state with env = env'; vstore = vstore'; ostore = ostore';
-                           time = Time.tick (S.pos_of body)
+                           (* k-CFA *)
+                           time = Time.tick (S.pos_of body) state.time
+                           (* Parameter-sensitive k-CFA *)
                            (* time = Time.tick ((S.pos_of body),
-                                             select_params (BatList.combine args' args)) *)
-                               state.time})
+                                             select_params (BatList.combine args' args))
+                               state.time *)})
     | `ClosT -> failwith "Closure too abstracted"
     | `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
@@ -939,7 +943,10 @@ struct
       (* We *need* to tick here, to avoid losing precision when multiple objects
          are defined without funcalls in between (see tests/objs-imprecision.s5)
       *)
-      let state = {state with time = Time.tick (* (p, []) *) p state.time} in
+      (* k-CFA *)
+      let state = {state with time = Time.tick p state.time} in
+      (* Parameter-sensitive k-CFA *)
+      (* let state = {state with time = Time.tick (p, []) state.time} in *)
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
