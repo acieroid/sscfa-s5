@@ -136,10 +136,11 @@ struct
        mtime = match ss.last with
          | Some (F.AppFun (p, [], _))
          | Some (F.AppArgs (p, _, _, [], _)) ->
-           (* TODO: GetFieldBody w/ getter, SetFieldArgs w/ setter *)
-           print_endline ("Push: " ^ (Pos.string_of_pos p));
            K1Time.tick p ss.mtime
-         | _ -> ss.mtime}
+         | _ -> begin match f with
+           | F.RestoreEnv (p, _) -> K1Time.tick p ss.mtime
+           | _ -> ss.mtime
+           end}
   end
   module StackSummary =
   struct
@@ -549,7 +550,7 @@ struct
               [{state with control = Val (v :> v); env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
               let (body, state') = apply_fun p (g :> v) [obj; v] conf global in
-              [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
+              [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
         | `Obj _, `StrT ->
@@ -597,7 +598,7 @@ struct
                   [{state with control = Exception (`Throw (`Str "uwritable-field"))}]
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
                   let (exp, state') = apply_fun p (setter :> v) [obj; body] conf global in
-                  [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
+                  [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
                     let ostore', newval' = alloc_if_necessary conf ("setfieldargs" ^ s) newval in
@@ -803,14 +804,14 @@ struct
     | F.TryCatchHandler (p, exc, env') ->
       (* Exception should be handled by the handler *)
       let (body, state') = apply_fun p v [exc] conf global in
-      [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
+      [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
     | F.TryFinally (finally, env') ->
       (* No exception, execute the finally *)
       [{state with control = Exp finally; env = env'}]
     | F.TryFinallyExc (exc, env') ->
       (* Finally has been executed, rethrow the exception *)
       [{state with control = Exception exc; env = env'}]
-    | F.RestoreEnv env' ->
+    | F.RestoreEnv (_, env') ->
       [{state with control = Val v; env = env'}]
     | F.ObjectProps _ ->
       failwith "apply_frame should not handle ObjectProps frame!"

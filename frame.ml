@@ -101,7 +101,7 @@ type t =
   | TryFinally of S.exp * Env.t
   | TryFinallyExc of exc * Env.t
   (* frame to restore the contained environment *)
-  | RestoreEnv of Env.t
+  | RestoreEnv of Pos.t * Env.t
 
 let env_of_frame = function
   | Let (_, _, _, env)
@@ -143,7 +143,7 @@ let env_of_frame = function
   | TryCatchHandler (_, _, env)
   | TryFinally (_, env)
   | TryFinallyExc (_, env)
-  | RestoreEnv env ->
+  | RestoreEnv (_, env) ->
     env
 
 let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet.t =
@@ -639,5 +639,6 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | TryFinallyExc _, _ -> 1
   | _, TryFinallyExc _ -> -1
-  | RestoreEnv env, RestoreEnv env' ->
-    Env.compare env env'
+  | RestoreEnv (p, env), RestoreEnv (p', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Env.compare env env')]
