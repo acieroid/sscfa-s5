@@ -1,5 +1,7 @@
 // Expected: 0.
-// This example shows that k-CFA with the last k call sites is not enough
+// This example shows that k-CFA with the last k call sites is not enough.
+// It can be solved for k-CFA by ticking on object declaration.
+// Simple m-CFA is also not enough.
 let (foo = {[]
             'baz': {#value 0, #writable true, #configurable false}})
 let (bar = {[]

@@ -1,0 +1,9 @@
+// Expected: 'b'
+// This example shows that simple m-CFA or k-CFA is not sufficient.
+// At the two calls to bar, the last call site is empty and the two parameters
+// therefore get joined. Addresses of function arguments should have some
+// component related to the location of the application.
+let (foo = func(fid) { fid })
+let (bar = func(gid) { foo(gid); let (x = gid) x })
+bar("a");
+bar("b")

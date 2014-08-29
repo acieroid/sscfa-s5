@@ -79,8 +79,8 @@ module type Address_signature =
     val compare : t -> t -> int
     val is_reclaimable : t -> bool
     val to_string : t -> string
-    val alloc_obj : string -> time -> t
-    val alloc_var : string -> time -> t
+    val alloc_obj : Pos.t option -> string -> time -> t
+    val alloc_var : Pos.t option -> string -> time -> t
   end
 
 (* S5 uses Store.Loc module (util/store.ml) *)
@@ -88,12 +88,14 @@ module MakeAddress =
   functor (T : Time_signature) ->
 struct
   type time = T.t
-  type a = (string * T.t)
+  type a = (Pos.t option * string * T.t)
   type t = a addr_kind
   let compare x y = match x, y with
-    | `ObjAddress (id, t), `ObjAddress (id', t')
-    | `VarAddress (id, t), `VarAddress (id', t') ->
-      order_comp (Pervasives.compare id id') (T.compare t t')
+    | `ObjAddress (p, id, t), `ObjAddress (p', id', t')
+    | `VarAddress (p, id, t), `VarAddress (p', id', t') ->
+      order_concat [lazy (BatOption.compare ~cmp:Pos.compare p p');
+                    lazy (Pervasives.compare id id');
+                    lazy (T.compare t t')]
     | `ObjAddress _, `VarAddress _ -> 1
     | `VarAddress _, `ObjAddress _ -> -1
   let is_reclaimable a =
@@ -101,25 +103,25 @@ struct
       match a with
       (* %or is a special variable frequetly present in desugared S5 code, but
          it is *not* used to denote a global identifier *)
-      | `VarAddress ("%or", _) -> true
+      | `VarAddress (_, "%or", _) -> true
       (* variables starting with % or # are global and should not be GCed, even
          if they are not reachable, as we could be loading an environment where
          they are not used, but they'll be used in a program using this
          environment *)
-      | `ObjAddress (id, _)
-      | `VarAddress (id, _) ->
+      | `ObjAddress (_, id, _)
+      | `VarAddress (_, id, _) ->
         not (BatString.starts_with id "%" || BatString.starts_with id "#")
     else
       true
   let to_string = function
-    | `ObjAddress (id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
-    | `VarAddress (id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
-  let alloc_obj id t =
+    | `ObjAddress (_, id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
+    | `VarAddress (_, id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
+  let alloc_obj (p : Pos.t option) (id : string) (t : T.t) =
     print_endline ("\027[33malloc_obj(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
-    `ObjAddress (id, t)
-  let alloc_var id t =
+    `ObjAddress (p, id, t)
+  let alloc_var (p : Pos.t option) (id : string) (t : T.t) =
     print_endline ("\027[33malloc_var(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
-    `VarAddress (id, t)
+    `VarAddress (p, id, t)
 end
 
 module ParameterSensitive =

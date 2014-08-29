@@ -361,15 +361,17 @@ struct
   end
 
   (* let alloc_var id _ state = Address.alloc_var id state.time *)
-  let alloc_var (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_var id ss.MCFAStackSummary.mtime
+  let alloc_var (p : Pos.t option) (id : string) _ ((_, (_, ss)) : conf) =
+    Address.alloc_var p id ss.MCFAStackSummary.mtime
 
   (* let alloc_obj id _ state = Address.alloc_obj id state.time *)
-  let alloc_obj (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_obj id ss.MCFAStackSummary.mtime
+  let alloc_obj (p : Pos.t option) (id : string) _ ((_, (_, ss)) : conf) =
+    Address.alloc_obj p id ss.MCFAStackSummary.mtime
 
   let alloc_if_necessary ((state, _) as conf : conf) id = function
     | #AValue.t as v -> (state.ostore, v)
     | `StackObj obj ->
-      let a = alloc_obj id obj conf in
+      let a = alloc_obj None id obj conf in
       let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
       (ostore', `Obj a)
 
@@ -415,7 +417,7 @@ struct
     BatList.filter_map f args
   *)
 
-  let rec apply_fun f args ((state, ss) as conf : conf) (global : global)
+  let rec apply_fun (p : Pos.t) f args ((state, ss) as conf : conf) (global : global)
     : (S.exp * state) = match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
@@ -428,7 +430,7 @@ struct
         let alloc_arg v name (vstore, ostore, env) =
           let (ostore', v') = alloc_if_necessary conf name v in
           let conf' = ({state with ostore = ostore'}, ss) in
-          let a = alloc_var name v' conf' in
+          let a = alloc_var (Some p) name v' conf' in
           (ValueStore.join a v' vstore,
            ostore',
            Env.extend name a env) in
@@ -444,22 +446,22 @@ struct
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `Clos f; _}, _) ->
-          apply_fun (`Clos f) args conf global
+          apply_fun p (`Clos f) args conf global
         | `ObjT -> failwith "Applied too abstracted object"
         (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith "Applied object without code attribute"
       end
     | `ObjT -> failwith "Object too abstracted when applying function"
     | `StackObj ({O.code = `Clos f; _}, _) ->
-      apply_fun (`Clos f) args conf global
+      apply_fun p (`Clos f) args conf global
     | `StackObj _ -> failwith "Applied object without code attribute"
     (* TODO: S5 or JS error? *)
     | _ -> failwith "Applied non-function"
 
   let apply_frame (v : v) (frame : frame) ((state, ss) as conf : conf) (global : global)
     : state list = match frame with
-    | F.Let (id, body, env') ->
-      let a = alloc_var id id conf in
+    | F.Let (p, id, body, env') ->
+      let a = alloc_var (Some p) id id conf in
       let env'' = Env.extend id a env' in
       let ostore', v' = alloc_if_necessary conf id v in
       let vstore' = ValueStore.join a v' state.vstore in
@@ -499,15 +501,15 @@ struct
                    ostore = ostore'; env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
-    | F.AppFun (_, [], env') ->
-      let (exp, state') = apply_fun v [] conf global in
+    | F.AppFun (p, [], env') ->
+      let (exp, state') = apply_fun p v [] conf global in
       [{state' with control = Exp exp}]
     | F.AppFun (p, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (p, v, [], args, env')));
                    env = env'}]
-    | F.AppArgs (_, f, vals, [], env') ->
+    | F.AppArgs (p, f, vals, [], env') ->
       let args = BatList.rev (v :: vals) in
-      let (exp, state') = apply_fun f args conf global in
+      let (exp, state') = apply_fun p f args conf global in
       [{state' with control = Exp exp}]
     | F.AppArgs (p, f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (p, f, v :: vals, args, env')));
@@ -533,20 +535,20 @@ struct
                             {state with control = Exp alt; env = env'}]
         | _ -> [{state with control = Exp alt; env = env'}]
       end
-    | F.GetFieldObj (field, body, env') ->
-      [{state with control = Frame (Exp field, F.GetFieldField (v, body, env'));
+    | F.GetFieldObj (p, field, body, env') ->
+      [{state with control = Frame (Exp field, F.GetFieldField (p, v, body, env'));
                    env = env'}]
-    | F.GetFieldField (obj, body, env') ->
-      [{state with control = Frame (Exp body, F.GetFieldBody (obj, v, env'));
+    | F.GetFieldField (p, obj, body, env') ->
+      [{state with control = Frame (Exp body, F.GetFieldBody (p, obj, v, env'));
                    env = env'}]
-    | F.GetFieldBody (obj, field, env') ->
+    | F.GetFieldBody (p, obj, field, env') ->
       begin match obj, field with
         | `Obj a, `Str s ->
           begin match get_prop (`Obj a) s state.ostore global with
             | Some (O.Data ({O.value = v; _}, _, _)) ->
               [{state with control = Val (v :> v); env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun (g :> v) [obj; v] conf global in
+              let (body, state') = apply_fun p (g :> v) [obj; v] conf global in
               [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
             | None -> [{state with control = Val `Undef; env = env'}]
           end
@@ -558,16 +560,16 @@ struct
         | o, s -> failwith ("GetFieldBody on a non-object or non-string field: " ^
                             (F.string_of_value o) ^ ", " ^ (F.string_of_value s))
       end
-    | F.SetFieldObj (field, newval, body, env') ->
-      [{state with control = Frame (Exp field, F.SetFieldField (v, newval, body, env'));
+    | F.SetFieldObj (p, field, newval, body, env') ->
+      [{state with control = Frame (Exp field, F.SetFieldField (p, v, newval, body, env'));
                    env = env'}]
-    | F.SetFieldField (obj, newval, body, env') ->
-      [{state with control = Frame (Exp newval, F.SetFieldNewval (obj, v, body, env'));
+    | F.SetFieldField (p, obj, newval, body, env') ->
+      [{state with control = Frame (Exp newval, F.SetFieldNewval (p, obj, v, body, env'));
                    env = env'}]
-    | F.SetFieldNewval (obj, field, body, env') ->
-      [{state with control = Frame (Exp body, F.SetFieldArgs (obj, field, v, env'));
+    | F.SetFieldNewval (p, obj, field, body, env') ->
+      [{state with control = Frame (Exp body, F.SetFieldArgs (p, obj, field, v, env'));
                    env = env'}]
-    | F.SetFieldArgs (obj_, field, newval, env') ->
+    | F.SetFieldArgs (p, obj_, field, newval, env') ->
       (* TODO: allow objects to contain objects that don't live in the store *)
       let body = v in
       let ostore', obj = alloc_if_necessary conf "setfieldargs" obj_ in
@@ -594,7 +596,7 @@ struct
                 | Some (O.Accessor ({O.setter = `Undef; _}, _, _)) ->
                   [{state with control = Exception (`Throw (`Str "uwritable-field"))}]
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, state') = apply_fun (setter :> v) [obj; body] conf global in
+                  let (exp, state') = apply_fun p (setter :> v) [obj; body] conf global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv env')}]
                 | None ->
                   let t =
@@ -721,7 +723,7 @@ struct
                   (O.Data ({O.value = `Num d; O.writable = `False}, `False, `False))
                   props in
               let obj' = (O.d_attrsv , final_props) in
-              let addr = alloc_obj "obj" obj' conf in
+              let addr = alloc_obj None "obj" obj' conf in
               let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
               [{state with control = Val (`Obj addr); ostore = ostore'}]
             | `ObjT -> failwith "OwnFieldNames: object too abstracted"
@@ -779,7 +781,7 @@ struct
             [{state with control = Val `False; env = env'}]
         | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
-    | F.Rec (name, a, body, env') ->
+    | F.Rec (_, name, a, body, env') ->
       let ostore', v' = alloc_if_necessary conf ("rec-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
       [{state with control = Exp body;
@@ -795,12 +797,12 @@ struct
       [{state with control = Exception (`Break (lab, v)); env = env'}]
     | F.Throw env' ->
       [{state with control = Exception (`Throw v); env = env'}]
-    | F.TryCatch (_, env') ->
+    | F.TryCatch (_, _, env') ->
       (* No exception has been caught, continue normal execution *)
       [{state with control = Val v; env = env'}]
-    | F.TryCatchHandler (exc, env') ->
+    | F.TryCatchHandler (p, exc, env') ->
       (* Exception should be handled by the handler *)
-      let (body, state') = apply_fun v [exc] conf global in
+      let (body, state') = apply_fun p v [exc] conf global in
       [{state' with control = Frame (Exp body, F.RestoreEnv env')}]
     | F.TryFinally (finally, env') ->
       (* No exception, execute the finally *)
@@ -818,7 +820,7 @@ struct
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
     | F.ObjectProps (name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
-      let a = alloc_obj name obj' conf in
+      let a = alloc_obj None name obj' conf in
       let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
       {state with control = Val (`Obj a); env = env'; ostore = ostore'}
     | F.ObjectProps (name, obj, (name', prop) :: props, env') ->
@@ -836,8 +838,8 @@ struct
       {state with control = Frame (Exp finally, F.TryFinallyExc (`Break b, env'));
                   env = env'}
     | `Break _, _ -> state
-    | `Throw v, F.TryCatch (handler, env') ->
-      {state with control = Frame (Exp handler, F.TryCatchHandler (v, env'));
+    | `Throw v, F.TryCatch (p, handler, env') ->
+      {state with control = Frame (Exp handler, F.TryCatchHandler (p, v, env'));
                   env = env'}
     | `Throw v, F.TryFinally (finally, env') ->
       {state with control = Frame (Exp finally, F.TryFinallyExc (`Throw v, env'));
@@ -949,7 +951,7 @@ struct
       end
     | S.Let (p, id, exp, body) ->
       (* print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p)); *)
-      push (F.Let (id, body, state.env))
+      push (F.Let (p, id, body, state.env))
         ({state with control = Exp exp}, ss) global
     | S.Seq (p, left, right) ->
       push (F.Seq (right, state.env))
@@ -968,10 +970,10 @@ struct
       push (F.If (cons, alt, state.env))
         ({state with control = Exp pred}, ss) global
     | S.GetField (p, obj, field, body) ->
-      push (F.GetFieldObj (field, body, state.env))
+      push (F.GetFieldObj (p, field, body, state.env))
         ({state with control = Exp obj}, ss) global
     | S.SetField (p, obj, field, newval, body) ->
-      push (F.SetFieldObj (field, newval, body, state.env))
+      push (F.SetFieldObj (p, field, newval, body, state.env))
         ({state with control = Exp obj}, ss) global
     | S.GetAttr (p, pattr, obj, field) ->
       push (F.GetAttrObj (pattr, field, state.env))
@@ -990,10 +992,10 @@ struct
       push (F.OwnFieldNames state.env)
         ({state with control = Exp obj}, ss) global
     | S.Rec (p, name, exp, body) ->
-      let a = alloc_var name `Undef conf in
+      let a = alloc_var (Some p) name `Undef conf in
       let env' = Env.extend name a state.env in
       let vstore' = ValueStore.join a `Undef state.vstore in
-      push (F.Rec (name, a, body, env'))
+      push (F.Rec (p, name, a, body, env'))
         ({state with control = Exp exp;
                      env = env';
                      vstore = vstore'}, ss) global
@@ -1012,7 +1014,7 @@ struct
       push (F.Throw state.env)
         ({state with control = Exp exp}, ss) global
     | S.TryCatch (p, body, catch) ->
-      push (F.TryCatch (catch, state.env))
+      push (F.TryCatch (p, catch, state.env))
         ({state with control = Exp body}, ss) global
     | S.TryFinally (p, body, finally) ->
       push (F.TryFinally (finally, state.env))
