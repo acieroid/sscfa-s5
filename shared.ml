@@ -185,7 +185,7 @@ module ParameterSensitive =
 
   end
 
-module K1 = struct let k = 2 end
+module K1 = struct let k = 1 end
 
 (* This is ugly as fuck, but it does the trick in a type-safe way *)
 module rec PSAddress :

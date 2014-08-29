@@ -126,14 +126,20 @@ struct
   module MCFAStackSummary =
   struct
     (* Stack summary used for [m = 1]-CFA addresses *)
-    include K1Time
-    let empty = K1Time.initial
-    let push (ss : t) (global : global) = function
-      | F.AppFun (p, [], _)
-      | F.AppArgs (p, _, _, [], _) ->
-        (* TODO: GetFieldBody w/ getter, SetFieldArgs w/ setter *)
-        K1Time.tick p ss
-      | _ -> ss
+    type t = { last : F.t option; mtime : K1Time.t }
+    let empty = { last = None; mtime = K1Time.initial }
+    let compare ss ss' =
+      order_concat [lazy (K1Time.compare ss.mtime ss'.mtime);
+                    lazy (BatOption.compare ~cmp:F.compare ss.last ss'.last)]
+    let push (ss : t) (global : global) (f : F.t) =
+      {last = Some f;
+       mtime = match ss.last with
+         | Some (F.AppFun (p, [], _))
+         | Some (F.AppArgs (p, _, _, [], _)) ->
+           (* TODO: GetFieldBody w/ getter, SetFieldArgs w/ setter *)
+           print_endline ("Push: " ^ (Pos.string_of_pos p));
+           K1Time.tick p ss.mtime
+         | _ -> ss.mtime}
   end
   module StackSummary =
   struct
@@ -355,10 +361,10 @@ struct
   end
 
   (* let alloc_var id _ state = Address.alloc_var id state.time *)
-  let alloc_var (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_var id ss
+  let alloc_var (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_var id ss.MCFAStackSummary.mtime
 
   (* let alloc_obj id _ state = Address.alloc_obj id state.time *)
-  let alloc_obj (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_obj id ss
+  let alloc_obj (id : string) _ ((_, (_, ss)) : conf) = Address.alloc_obj id ss.MCFAStackSummary.mtime
 
   let alloc_if_necessary ((state, _) as conf : conf) id = function
     | #AValue.t as v -> (state.ostore, v)
