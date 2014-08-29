@@ -471,10 +471,10 @@ struct
       let ostore', v' = alloc_if_necessary conf name v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore' }]
-    | F.ObjectAttrs (_, name, obj, [], (name', prop) :: props, env') ->
+    | F.ObjectAttrs (p, name, obj, [], (name', prop) :: props, env') ->
       let ostore', v' = alloc_if_necessary conf name v in
       let obj' = O.set_attr_str obj name v' in
-      [{state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
+      [{state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
                    ostore = ostore'; env = env'}]
     | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
       let ostore', v' = alloc_if_necessary conf name v in
@@ -818,14 +818,14 @@ struct
   let apply_frame_prop v frame ((state, ss) as conf : conf) (global : global)
     : state = match frame with
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
-    | F.ObjectProps (name, obj, [], env') ->
+    | F.ObjectProps (p, name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
-      let a = alloc_obj None name obj' conf in
+      let a = alloc_obj (Some p) name obj' conf in
       let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
       {state with control = Val (`Obj a); env = env'; ostore = ostore'}
-    | F.ObjectProps (name, obj, (name', prop) :: props, env') ->
+    | F.ObjectProps (p, name, obj, (name', prop) :: props, env') ->
       let obj' = O.set_prop obj name v in
-      {state with control = Frame (Prop prop, F.ObjectProps (name', obj', props, env'));
+      {state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
                   env = env'}
     | f -> failwith ("apply_frame_prop should not handle a non-ObjectProps frame: " ^
                      (string_of_frame f))
@@ -943,7 +943,7 @@ struct
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
         | [], (prop, exp)::props ->
-          push (F.ObjectProps (prop, obj, props, state.env))
+          push (F.ObjectProps (p, prop, obj, props, state.env))
             ({state with control = Prop exp}, ss) global
         | (attr, exp)::attrs, props ->
           push (F.ObjectAttrs (p, attr, obj, attrs, props, state.env))
