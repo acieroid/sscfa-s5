@@ -185,7 +185,7 @@ module ParameterSensitive =
 
   end
 
-module K1 = struct let k = 1 end
+module K1 = struct let k = 2 end
 
 (* This is ugly as fuck, but it does the trick in a type-safe way *)
 module rec PSAddress :
@@ -219,8 +219,8 @@ module KPos = struct include Pos let to_string = string_of_pos end
 module K1Time = KCFABased(KPos)(K1)
 module K1Address = MakeAddress(K1Time)
 
-module Time = PSTime
-module Address = PSAddress
+module Time = K1Time
+module Address = K1Address
 module AddressSet = BatSet.Make(Address)
 
 let rec string_of_exp exp = match exp with

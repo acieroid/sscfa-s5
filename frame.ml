@@ -49,8 +49,8 @@ type t =
   (* left; right *)
   | Seq of S.exp * Env.t
   (* f(arg1, ...) *)
-  | AppFun of S.exp list * Env.t
-  | AppArgs of value * value list * S.exp list * Env.t
+  | AppFun of Pos.t * S.exp list * Env.t
+  | AppArgs of Pos.t * value * value list * S.exp list * Env.t
   (* op arg *)
   | Op1App of string * Env.t
   (* arg1 op arg2 *)
@@ -109,8 +109,8 @@ let env_of_frame = function
   | ObjectProps (_, _, _, env)
   | PropAccessor (_, _, env)
   | Rec (_, _, _, env)
-  | AppFun (_, env)
-  | AppArgs (_, _, _, env)
+  | AppFun (_, _, env)
+  | AppArgs (_, _, _, _, env)
   | SetFieldObj (_, _, _, env)
   | If (_, _, env)
   | GetFieldObj (_, _, env)
@@ -183,8 +183,8 @@ let free_vars frame =
   | ObjectProps (_, _, props, _) -> fv_props props
 
   (* List of exps *)
-  | AppFun (args, _)
-  | AppArgs (_, _, args, _) ->
+  | AppFun (_, args, _)
+  | AppArgs (_, _, _, args, _) ->
     fv_list S.free_vars args
 
   (* Three exps *)
@@ -267,7 +267,7 @@ and addresses_of_obj ({O.code = code; O.proto = proto; O.primval = primval;
 let touched_addresses_from_values frame =
   match frame with
   (* Special cases *)
-  | AppArgs (f, args, _, _) ->
+  | AppArgs (_, f, args, _, _) ->
     addresses_of_vals (f :: args)
   | PropData (({O.value = v; O.writable = w}, enum, config), _) ->
     addresses_of_vals [(v :> value); (w :> value);
@@ -433,13 +433,15 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | Seq _, _ -> 1
   | _, Seq _ -> -1
-  | AppFun (args, env), AppFun (args', env') ->
-    order_concat [lazy (Pervasives.compare args args');
+  | AppFun (p, args, env), AppFun (p', args', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare args args');
                   lazy (Env.compare env env')]
   | AppFun _, _ -> 1
   | _, AppFun _ -> -1
-  | AppArgs (f, vals, args, env), AppArgs (f', vals', args', env') ->
-    order_concat [lazy (compare_value f f');
+  | AppArgs (p, f, vals, args, env), AppArgs (p', f', vals', args', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (compare_value f f');
                   lazy (compare_list compare_value vals vals');
                   lazy (Pervasives.compare args args');
                   lazy (Env.compare env env')]
