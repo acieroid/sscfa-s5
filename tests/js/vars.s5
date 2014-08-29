@@ -1,0 +1,26 @@
+// Expected: 42.
+let (%context = %nonstrictContext)
+{%defineGlobalVar(%context,
+                  "y");
+ %defineGlobalVar(%context,
+                  "x");
+ let (#strict = false)
+ {%EnvCheckAssign(%context,
+                  "x",
+                  7.,
+                  #strict);
+  %EnvCheckAssign(%context,
+                  "y",
+                  %PrimSub(%PrimMultOp(%context["x" , {[#proto: null,
+                                                        #class: "Object",
+                                                        #extensible: true,]}],
+                                       %context["x" , {[#proto: null,
+                                                        #class: "Object",
+                                                        #extensible: true,]}],
+                                       func(%a3 , %b4)
+                                       {prim("*", %a3 , %b4)}),
+                           %context["x" , {[#proto: null,
+                                            #class: "Object",
+                                            #extensible: true,]}]),
+                  #strict);
+  %context["y" , {[#proto: null, #class: "Object", #extensible: true,]}]}}

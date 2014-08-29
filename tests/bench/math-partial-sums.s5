@@ -1,0 +1,646 @@
+let (%context = %nonstrictContext)
+{%defineGlobalVar(%context,
+                  "partial");
+ %defineGlobalAccessors(%context,
+                        "Math");
+ %defineGlobalAccessors(%context,
+                        "a2");
+ %defineGlobalAccessors(%context,
+                        "a3");
+ %defineGlobalAccessors(%context,
+                        "a4");
+ %defineGlobalAccessors(%context,
+                        "a5");
+ %defineGlobalAccessors(%context,
+                        "a6");
+ %defineGlobalAccessors(%context,
+                        "a7");
+ %defineGlobalAccessors(%context,
+                        "a8");
+ %defineGlobalAccessors(%context,
+                        "a9");
+ %defineGlobalAccessors(%context,
+                        "ck");
+ %defineGlobalAccessors(%context,
+                        "k3");
+ %defineGlobalAccessors(%context,
+                        "sk");
+ let (#strict = false)
+ {let (%fobj87 = let (%prototype85 = {[#proto: %ObjectProto,
+                                       #class: "Object",
+                                       #extensible: true,]
+                                      'constructor' : {#value (undefined) ,
+                                                       #writable true ,
+                                                       #configurable false}})
+                 let (%parent = %context)
+                 let (%thisfunc86 = {[#proto: %FunctionProto,
+                                      #code: func(%this , %args)
+                                             {%args[delete "%new"];
+                                              label %ret :
+                                              {let (%this = %resolveThis
+                                                              (#strict,
+                                                               %this))
+                                               let (%context = let (%twothirds4 = undefined)
+                                                               let (%k25 = undefined)
+                                                               let (%k6 = undefined)
+                                                               let (%alt7 = undefined)
+                                                               let (%a18 = undefined)
+                                                               let (%n9 = %args
+                                                                    ["0" , null])
+                                                               {[#proto: %parent,
+                                                                 #class: "Object",
+                                                                 #extensible: true,]
+                                                                'arguments' : {#value (%args) ,
+                                                                    #writable true ,
+                                                                    #configurable false},
+                                                                'n' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %n9}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %n9 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'a1' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %a18}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %a18 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'alt' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %alt7}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %alt7 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'k' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %k6}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %k6 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'k2' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %k25}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %k25 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'twothirds' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %twothirds4}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %twothirds4 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}}})
+                                               {%EnvCheckAssign(%context,
+                                                                "a1",
+                                                                %EnvCheckAssign
+                                                                  (%context,
+                                                                   "a2",
+                                                                   %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a3",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a4",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a5",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a6",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a7",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a8",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "a9",
+                                                                    0.,
+                                                                    #strict),
+                                                                    #strict),
+                                                                    #strict),
+                                                                    #strict),
+                                                                    #strict),
+                                                                    #strict),
+                                                                    #strict),
+                                                                   #strict),
+                                                                #strict);
+                                                %EnvCheckAssign(%context,
+                                                                "twothirds",
+                                                                %PrimMultOp
+                                                                  (2.,
+                                                                   3.,
+                                                                   func
+                                                                    (%a83 , %b84)
+                                                                   {prim
+                                                                    ("/", %a83 , %b84)}),
+                                                                #strict);
+                                                %EnvCheckAssign(%context,
+                                                                "alt",
+                                                                %UnaryNeg
+                                                                  (1.),
+                                                                #strict);
+                                                %EnvCheckAssign(%context,
+                                                                "k2",
+                                                                %EnvCheckAssign
+                                                                  (%context,
+                                                                   "k3",
+                                                                   %EnvCheckAssign
+                                                                    (%context,
+                                                                    "sk",
+                                                                    %EnvCheckAssign
+                                                                    (%context,
+                                                                    "ck",
+                                                                    0.,
+                                                                    #strict),
+                                                                    #strict),
+                                                                   #strict),
+                                                                #strict);
+                                                %EnvCheckAssign(%context,
+                                                                "k",
+                                                                1.,
+                                                                #strict);
+                                                label %before :
+                                                {rec (%while82 = func
+                                                                   (%tst80 , %bdy79 , %after78)
+                                                                 {let (%result81 = %ToBoolean
+                                                                    (%tst80()))
+                                                                  if (%result81)
+                                                                    {label %continue :
+                                                                    {%bdy79
+                                                                    ()};
+                                                                    %after78
+                                                                    ();
+                                                                    %while82
+                                                                    (%tst80,
+                                                                    %bdy79,
+                                                                    %after78)}
+                                                                    else
+                                                                    {undefined}})
+                                                 %while82(func()
+                                                          {%LessEqual
+                                                            (%context
+                                                               ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                             %context
+                                                               ["n" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])},
+                                                          func()
+                                                          {%EnvCheckAssign
+                                                             (%context,
+                                                              "k2",
+                                                              %PrimMultOp
+                                                                (%context
+                                                                   ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %context
+                                                                   ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 func
+                                                                   (%a76 , %b77)
+                                                                 {prim
+                                                                   ("*", %a76 , %b77)}),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "k3",
+                                                              %PrimMultOp
+                                                                (%context
+                                                                   ["k2" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %context
+                                                                   ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 func
+                                                                   (%a74 , %b75)
+                                                                 {prim
+                                                                   ("*", %a74 , %b75)}),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "sk",
+                                                              let (%obj71 = %context
+                                                                    ["Math" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                              let (%fun72 = %ToObject
+                                                                    (%obj71)["sin" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                              let (%ftype73 = prim
+                                                                    ("typeof", %fun72))
+                                                              if (prim
+                                                                    ("!", prim
+                                                                    ("stx=", %ftype73 , "function")))
+                                                                 {%TypeError
+                                                                   ("Not a function")}
+                                                                 else
+                                                                 {%fun72
+                                                                   (%ToObject
+                                                                    (%obj71),
+                                                                    %mkArgsObj
+                                                                    ({[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]
+                                                                    '0' : {#value (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]) ,
+                                                                    #writable true ,
+                                                                    #configurable true}}))},
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "ck",
+                                                              let (%obj68 = %context
+                                                                    ["Math" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                              let (%fun69 = %ToObject
+                                                                    (%obj68)["cos" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                              let (%ftype70 = prim
+                                                                    ("typeof", %fun69))
+                                                              if (prim
+                                                                    ("!", prim
+                                                                    ("stx=", %ftype70 , "function")))
+                                                                 {%TypeError
+                                                                   ("Not a function")}
+                                                                 else
+                                                                 {%fun69
+                                                                   (%ToObject
+                                                                    (%obj68),
+                                                                    %mkArgsObj
+                                                                    ({[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]
+                                                                    '0' : {#value (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]) ,
+                                                                    #writable true ,
+                                                                    #configurable true}}))},
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "alt",
+                                                              %UnaryNeg
+                                                                (%context
+                                                                   ["alt" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a1",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a1" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 let (%obj65 = %context
+                                                                    ["Math" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                                 let (%fun66 = %ToObject
+                                                                    (%obj65)["pow" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                                 let (%ftype67 = prim
+                                                                    ("typeof", %fun66))
+                                                                 if (prim
+                                                                    ("!", prim
+                                                                    ("stx=", %ftype67 , "function")))
+                                                                    {%TypeError
+                                                                    ("Not a function")}
+                                                                    else
+                                                                    {%fun66
+                                                                    (%ToObject
+                                                                    (%obj65),
+                                                                    %mkArgsObj
+                                                                    ({[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]
+                                                                    '0' : {#value (%context
+                                                                    ["twothirds" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]) ,
+                                                                    #writable true ,
+                                                                    #configurable true},
+                                                                    '1' : {#value (%PrimSub
+                                                                    (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    1.)) ,
+                                                                    #writable true ,
+                                                                    #configurable true}}))}),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a2",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a2" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 let (%obj58 = %context
+                                                                    ["Math" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                                 let (%fun59 = %ToObject
+                                                                    (%obj58)["pow" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                                 let (%ftype60 = prim
+                                                                    ("typeof", %fun59))
+                                                                 if (prim
+                                                                    ("!", prim
+                                                                    ("stx=", %ftype60 , "function")))
+                                                                    {%TypeError
+                                                                    ("Not a function")}
+                                                                    else
+                                                                    {%fun59
+                                                                    (%ToObject
+                                                                    (%obj58),
+                                                                    %mkArgsObj
+                                                                    ({[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]
+                                                                    '0' : {#value (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]) ,
+                                                                    #writable true ,
+                                                                    #configurable true},
+                                                                    '1' : {#value (%UnaryNeg
+                                                                    (0.5)) ,
+                                                                    #writable true ,
+                                                                    #configurable true}}))}),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a3",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a3" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (1.,
+                                                                    %PrimMultOp
+                                                                    (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    %PrimAdd
+                                                                    (%context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    1.),
+                                                                    func
+                                                                    (%a52 , %b53)
+                                                                    {prim
+                                                                    ("*", %a52 , %b53)}),
+                                                                    func
+                                                                    (%a50 , %b51)
+                                                                    {prim
+                                                                    ("/", %a50 , %b51)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a4",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a4" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (1.,
+                                                                    %PrimMultOp
+                                                                    (%PrimMultOp
+                                                                    (%context
+                                                                    ["k3" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    %context
+                                                                    ["sk" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a46 , %b47)
+                                                                    {prim
+                                                                    ("*", %a46 , %b47)}),
+                                                                    %context
+                                                                    ["sk" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a44 , %b45)
+                                                                    {prim
+                                                                    ("*", %a44 , %b45)}),
+                                                                    func
+                                                                    (%a42 , %b43)
+                                                                    {prim
+                                                                    ("/", %a42 , %b43)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a5",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a5" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (1.,
+                                                                    %PrimMultOp
+                                                                    (%PrimMultOp
+                                                                    (%context
+                                                                    ["k3" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    %context
+                                                                    ["ck" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a38 , %b39)
+                                                                    {prim
+                                                                    ("*", %a38 , %b39)}),
+                                                                    %context
+                                                                    ["ck" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a36 , %b37)
+                                                                    {prim
+                                                                    ("*", %a36 , %b37)}),
+                                                                    func
+                                                                    (%a34 , %b35)
+                                                                    {prim
+                                                                    ("/", %a34 , %b35)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a6",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a6" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (1.,
+                                                                    %context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a30 , %b31)
+                                                                    {prim
+                                                                    ("/", %a30 , %b31)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a7",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a7" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (1.,
+                                                                    %context
+                                                                    ["k2" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a26 , %b27)
+                                                                    {prim
+                                                                    ("/", %a26 , %b27)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a8",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a8" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (%context
+                                                                    ["alt" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    %context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a22 , %b23)
+                                                                    {prim
+                                                                    ("/", %a22 , %b23)})),
+                                                              #strict);
+                                                           %EnvCheckAssign
+                                                             (%context,
+                                                              "a9",
+                                                              %PrimAdd
+                                                                (%context
+                                                                   ["a9" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                 %PrimMultOp
+                                                                   (%context
+                                                                    ["alt" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    %PrimSub
+                                                                    (%PrimMultOp
+                                                                    (2.,
+                                                                    %context
+                                                                    ["k" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                    func
+                                                                    (%a18 , %b19)
+                                                                    {prim
+                                                                    ("*", %a18 , %b19)}),
+                                                                    1.),
+                                                                    func
+                                                                    (%a14 , %b15)
+                                                                    {prim
+                                                                    ("/", %a14 , %b15)})),
+                                                              #strict)},
+                                                          func()
+                                                          {%PostIncrement
+                                                            (%context,
+                                                             "k")})};
+                                                undefined}}},
+                                      #class: "Function",
+                                      #extensible: true,]
+                                     'prototype' : {#value (%prototype85) ,
+                                                    #writable true ,
+                                                    #configurable true},
+                                     'length' : {#value (1.) ,
+                                                 #writable true ,
+                                                 #configurable true},
+                                     'caller' : {#getter %ThrowTypeError ,
+                                                 #setter %ThrowTypeError},
+                                     'arguments' : {#getter %ThrowTypeError ,
+                                                    #setter %ThrowTypeError}})
+                 {%prototype85["constructor" = %thisfunc86 , null];
+                  %thisfunc86})
+  %context["partial" = %fobj87 ,
+           {[#proto: null, #class: "Object", #extensible: true,]
+            '0' : {#value (%fobj87) , #writable true , #configurable true}}];
+  let (%fun2 = %context["partial" , {[#proto: null,
+                                      #class: "Object",
+                                      #extensible: true,]}])
+  let (%ftype3 = prim("typeof", %fun2))
+  if (prim("!", prim("stx=", %ftype3 , "function")))
+     {%TypeError("Not a function")}
+     else
+     {%fun2(undefined,
+            %mkArgsObj({[#proto: null, #class: "Object", #extensible: true,]
+                        '0' : {#value (1024.) ,
+                               #writable true ,
+                               #configurable true}}))};
+  "success"}}

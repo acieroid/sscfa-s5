@@ -1,0 +1,10 @@
+//Expected: 0.
+let (%context = %nonstrictContext)
+{%defineGlobalVar(%context,
+                  "x");
+ let (#strict = false)
+ {%EnvCheckAssign(%context,
+                  "x",
+                  0.,
+                  #strict);
+  %context["x" , {[#proto: null, #class: "Object", #extensible: true,]}]}}

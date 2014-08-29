@@ -1,0 +1,150 @@
+// Expected: 55.
+let (%context = %nonstrictContext)
+{%defineGlobalVar(%context,
+                  "sum");
+ let (#strict = false)
+ {let (%fobj18 = let (%prototype16 = {[#proto: %ObjectProto,
+                                       #class: "Object",
+                                       #extensible: true,]
+                                      'constructor' : {#value (undefined) ,
+                                                       #writable true ,
+                                                       #configurable false}})
+                 let (%parent = %context)
+                 let (%thisfunc17 = {[#proto: %FunctionProto,
+                                      #code: func(%this , %args)
+                                             {%args[delete "%new"];
+                                              label %ret :
+                                              {let (%this = %resolveThis
+                                                              (#strict,
+                                                               %this))
+                                               let (%context = let (%tot4 = undefined)
+                                                               let (%i5 = undefined)
+                                                               let (%n6 = %args
+                                                                    ["0" , null])
+                                                               {[#proto: %parent,
+                                                                 #class: "Object",
+                                                                 #extensible: true,]
+                                                                'arguments' : {#value (%args) ,
+                                                                    #writable true ,
+                                                                    #configurable false},
+                                                                'n' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %n6}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %n6 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'i' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %i5}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %i5 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}},
+                                                                'tot' : {#getter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %tot4}} ,
+                                                                    #setter func
+                                                                    (this , args)
+                                                                    {label %ret :
+                                                                    {break %ret %tot4 := args
+                                                                    ["0" , {[#proto: %ArrayProto,
+                                                                    #class: "Array",
+                                                                    #extensible: true,]}]}}}})
+                                               {%EnvCheckAssign(%context,
+                                                                "tot",
+                                                                0.,
+                                                                #strict);
+                                                %EnvCheckAssign(%context,
+                                                                "i",
+                                                                1.,
+                                                                #strict);
+                                                label %before :
+                                                {rec (%while15 = func
+                                                                   (%tst13 , %bdy12 , %after11)
+                                                                 {let (%result14 = %ToBoolean
+                                                                    (%tst13()))
+                                                                  if (%result14)
+                                                                    {label %continue :
+                                                                    {%bdy12
+                                                                    ()};
+                                                                    %after11
+                                                                    ();
+                                                                    %while15
+                                                                    (%tst13,
+                                                                    %bdy12,
+                                                                    %after11)}
+                                                                    else
+                                                                    {undefined}})
+                                                 %while15(func()
+                                                          {%LessEqual
+                                                            (%context
+                                                               ["i" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                             %context
+                                                               ["n" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])},
+                                                          func()
+                                                          {%EnvCheckAssign
+                                                            (%context,
+                                                             "tot",
+                                                             %PrimAdd
+                                                               (%context
+                                                                  ["tot" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}],
+                                                                %context
+                                                                  ["i" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}]),
+                                                             #strict)},
+                                                          func()
+                                                          {%PostIncrement
+                                                            (%context,
+                                                             "i")})};
+                                                let ($retval = %context
+                                                                 ["tot" , {[#proto: null,
+                                                                    #class: "Object",
+                                                                    #extensible: true,]}])
+                                                break %ret $retval;
+                                                undefined}}},
+                                      #class: "Function",
+                                      #extensible: true,]
+                                     'prototype' : {#value (%prototype16) ,
+                                                    #writable true ,
+                                                    #configurable true},
+                                     'length' : {#value (1.) ,
+                                                 #writable true ,
+                                                 #configurable true},
+                                     'caller' : {#getter %ThrowTypeError ,
+                                                 #setter %ThrowTypeError},
+                                     'arguments' : {#getter %ThrowTypeError ,
+                                                    #setter %ThrowTypeError}})
+                 {%prototype16["constructor" = %thisfunc17 , null];
+                  %thisfunc17})
+  %context["sum" = %fobj18 ,
+           {[#proto: null, #class: "Object", #extensible: true,]
+            '0' : {#value (%fobj18) , #writable true , #configurable true}}];
+  let (%fun2 = %context["sum" , {[#proto: null,
+                                  #class: "Object",
+                                  #extensible: true,]}])
+  let (%ftype3 = prim("typeof", %fun2))
+  if (prim("!", prim("stx=", %ftype3 , "function")))
+     {%TypeError("Not a function")}
+     else
+     {%fun2(undefined,
+            %mkArgsObj({[#proto: null, #class: "Object", #extensible: true,]
+                        '0' : {#value (10.) ,
+                               #writable true ,
+                               #configurable true}}))}}}

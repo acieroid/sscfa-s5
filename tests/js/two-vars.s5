@@ -1,0 +1,15 @@
+// Expected: 1.
+let (%context = %nonstrictContext)
+{%defineGlobalVar(%context,
+                  "y");
+ %defineGlobalVar(%context,
+                  "x");
+ let (#strict = false)
+ {%EnvCheckAssign(%context,
+                  "x",
+                  0.,
+                  #strict);
+  %EnvCheckAssign(%context,
+                  "y",
+                  1.,
+                  #strict)}}
