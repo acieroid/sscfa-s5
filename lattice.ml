@@ -78,7 +78,7 @@ module BoolF(L : BoolS) = struct
       ((`True | `False | `BoolT) as b' : t0) = match b, b' with
     | `BoolT, _ -> true | b, b' when b = b' -> true | _ -> false
   let to_string ((`True | `False | `BoolT) as b : t0) = match b with
-    | `True -> "true" | `False -> "false" | `BoolT -> "bool⊤"
+    | `True -> "true" | `False -> "false" | `BoolT -> "boolT"
   let to_top ((`True | `False | `BoolT) : t0) = `BoolT
 end
 
@@ -109,7 +109,7 @@ module ClosF(L : ClosS) = struct
       "clos("^
         (string_of_list xs (fun x -> x))^", "^
         (string_of_exp exp)^")"
-    | `ClosT -> "clos⊤"
+    | `ClosT -> "closT"
   let to_top ((`Clos _ | `ClosT) : t0) = `ClosT
 end
 
@@ -132,7 +132,7 @@ module ObjF(L : ObjS) = struct
     match o, o' with `ObjT, _ -> true | _ -> o = o'
   let to_string ((`Obj _ | `ObjT) as o : t0) = match o with
     | `Obj a -> "obj"^(Address.to_string a)
-    | `ObjT -> "obj⊤"
+    | `ObjT -> "objT"
   let to_top ((`Obj _ | `ObjT) : t0) = `ObjT
 end
 
@@ -153,7 +153,7 @@ module ConstNumF(L : ConstNumS) = struct
       ((`Num _ | `NumT) as n' : t0) =
     match n, n' with `NumT, _ -> true | _ -> compare n n' = 0
   let to_string ((`Num _ | `NumT) as n : t0) : string =
-    match n with `Num f -> string_of_float f | `NumT -> "num⊤"
+    match n with `Num f -> string_of_float f | `NumT -> "numT"
   let to_top ((`Num _ | `NumT)  : t0) = `NumT
 end
 
@@ -174,7 +174,7 @@ module ConstStrF(L : ConstStrS) = struct
       ((`Str _ | `StrT) as s' : t0) =
     match s, s' with `StrT, _ -> true | _ -> s = s'
   let to_string ((`Str _ | `StrT) as s : t0) : string =
-    match s with `Str s -> "'"^s^"'" | `StrT -> "string⊤"
+    match s with `Str s -> "'"^s^"'" | `StrT -> "stringT"
   let to_top ((`Str _ | `StrT) : t0) = `StrT
 end
 
@@ -287,7 +287,7 @@ module AValueF
       | _ -> false
 
     let to_string (v : t) : string = match v with
-      | `Top -> "⊤" | `Bot -> "⊥"
+      | `Top -> "T" | `Bot -> "_|_"
       |   #Bool.t0 as b ->   Bool.to_string b
       |   #Clos.t0 as c ->   Clos.to_string c
       |   #Null.t0 as n ->   Null.to_string n

@@ -375,6 +375,12 @@ struct
     | `Null -> None
     | #AValue.t as v -> failwith ("get_prop on non-object: " ^ (AValue.to_string v))
 
+  (** Do the selection of parameters that will be used in timestamps *)
+  let select_params args : (string * Time.v) list =
+    let f (n, v) = match v with
+        | #Time.v as v' -> Some (n, v')
+        | _ -> None in
+    BatList.filter_map f args
 
   let rec apply_fun f args (state : state) (global : global)
     : (S.exp * state) = match f with
@@ -395,7 +401,9 @@ struct
         let (vstore', ostore', env') =
           BatList.fold_right2 alloc_arg args args' (state.vstore, state.ostore, env') in
         (body, {state with env = env'; vstore = vstore'; ostore = ostore';
-                           time = Time.tick (S.pos_of body) state.time})
+                           time = Time.tick ((S.pos_of body),
+                                             select_params (BatList.combine args' args))
+                               state.time})
     | `ClosT -> failwith "Closure too abstracted"
     | `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
@@ -890,7 +898,7 @@ struct
       (* We *need* to tick here, to avoid losing precision when multiple objects
          are defined without funcalls in between (see tests/objs-imprecision.s5)
       *)
-      let state = {state with time = Time.tick p state.time} in
+      let state = {state with time = Time.tick (p, []) state.time} in
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)

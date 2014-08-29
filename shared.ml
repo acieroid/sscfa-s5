@@ -72,21 +72,22 @@ module KCFABased =
 type 'a addr_kind = [ `ObjAddress of 'a | `VarAddress of 'a ]
 
 module type Address_signature =
-  functor (T : Time_signature) ->
   sig
     type a
     type t = a addr_kind
+    type time
     val compare : t -> t -> int
     val is_reclaimable : t -> bool
     val to_string : t -> string
-    val alloc_obj : string -> T.t -> t
-    val alloc_var : string -> T.t -> t
+    val alloc_obj : string -> time -> t
+    val alloc_var : string -> time -> t
   end
 
 (* S5 uses Store.Loc module (util/store.ml) *)
-module MakeAddress : Address_signature =
+module MakeAddress =
   functor (T : Time_signature) ->
 struct
+  type time = T.t
   type a = (string * T.t)
   type t = a addr_kind
   let compare x y = match x, y with
@@ -121,10 +122,105 @@ struct
     `VarAddress (id, t)
 end
 
-module K1 = struct let k = 2 end
+module ParameterSensitive =
+  functor (A : Address_signature) ->
+  struct
+    (* We need to duplicate a bit of lattice.ml here, it should be better to put
+       this in another file. We cannot use the Lattice module here as it depends
+       on this module for addresses *)
+    type v = [ `True | `False | `BoolT
+             | `Obj of A.t | `ObjT
+             | `Str of string | `StrT
+             | `Num of float | `NumT
+             | `Null | `Undef
+             | `Top | `Bot ]
+
+    let string_of_v : v -> string = function
+      | `True -> "true"
+      | `False -> "false"
+      | `BoolT -> "boolT"
+      | `Obj a -> "obj" ^ (A.to_string a)
+      | `ObjT -> "objT"
+      | `Num n -> string_of_float n
+      | `NumT -> "numT"
+      | `Str s -> "'" ^ s ^ "'"
+      | `StrT -> "strT"
+      | `Null -> "null"
+      | `Undef -> "undef"
+      | `Top -> "T"
+      | `Bot -> "_|_"
+
+    let compare_v x y = match x, y with
+      | `True, `True | `False, `False | `BoolT, `BoolT
+      | `ObjT, `ObjT | `StrT, `StrT | `NumT, `NumT
+      | `Null, `Null | `Undef, `Undef
+      | `Top, `Top | `Bot, `Bot -> 0
+      | `Obj a, `Obj a' -> A.compare a a'
+      | `Str s, `Str s' -> Pervasives.compare s s'
+      | `Num n, `Num n' -> Pervasives.compare n n'
+      | `True, _ -> 1 | _, `True -> -1
+      | `False, _ -> 1 | _, `False -> -1
+      | `BoolT, _ -> 1 | _, `BoolT -> -1
+      | `Obj _, _ -> 1 | _, `Obj _ -> -1
+      | `ObjT, _ -> 1 | _, `ObjT -> -1
+      | `Str _, _ -> 1 | _, `Str _ -> -1
+      | `StrT, _ -> 1 | _, `StrT -> -1
+      | `Num _, _ -> 1 | _, `Num _ -> -1
+      | `NumT, _ -> 1 | _, `NumT -> -1
+      | `Null, _ -> 1 | _, `Null -> -1
+      | `Undef, _ -> 1 | _, `Undef -> -1
+      | `Top, _ -> 1 | _, `Top -> -1
+
+    type t = Pos.t * (string * v) list
+
+    let compare ((p, l) : t) ((p', l') : t) : int =
+      let cmp (n, v) (n', v') =
+        order_concat [lazy (Pervasives.compare n n');
+                      lazy (compare_v v v')] in
+      order_concat [lazy (Pos.compare p p');
+                    lazy (compare_list cmp l l')]
+
+    let to_string ((p, l) : t) =
+      string_of_list l (fun (n, v) -> n ^ ": " ^ (string_of_v v))
+
+  end
+
+module K1 = struct let k = 1 end
+
+(* This is ugly as fuck, but it does the trick in a type-safe way *)
+module rec PSAddress :
+sig
+  include Address_signature with type time = PSTime.t
+end
+  = MakeAddress(PSTime)
+and PSTime :
+sig
+  type v = [ `True | `False | `BoolT
+           | `Obj of PSAddress.t | `ObjT
+           | `Str of string | `StrT
+           | `Num of float | `NumT
+           | `Null | `Undef
+           | `Top | `Bot ]
+
+  include Time_signature with type arg =  Pos.t * (string * v) list
+end
+= struct
+  include KCFABased(ParameterSensitive(PSAddress))(K1)
+  type v = [ `True | `False | `BoolT
+           | `Obj of PSAddress.t | `ObjT
+           | `Str of string | `StrT
+           | `Num of float | `NumT
+           | `Null | `Undef
+           | `Top | `Bot ]
+end
+
+
 module KPos = struct include Pos let to_string = string_of_pos end
-module Time = KCFABased(KPos)(K1)
-module Address = MakeAddress(Time)
+module K1Time = KCFABased(KPos)(K1)
+module K1Address = MakeAddress(K1Time)
+
+module Time = PSTime
+module Address = PSAddress
 module AddressSet = BatSet.Make(Address)
 
 let rec string_of_exp exp = match exp with
