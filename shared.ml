@@ -104,12 +104,14 @@ struct
       match a with
       (* %or is a special variable frequetly present in desugared S5 code, but
          it is *not* used to denote a global identifier *)
-      | `VarAddress (_, "%or", _) -> true
+      | `VarAddress (_, "let-%or", _) -> true
       (* variables starting with % or # are global and should not be GCed, even
          if they are not reachable, as we could be loading an environment where
          they are not used, but they'll be used in a program using this
          environment *)
-      | `ObjAddress (_, id, _)
+      | `ObjAddress (_, id, _) ->
+        (* object allocation scheme different than variable's *)
+        not (BatString.starts_with id "let-%" || BatString.starts_with id "let-#")
       | `VarAddress (_, id, _) ->
         not (BatString.starts_with id "%" || BatString.starts_with id "#")
     else

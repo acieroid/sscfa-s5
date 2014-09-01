@@ -325,11 +325,14 @@ struct
         r AddressSet.empty
 
     let gc ((state, ss) : conf) (global : global) : conf =
-      let r = reachable (state, ss) global in
-      ({state with
-        vstore = ValueStore.restrict r state.vstore;
-        ostore = ObjectStore.restrict r state.ostore},
-       ss)
+      if !gc then
+        let r = reachable (state, ss) global in
+        ({state with
+          vstore = ValueStore.restrict r state.vstore;
+          ostore = ObjectStore.restrict r state.ostore},
+         ss)
+      else
+        (state, ss)
   end
 
   type stack_change =
@@ -471,7 +474,7 @@ struct
     | F.Let (p, id, body, env') ->
       let a = alloc_var p id id conf in
       let env'' = Env.extend id a env' in
-      let ostore', v' = alloc_if_necessary p conf ("let-" ^id) v in
+      let ostore', v' = alloc_if_necessary p conf ("let-" ^ id) v in
       let vstore' = ValueStore.join a v' state.vstore in
       [{state with control = Exp body; env = env''; vstore = vstore'; ostore = ostore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
@@ -1026,6 +1029,7 @@ struct
       push (F.Break (label, state.env))
         ({state with control = Exp ret}, ss) global
     | S.Throw (p, exp) ->
+      print_endline ("Throwing " ^ (full_string_of_exp exp));
       push (F.Throw state.env)
         ({state with control = Exp exp}, ss) global
     | S.TryCatch (p, body, catch) ->
@@ -1065,7 +1069,7 @@ struct
       end
 
   let step conf global =
-    step_no_gc (if !gc then GC.gc conf global else conf) global
+    step_no_gc (GC.gc conf global) global
 
   let merge ((state, ss) : conf) ((state', _) : conf) : conf =
     ({state with env = Env.merge state.env state'.env;
