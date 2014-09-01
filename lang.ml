@@ -136,13 +136,11 @@ struct
        mtime = match ss.last with
          | Some (F.AppFun (p, [], _))
          | Some (F.AppArgs (p, _, _, [], _)) ->
-           print_endline ("Push " ^ (Pos.string_of_pos p));
            K1Time.tick p ss.mtime
          | _ -> begin match f with
-           | F.RestoreEnv (p, _) ->
-             print_endline ("Push2 " ^ (Pos.string_of_pos p));
-             K1Time.tick p ss.mtime
-           | _ -> ss.mtime
+             | F.RestoreEnv (p, _) ->
+               K1Time.tick p ss.mtime
+             | _ -> ss.mtime
            end}
   end
   module StackSummary =
@@ -153,7 +151,8 @@ struct
       order_concat [lazy (GCStackSummary.compare g g');
                     lazy (MCFAStackSummary.compare m m')]
     let push (g, m) global f =
-      (GCStackSummary.push g global f, MCFAStackSummary.push m global f)
+      (GCStackSummary.push g global f,
+       MCFAStackSummary.push m global f)
   end
 
   type conf = state * StackSummary.t
