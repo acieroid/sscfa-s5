@@ -69,7 +69,7 @@ struct
 
   type control =
     | Exp of S.exp
-    | Prop of S.prop
+    | Prop of string * S.prop
     | PropVal of O.prop
     | Val of F.value
     | Frame of (control * F.t)
@@ -77,7 +77,7 @@ struct
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
-    | Prop prop -> "Prop(" ^ (string_of_prop prop) ^ ")"
+    | Prop (name, prop) -> "Prop(" ^ name ^ ", " ^ (string_of_prop prop) ^ ")"
     | Val v -> "Val(" ^ (F.string_of_value v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
     | Frame (exp, f) -> "Frame(" ^ (F.to_string f) ^ ")"
@@ -274,9 +274,9 @@ struct
     let rec control_root control env vstore ostore global
       : AddressSet.t = match control with
       | Exp e -> Frame.addresses_of_vars (S.free_vars e) env global.genv
-      | Prop (S.Data ({S.value = v; _}, _, _)) ->
+      | Prop (_, S.Data ({S.value = v; _}, _, _)) ->
         Frame.addresses_of_vars (S.free_vars v) env global.genv
-      | Prop (S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
+      | Prop (_, S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
         Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s))
           env global.genv
       | Frame (control, frame) ->
@@ -483,7 +483,7 @@ struct
     | F.ObjectAttrs (p, name, obj, [], (name', prop) :: props, env') ->
       let ostore', v' = alloc_if_necessary p conf ("objattr2-" ^ name) v in
       let obj' = O.set_attr_str obj name v' in
-      [{state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
+      [{state with control = Frame (Prop (name, prop), F.ObjectProps (p, name', obj', props, env'));
                    ostore = ostore'; env = env'}]
     | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
       let ostore', v' = alloc_if_necessary p conf ("objattr3-" ^ name) v in
@@ -491,21 +491,21 @@ struct
       [{state with control = Frame (Exp attr, F.ObjectAttrs (p, name', obj', attrs, props, env'));
                    ostore = ostore'; env = env'}]
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
-    | F.PropData (p, (data, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary p conf "propdata" v in
+    | F.PropData (p, name, (data, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf ("propdata-" ^ name) v in
       [{state with control = PropVal (O.Data ({data with O.value = v'},
                                               enum, config));
                    ostore = ostore'; env = env'}]
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
-    | F.PropAccessor (p, None, (accessor, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary p conf "propacc-set" v in
+    | F.PropAccessor (p, name, None, (accessor, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf ("propacc-set" ^ name) v in
       [{state with control = PropVal (O.Accessor ({accessor with O.setter = v'},
                                                   enum, config));
                    ostore = ostore'; env = env'}]
-    | F.PropAccessor (p, Some exp, (accessor, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary p conf "propacc-get" v in
+    | F.PropAccessor (p, name, Some exp, (accessor, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf ("propacc-get" ^ name) v in
       [{state with control = Frame (Exp exp, (F.PropAccessor
-                                                (S.pos_of exp, None,
+                                                (S.pos_of exp, name, None,
                                                  ({accessor with O.getter = v'},
                                                   enum, config), env')));
                    ostore = ostore'; env = env'}]
@@ -838,7 +838,7 @@ struct
       {state with control = Val (`Obj a); env = env'; ostore = ostore'}
     | F.ObjectProps (p, name, obj, (name', prop) :: props, env') ->
       let obj' = O.set_prop obj name v in
-      {state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
+      {state with control = Frame (Prop (name, prop), F.ObjectProps (p, name', obj', props, env'));
                   env = env'}
     | f -> failwith ("apply_frame_prop should not handle a non-ObjectProps frame: " ^
                      (string_of_frame f))
@@ -908,16 +908,16 @@ struct
     | _ ->
       [StackPush frame, (state, StackSummary.push ss global frame)]
 
-  let step_prop prop ((state, ss) : conf) (global : global)
+  let step_prop (name, prop) ((state, ss) : conf) (global : global)
     : (stack_change * conf) list = match prop with
     | S.Data ({S.value = v; S.writable = w}, enum, config) ->
-      push (F.PropData (S.pos_of v,
+      push (F.PropData (S.pos_of v, name,
                         ({O.value = `Undef; O.writable = AValue.bool w},
                          AValue.bool enum, AValue.bool config),
                         state.env))
         ({state with control = Exp v}, ss) global
     | S.Accessor ({S.getter = g; S.setter = s}, enum, config) ->
-      push (F.PropAccessor (S.pos_of g,
+      push (F.PropAccessor (S.pos_of g, name,
                             Some s, ({O.getter = `Undef; O.setter = `Undef},
                                      AValue.bool enum, AValue.bool config),
                             state.env))
@@ -962,20 +962,18 @@ struct
           unch (Val (`StackObj obj)) (state, ss)
         | [], (prop, exp)::props ->
           push (F.ObjectProps (p, prop, obj, props, state.env))
-            ({state with control = Prop exp}, ss) global
+            ({state with control = Prop (prop, exp)}, ss) global
         | (attr, exp)::attrs, props ->
           push (F.ObjectAttrs (p, attr, obj, attrs, props, state.env))
             ({state with control = Exp exp}, ss) global
       end
     | S.Let (p, id, exp, body) ->
-      (* print_endline ("Let " ^ id ^ " at " ^ (Pos.string_of_pos p)); *)
       push (F.Let (p, id, body, state.env))
         ({state with control = Exp exp}, ss) global
     | S.Seq (p, left, right) ->
       push (F.Seq (right, state.env))
         ({state with control = Exp left}, ss) global
     | S.App (p, f, args) ->
-      print_endline ("Apply " ^ (Pos.string_of_pos p));
       push (F.AppFun (p, args, state.env))
         ({state with control = Exp f}, ss) global
     | S.Op1 (p, op, arg) ->
@@ -1046,7 +1044,7 @@ struct
       (frame : (conf * F.t) option) : (stack_change * conf) list =
     match state.control with
     | Exp e -> step_exp e conf global
-    | Prop prop -> step_prop prop conf global
+    | Prop (name, prop) -> step_prop (name, prop) conf global
     | Val v -> begin match frame with
         | Some ((_, ss'), frame) ->
           BatList.map (fun state -> (StackPop frame, (state, ss')))

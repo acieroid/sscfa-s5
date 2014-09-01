@@ -44,8 +44,8 @@ type t =
   (* {[field1: val1, ...]} *)
   | ObjectAttrs of Pos.t * string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of Pos.t * string * O.t * (string * S.prop) list * Env.t
-  | PropData of Pos.t * (O.data * AValue.t * AValue.t) * Env.t
-  | PropAccessor of Pos.t * S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
+  | PropData of Pos.t * string * (O.data * AValue.t * AValue.t) * Env.t
+  | PropAccessor of Pos.t * string * S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
   (* left; right *)
   | Seq of S.exp * Env.t
   (* f(arg1, ...) *)
@@ -107,7 +107,7 @@ let env_of_frame = function
   | Let (_, _, _, env)
   | ObjectAttrs (_, _, _, _, _, env)
   | ObjectProps (_, _, _, _, env)
-  | PropAccessor (_, _, _, env)
+  | PropAccessor (_, _, _, _, env)
   | Rec (_, _, _, _, env)
   | AppFun (_, _, env)
   | AppArgs (_, _, _, _, env)
@@ -122,7 +122,7 @@ let env_of_frame = function
   | SetFieldNewval (_, _, _, _, env)
   | GetAttrObj (_, _, env)
   | SetAttrField (_, _, _, _, env)
-  | PropData (_, _, env)
+  | PropData (_, _, _, env)
   | Op1App (_, _, env)
   | Op2App (_, _, _, env)
   | GetFieldBody (_, _, _, env)
@@ -207,7 +207,7 @@ let free_vars frame =
   | SetAttrField (_, _, _, exp, _)
   | SetObjAttr (_, _, exp, _)
   | DeleteFieldObj (exp, _)
-  | PropAccessor (_, Some exp, _, _)
+  | PropAccessor (_, _, Some exp, _, _)
   | Rec (_, _, _, exp, _)
   | TryCatch (_, exp, _)
   | TryFinally (exp, _) ->
@@ -215,7 +215,7 @@ let free_vars frame =
 
   (* No exp *)
   | PropData _
-  | PropAccessor (_, None, _, _)
+  | PropAccessor (_, _, None, _, _)
   | Op1App _
   | Op2App _
   | GetFieldBody _
@@ -269,10 +269,10 @@ let touched_addresses_from_values frame =
   (* Special cases *)
   | AppArgs (_, f, args, _, _) ->
     addresses_of_vals (f :: args)
-  | PropData (_, ({O.value = v; O.writable = w}, enum, config), _) ->
+  | PropData (_, _, ({O.value = v; O.writable = w}, enum, config), _) ->
     addresses_of_vals [(v :> value); (w :> value);
                        (enum :> value); (config :> value)]
-  | PropAccessor (_, _, ({O.getter = g; setter = s}, enum, config), _) ->
+  | PropAccessor (_, _, _, ({O.getter = g; setter = s}, enum, config), _) ->
     addresses_of_vals [(g :> value); (s :> value);
                        (enum :> value); (config :> value)]
 
@@ -344,9 +344,9 @@ let to_string = function
   | Rec (_, id, _, _, _) -> "Rec-" ^ id
   | ObjectProps (_, name, _, _, _) -> "ObjectProps-" ^ name
   | ObjectAttrs (_, name, _, _, _,  _) -> "ObjectAttrs-" ^ name
-  | PropData _ -> "PropData"
-  | PropAccessor (_, Some _, _, _) -> "PropAccessor-Get"
-  | PropAccessor (_, None, _, _) -> "PropAccessor-Set"
+  | PropData (_, name, _, _) -> "PropData-" ^ name
+  | PropAccessor (_, name, Some _, _, _) -> "PropAccessor-Get-" ^ name
+  | PropAccessor (_, name, None, _, _) -> "PropAccessor-Set-" ^ name
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
   | AppArgs _ -> "AppArgs"
@@ -420,14 +420,16 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')];
   | ObjectProps _, _ -> 1
   | _, ObjectProps _ -> -1
-  | PropData (p, prop, env), PropData (p', prop', env') ->
+  | PropData (p, name, prop, env), PropData (p', name', prop', env') ->
     order_concat [lazy (Pos.compare p p');
+                  lazy (BatString.compare name name');
                   lazy (Pervasives.compare prop prop');
                   lazy (Env.compare env env')]
   | PropData _, _ -> 1
   | _, PropData _ -> -1
-  | PropAccessor (p, exp, acc, env), PropAccessor (p', exp', acc', env') ->
+  | PropAccessor (p, name, exp, acc, env), PropAccessor (p', name', exp', acc', env') ->
     order_concat [lazy (Pos.compare p p');
+                  lazy (BatString.compare name name');
                   lazy (Pervasives.compare exp exp');
                   lazy (Pervasives.compare acc acc');
                   lazy (Env.compare env env')]
