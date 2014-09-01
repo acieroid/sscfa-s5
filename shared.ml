@@ -31,7 +31,8 @@ let string_of_list l s_o_elt =
   else "[]"
 
 let string_of_map fold k v m =
-  "{" ^ (fold (fun k' v' a -> (k k')^" --> "^(v v')^"\n"^a) m " }")
+  "{" ^ (String.concat "\n"
+           (fold (fun k' v' a -> ((k k') ^ ": " ^ (v v')) :: a) m [])) ^ "}"
 
 module StringSet = BatSet.Make(struct
     type t = string
@@ -65,7 +66,7 @@ module KCFABased =
     let compare = compare_list Arg.compare
     let to_string t = string_of_list t Arg.to_string
     let tick x t =
-      print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m");
+      (* print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m"); *)
       BatList.take K.k (x :: t)
   end
 

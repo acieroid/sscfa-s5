@@ -66,6 +66,7 @@ module Make =
     let empty = AddrMap.empty
 
     let join (a : Address.t) (v : Elt.t) (store : t)  =
+      print_endline ("join(" ^ (Address.to_string a) ^ ", " ^ (Elt.to_string v) ^ ")");
       if AddrMap.mem a store then begin
         let (v', count) = AddrMap.find a store in
         print_endline ("\027[31mJoining values: " ^ (Elt.to_string v) ^
@@ -77,6 +78,7 @@ module Make =
         AddrMap.add a (v, One) store
 
     let set (a : Address.t) (v : Elt.t) (store : t) =
+      print_endline ("set(" ^ (Address.to_string a) ^ ", " ^ (Elt.to_string v) ^ ")");
       if AddrMap.mem a store then
         let (v', count) = AddrMap.find a store in
         match count with

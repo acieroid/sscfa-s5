@@ -31,9 +31,9 @@ module Pos = struct
   let real (p_start, p_end) = (p_start, p_end, false)
   let rangeToString p e =
     if (p.pos_lnum = e.pos_lnum)
-    then Format.sprintf "%s:%d:%d-%d" p.pos_fname p.pos_lnum (p.pos_cnum - p.pos_bol)
+    then Format.sprintf "%d:%d-%d" p.pos_lnum (p.pos_cnum - p.pos_bol)
       (e.pos_cnum - e.pos_bol)
-    else Format.sprintf "%s:%d:%d-%d:%d" p.pos_fname p.pos_lnum (p.pos_cnum - p.pos_bol)
+    else Format.sprintf "%d:%d-%d:%d" p.pos_lnum (p.pos_cnum - p.pos_bol)
       e.pos_lnum (e.pos_cnum - e.pos_bol)
   let string_of_pos (p, e, _) = rangeToString p e
   let toLexPos (s, e, _) = (s, e)

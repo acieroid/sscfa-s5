@@ -238,7 +238,7 @@ struct
                  reclaimable and can't point to reclaimable addresses *)
               acc
             else begin
-              print_endline ("GC reached a non-reachable address: " ^
+              print_endline ("GC reached a non-reachable object address: " ^
                              (Address.to_string a));
               raise Not_found
             end
@@ -423,7 +423,7 @@ struct
         | _ -> None in
     BatList.filter_map f args
 
-  let rec apply_fun (p : Pos.t) f args ((state, ss) as conf : conf) (global : global)
+  let rec apply_fun (p : Pos.t) f args ((state, ss) : conf) (global : global)
     : (S.exp * state) = match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
@@ -433,35 +433,36 @@ struct
            is an internal error *)
         failwith "Arity mismatch"
       else
-        let alloc_arg v name (vstore, ostore, env) =
-          let (ostore', v') = alloc_if_necessary p conf name v in
+        let alloc_arg v name ((state, ss) as conf) =
+          let (ostore', v') = alloc_if_necessary p conf ("arg-" ^ name) v in
           let conf' = ({state with ostore = ostore'}, ss) in
           let a = alloc_var p name v' conf' in
-          (ValueStore.join a v' vstore,
-           ostore',
-           Env.extend name a env) in
-        let (vstore', ostore', env') =
-          BatList.fold_right2 alloc_arg args args' (state.vstore, state.ostore, env') in
-        (body, {state with env = env'; vstore = vstore'; ostore = ostore';
-                           (* k-CFA *)
-                           time = Time.tick (S.pos_of body) state.time
-                           (* Parameter-sensitive k-CFA *)
-                           (* time = Time.tick ((S.pos_of body),
-                                             select_params (BatList.combine args' args))
-                               state.time *)})
+          ({state with ostore = ostore';
+                       vstore = ValueStore.join a v' state.vstore;
+                       env = Env.extend name a state.env}, ss) in
+        let (state', ss) as conf' =
+          BatList.fold_right2 alloc_arg args args'
+            ({ state with env = env'}, ss) in
+        (body, {state' with
+                (* k-CFA *)
+                time = Time.tick (S.pos_of body) state.time
+                (* Parameter-sensitive k-CFA *)
+                (* time = Time.tick ((S.pos_of body),
+                                  select_params (BatList.combine args' args))
+                    state.time *)})
     | `ClosT -> failwith "Closure too abstracted"
     | `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `Clos f; _}, _) ->
-          apply_fun p (`Clos f) args conf global
+          apply_fun p (`Clos f) args (state, ss) global
         | `ObjT -> failwith "Applied too abstracted object"
         (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith "Applied object without code attribute"
       end
     | `ObjT -> failwith "Object too abstracted when applying function"
     | `StackObj ({O.code = `Clos f; _}, _) ->
-      apply_fun p (`Clos f) args conf global
+      apply_fun p (`Clos f) args (state, ss) global
     | `StackObj _ -> failwith "Applied object without code attribute"
     (* TODO: S5 or JS error? *)
     | _ -> failwith "Applied non-function"
@@ -471,21 +472,21 @@ struct
     | F.Let (p, id, body, env') ->
       let a = alloc_var p id id conf in
       let env'' = Env.extend id a env' in
-      let ostore', v' = alloc_if_necessary p conf id v in
+      let ostore', v' = alloc_if_necessary p conf ("let-" ^id) v in
       let vstore' = ValueStore.join a v' state.vstore in
       [{state with control = Exp body; env = env''; vstore = vstore'; ostore = ostore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | F.ObjectAttrs (p, name, obj, [], [], env') ->
-      let ostore', v' = alloc_if_necessary p conf name v in
+      let ostore', v' = alloc_if_necessary p conf ("objattr1-" ^ name) v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore' }]
     | F.ObjectAttrs (p, name, obj, [], (name', prop) :: props, env') ->
-      let ostore', v' = alloc_if_necessary p conf name v in
+      let ostore', v' = alloc_if_necessary p conf ("objattr2-" ^ name) v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
                    ostore = ostore'; env = env'}]
     | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
-      let ostore', v' = alloc_if_necessary p conf name v in
+      let ostore', v' = alloc_if_necessary p conf ("objattr3-" ^ name) v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Exp attr, F.ObjectAttrs (p, name', obj', attrs, props, env'));
                    ostore = ostore'; env = env'}]
