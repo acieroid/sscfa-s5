@@ -136,9 +136,12 @@ struct
        mtime = match ss.last with
          | Some (F.AppFun (p, [], _))
          | Some (F.AppArgs (p, _, _, [], _)) ->
+           print_endline ("Push " ^ (Pos.string_of_pos p));
            K1Time.tick p ss.mtime
          | _ -> begin match f with
-           | F.RestoreEnv (p, _) -> K1Time.tick p ss.mtime
+           | F.RestoreEnv (p, _) ->
+             print_endline ("Push2 " ^ (Pos.string_of_pos p));
+             K1Time.tick p ss.mtime
            | _ -> ss.mtime
            end}
   end
@@ -361,22 +364,22 @@ struct
     let compare = compare_stack_change
   end
 
-  let alloc_var (p : Pos.t option) (id : string) _ ((state, (_, ss)) : conf) =
+  let alloc_var (p : Pos.t) (id : string) _ ((state, (_, ss)) : conf) =
     (* m-CFA *)
     Address.alloc_var p id ss.MCFAStackSummary.mtime
     (* k-CFA *)
     (* Address.alloc_var p id state.time *)
 
-  let alloc_obj (p : Pos.t option) (id : string) _ ((state, (_, ss)) : conf) =
+  let alloc_obj (p : Pos.t) (id : string) _ ((state, (_, ss)) : conf) =
     (* m-CFA *)
     Address.alloc_obj p id ss.MCFAStackSummary.mtime
     (* k-CFA *)
     (* Address.alloc_obj p id state.time *)
 
-  let alloc_if_necessary ((state, _) as conf : conf) id = function
+  let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
     | #AValue.t as v -> (state.ostore, v)
     | `StackObj obj ->
-      let a = alloc_obj None id obj conf in
+      let a = alloc_obj p id obj conf in
       let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
       (ostore', `Obj a)
 
@@ -431,9 +434,9 @@ struct
         failwith "Arity mismatch"
       else
         let alloc_arg v name (vstore, ostore, env) =
-          let (ostore', v') = alloc_if_necessary conf name v in
+          let (ostore', v') = alloc_if_necessary p conf name v in
           let conf' = ({state with ostore = ostore'}, ss) in
-          let a = alloc_var (Some p) name v' conf' in
+          let a = alloc_var p name v' conf' in
           (ValueStore.join a v' vstore,
            ostore',
            Env.extend name a env) in
@@ -466,43 +469,44 @@ struct
   let apply_frame (v : v) (frame : frame) ((state, ss) as conf : conf) (global : global)
     : state list = match frame with
     | F.Let (p, id, body, env') ->
-      let a = alloc_var (Some p) id id conf in
+      let a = alloc_var p id id conf in
       let env'' = Env.extend id a env' in
-      let ostore', v' = alloc_if_necessary conf id v in
+      let ostore', v' = alloc_if_necessary p conf id v in
       let vstore' = ValueStore.join a v' state.vstore in
       [{state with control = Exp body; env = env''; vstore = vstore'; ostore = ostore'}]
     (* ObjectAttrs of string * O.t * (string * S.exp) list * (string * prop) list * Env.t *)
     | F.ObjectAttrs (p, name, obj, [], [], env') ->
-      let ostore', v' = alloc_if_necessary conf name v in
+      let ostore', v' = alloc_if_necessary p conf name v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Val (`StackObj obj'); env = env'; ostore = ostore' }]
     | F.ObjectAttrs (p, name, obj, [], (name', prop) :: props, env') ->
-      let ostore', v' = alloc_if_necessary conf name v in
+      let ostore', v' = alloc_if_necessary p conf name v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Prop prop, F.ObjectProps (p, name', obj', props, env'));
                    ostore = ostore'; env = env'}]
     | F.ObjectAttrs (p, name, obj, (name', attr) :: attrs, props, env') ->
-      let ostore', v' = alloc_if_necessary conf name v in
+      let ostore', v' = alloc_if_necessary p conf name v in
       let obj' = O.set_attr_str obj name v' in
       [{state with control = Frame (Exp attr, F.ObjectAttrs (p, name', obj', attrs, props, env'));
                    ostore = ostore'; env = env'}]
     (* PropData of (O.data * AValue.t * AValue.t) * Env.t *)
-    | F.PropData ((data, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary conf "propdata" v in
+    | F.PropData (p, (data, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf "propdata" v in
       [{state with control = PropVal (O.Data ({data with O.value = v'},
                                               enum, config));
                    ostore = ostore'; env = env'}]
     (* PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t *)
-    | F.PropAccessor (None, (accessor, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary conf "propacc-set" v in
+    | F.PropAccessor (p, None, (accessor, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf "propacc-set" v in
       [{state with control = PropVal (O.Accessor ({accessor with O.setter = v'},
                                                   enum, config));
                    ostore = ostore'; env = env'}]
-    | F.PropAccessor (Some exp, (accessor, enum, config), env') ->
-      let ostore', v' = alloc_if_necessary conf "propacc-get" v in
+    | F.PropAccessor (p, Some exp, (accessor, enum, config), env') ->
+      let ostore', v' = alloc_if_necessary p conf "propacc-get" v in
       [{state with control = Frame (Exp exp, (F.PropAccessor
-                                                (None, ({accessor with O.getter = v'},
-                                                        enum, config), env')));
+                                                (S.pos_of exp, None,
+                                                 ({accessor with O.getter = v'},
+                                                  enum, config), env')));
                    ostore = ostore'; env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
@@ -519,19 +523,19 @@ struct
     | F.AppArgs (p, f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (p, f, v :: vals, args, env')));
                    env = env'}]
-    | F.Op1App (op, env') ->
+    | F.Op1App (p, op, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
-      let ostore', v' = alloc_if_necessary conf ("op1-" ^ op) v in
+      let ostore', v' = alloc_if_necessary p conf ("op1-" ^ op) v in
       [{state with control = Val ((D.op1 ostore' global.gostore op v') :> v);
                    ostore = ostore'; env = env'}]
-    | F.Op2Arg (op, arg2, env') ->
-      [{state with control = Frame (Exp arg2, (F.Op2App (op, v, env')));
+    | F.Op2Arg (p, op, arg2, env') ->
+      [{state with control = Frame (Exp arg2, (F.Op2App (p, op, v, env')));
                    env = env'}]
-    | F.Op2App (op, arg1, env') ->
+    | F.Op2App (p, op, arg1, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
-      let ostore', arg1' = alloc_if_necessary conf ("op2-" ^ op ^ "arg1") arg1 in
+      let ostore', arg1' = alloc_if_necessary p conf ("op2-" ^ op ^ "arg1") arg1 in
       let conf' = ({state with ostore = ostore'}, ss) in
-      let ostore'', arg2' = alloc_if_necessary conf' ("op2-" ^ op ^ "arg2") v in
+      let ostore'', arg2' = alloc_if_necessary p conf' ("op2-" ^ op ^ "arg2") v in
       [{state with control = Val ((D.op2 ostore'' global.gostore op arg1' arg2') :> v);
                    ostore = ostore''; env = env'}]
     | F.If (cons, alt, env') -> begin match v with
@@ -577,7 +581,7 @@ struct
     | F.SetFieldArgs (p, obj_, field, newval, env') ->
       (* TODO: allow objects to contain objects that don't live in the store *)
       let body = v in
-      let ostore', obj = alloc_if_necessary conf "setfieldargs" obj_ in
+      let ostore', obj = alloc_if_necessary p conf "setfieldargs-o" obj_ in
       let state = {state with ostore = ostore'} in
       let conf = (state, ss) in
       begin match obj, field with
@@ -591,7 +595,7 @@ struct
                       (enum, config)
                     else
                       (`True, `True) in
-                  let ostore', newval' = alloc_if_necessary conf ("setfieldargs" ^ s) newval in
+                  let ostore', newval' = alloc_if_necessary p conf ("setfieldargs" ^ s) newval in
                   let newobj = O.set_prop (attrs, props) s
                       (O.Data ({O.value = newval'; O.writable = `True},
                                enum, config)) in
@@ -605,7 +609,7 @@ struct
                   [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
-                    let ostore', newval' = alloc_if_necessary conf ("setfieldargs" ^ s) newval in
+                    let ostore', newval' = alloc_if_necessary p conf ("setfieldargs" ^ s) newval in
                     let newobj = O.set_prop (attrs, props) s
                         (O.Data ({O.value = newval'; O.writable = `True},
                                  `True, `True)) in
@@ -620,7 +624,8 @@ struct
             | `ObjT -> failwith "SetFieldArgs: object too abstracted"
           end
         | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
-        | _ -> failwith "SetFieldArgs on a non-object or non-string"
+        | v1, v2 -> failwith ("SetFieldArgs on a non-object or non-string: " ^
+                               (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
     | F.GetAttrObj (pattr, field, env') ->
       [{state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
@@ -642,16 +647,18 @@ struct
         | `ObjT, _ -> failwith "GetAttrField on a top object"
         | _ -> failwith "GetAttrField on a non-object or non-string"
       end
-    | F.SetAttrObj (pattr, field, newval, env') ->
-      [{state with control = Frame (Exp field, F.SetAttrField (pattr, v, newval, env'));
+    | F.SetAttrObj (p, pattr, field, newval, env') ->
+      [{state with control = Frame (Exp field, F.SetAttrField (p, pattr, v,
+                                                               newval, env'));
                    env = env'}]
-    | F.SetAttrField (pattr, obj, newval, env') ->
-      [{state with control = Frame (Exp newval, F.SetAttrNewval (pattr, obj, v, env'));
+    | F.SetAttrField (p, pattr, obj, newval, env') ->
+      [{state with control = Frame (Exp newval, F.SetAttrNewval (p, pattr, obj,
+                                                                 v, env'));
                    env = env'}]
-    | F.SetAttrNewval (pattr, obj_, field, env') ->
-      let ostore', obj = alloc_if_necessary conf "setattrnewvalobj" obj_ in
+    | F.SetAttrNewval (p, pattr, obj_, field, env') ->
+      let ostore', obj = alloc_if_necessary p conf "setattrnewvalobj" obj_ in
       let conf' = ({state with ostore = ostore'}, ss) in
-      let ostore'', newval = alloc_if_necessary conf' "setattrnewvalv" v in
+      let ostore'', newval = alloc_if_necessary p conf' "setattrnewvalv" v in
       begin match obj, field with
         | `Obj a, `Str s ->
           let store = which_ostore a ostore'' global.gostore in
@@ -677,10 +684,10 @@ struct
         | `ObjT -> failwith "GetObjAttr: object too abstracted"
         | _ -> failwith "GetObjAttr on a non-object"
       end
-    | F.SetObjAttr (oattr, newval, env') ->
-      [{state with control = Frame (Exp newval, F.SetObjAttrNewval (oattr, v, env'));
+    | F.SetObjAttr (p, oattr, newval, env') ->
+      [{state with control = Frame (Exp newval, F.SetObjAttrNewval (p, oattr, v, env'));
                    env = env'}]
-    | F.SetObjAttrNewval (oattr, obj, env') ->
+    | F.SetObjAttrNewval (p, oattr, obj, env') ->
       let helper attrs v' = match oattr, v' with
         | S.Proto, `Obj _ | S.Proto, `Null -> {attrs with O.proto = v'}
         | S.Proto, _ -> failwith "Cannot update proto without an object or null"
@@ -695,7 +702,7 @@ struct
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
             | `Obj (attrs, props) ->
-              let ostore', v' = alloc_if_necessary conf
+              let ostore', v' = alloc_if_necessary p conf
                   ("setobjattrnewval-" ^ (S.string_of_oattr oattr)) v in
               let newobj = (helper attrs v', props) in
               let ostore'' = ostore_set a (`Obj newobj) ostore' global.gostore in
@@ -710,7 +717,7 @@ struct
         | `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
         | _ -> failwith "SetObjAttrNewval on a non-object"
       end
-    | F.OwnFieldNames env' -> begin match v with
+    | F.OwnFieldNames (p, env') -> begin match v with
         | `Obj a ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
@@ -728,7 +735,7 @@ struct
                   (O.Data ({O.value = `Num d; O.writable = `False}, `False, `False))
                   props in
               let obj' = (O.d_attrsv , final_props) in
-              let addr = alloc_obj None "obj" obj' conf in
+              let addr = alloc_obj p "obj" obj' conf in
               let ostore' = ObjectStore.join addr (`Obj obj') state.ostore in
               [{state with control = Val (`Obj addr); ostore = ostore'}]
             | `ObjT -> failwith "OwnFieldNames: object too abstracted"
@@ -786,13 +793,13 @@ struct
             [{state with control = Val `False; env = env'}]
         | v1, v2 -> failwith ("DeleteFieldField on a non-object or non-string: " ^ (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
-    | F.Rec (_, name, a, body, env') ->
-      let ostore', v' = alloc_if_necessary conf ("rec-" ^ name) v in
+    | F.Rec (p, name, a, body, env') ->
+      let ostore', v' = alloc_if_necessary p conf ("rec-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
       [{state with control = Exp body;
                    vstore = vstore'; ostore = ostore'; env = env'}]
-    | F.SetBang (name, a, env') ->
-      let ostore', v' = alloc_if_necessary conf ("setbang-" ^ name) v in
+    | F.SetBang (p, name, a, env') ->
+      let ostore', v' = alloc_if_necessary p conf ("setbang-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
       [{state with control = Val (v' :> v);
                    vstore = vstore'; ostore = ostore'; env = env'}]
@@ -825,7 +832,7 @@ struct
     (* ObjectProps of string * O.t * (string * prop) list * Env.t *)
     | F.ObjectProps (p, name, obj, [], env') ->
       let obj' = O.set_prop obj name v in
-      let a = alloc_obj (Some p) name obj' conf in
+      let a = alloc_obj p name obj' conf in
       let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
       {state with control = Val (`Obj a); env = env'; ostore = ostore'}
     | F.ObjectProps (p, name, obj, (name', prop) :: props, env') ->
@@ -900,15 +907,17 @@ struct
     | _ ->
       [StackPush frame, (state, StackSummary.push ss global frame)]
 
-  let step_prop p ((state, ss) : conf) (global : global)
-    : (stack_change * conf) list = match p with
+  let step_prop prop ((state, ss) : conf) (global : global)
+    : (stack_change * conf) list = match prop with
     | S.Data ({S.value = v; S.writable = w}, enum, config) ->
-      push (F.PropData (({O.value = `Undef; O.writable = AValue.bool w},
+      push (F.PropData (S.pos_of v,
+                        ({O.value = `Undef; O.writable = AValue.bool w},
                          AValue.bool enum, AValue.bool config),
                         state.env))
         ({state with control = Exp v}, ss) global
     | S.Accessor ({S.getter = g; S.setter = s}, enum, config) ->
-      push (F.PropAccessor (Some s, ({O.getter = `Undef; O.setter = `Undef},
+      push (F.PropAccessor (S.pos_of g,
+                            Some s, ({O.getter = `Undef; O.setter = `Undef},
                                      AValue.bool enum, AValue.bool config),
                             state.env))
         ({state with control = Exp g}, ss) global
@@ -969,10 +978,10 @@ struct
       push (F.AppFun (p, args, state.env))
         ({state with control = Exp f}, ss) global
     | S.Op1 (p, op, arg) ->
-      push (F.Op1App (op, state.env))
+      push (F.Op1App (p, op, state.env))
         ({state with control = Exp arg}, ss) global
     | S.Op2 (p, op, arg1, arg2) ->
-      push (F.Op2Arg (op, arg2, state.env))
+      push (F.Op2Arg (p, op, arg2, state.env))
         ({state with control = Exp arg1}, ss) global
     | S.If (p, pred, cons, alt) ->
       push (F.If (cons, alt, state.env))
@@ -987,20 +996,20 @@ struct
       push (F.GetAttrObj (pattr, field, state.env))
         ({state with control = Exp obj}, ss) global
     | S.SetAttr (p, pattr, obj, field, newval) ->
-      push (F.SetAttrObj (pattr, field, newval, state.env))
+      push (F.SetAttrObj (p, pattr, field, newval, state.env))
         ({state with control = Exp obj}, ss)
         global
     | S.GetObjAttr (p, oattr, obj) ->
       push (F.GetObjAttr (oattr, state.env))
         ({state with control = Exp obj}, ss) global
     | S.SetObjAttr (p, oattr, obj, newval) ->
-      push (F.SetObjAttr (oattr, newval, state.env))
+      push (F.SetObjAttr (p, oattr, newval, state.env))
         ({state with control = Exp obj}, ss) global
     | S.OwnFieldNames (p, obj) ->
-      push (F.OwnFieldNames state.env)
+      push (F.OwnFieldNames (p, state.env))
         ({state with control = Exp obj}, ss) global
     | S.Rec (p, name, exp, body) ->
-      let a = alloc_var (Some p) name `Undef conf in
+      let a = alloc_var p name `Undef conf in
       let env' = Env.extend name a state.env in
       let vstore' = ValueStore.join a `Undef state.vstore in
       push (F.Rec (p, name, a, body, env'))
@@ -1010,7 +1019,7 @@ struct
     | S.SetBang (p, id, exp) ->
       let env = which_env id state.env global.genv in
       let a = Env.lookup id env in
-      push (F.SetBang (id, a, state.env))
+      push (F.SetBang (p, id, a, state.env))
         ({state with control = Exp exp}, ss) global
     | S.Label (p, label, body) ->
       push (F.Label (label, state.env))
@@ -1036,7 +1045,7 @@ struct
       (frame : (conf * F.t) option) : (stack_change * conf) list =
     match state.control with
     | Exp e -> step_exp e conf global
-    | Prop p -> step_prop p conf global
+    | Prop prop -> step_prop prop conf global
     | Val v -> begin match frame with
         | Some ((_, ss'), frame) ->
           BatList.map (fun state -> (StackPop frame, (state, ss')))

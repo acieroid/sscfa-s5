@@ -44,18 +44,18 @@ type t =
   (* {[field1: val1, ...]} *)
   | ObjectAttrs of Pos.t * string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of Pos.t * string * O.t * (string * S.prop) list * Env.t
-  | PropData of (O.data * AValue.t * AValue.t) * Env.t
-  | PropAccessor of S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
+  | PropData of Pos.t * (O.data * AValue.t * AValue.t) * Env.t
+  | PropAccessor of Pos.t * S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
   (* left; right *)
   | Seq of S.exp * Env.t
   (* f(arg1, ...) *)
   | AppFun of Pos.t * S.exp list * Env.t
   | AppArgs of Pos.t * value * value list * S.exp list * Env.t
   (* op arg *)
-  | Op1App of string * Env.t
+  | Op1App of Pos.t * string * Env.t
   (* arg1 op arg2 *)
-  | Op2Arg of string * S.exp * Env.t
-  | Op2App of string * value * Env.t
+  | Op2Arg of Pos.t * string * S.exp * Env.t
+  | Op2App of Pos.t * string * value * Env.t
   (* if pred then cons else alt *)
   | If of S.exp * S.exp * Env.t
   (* obj[field] *)
@@ -71,21 +71,21 @@ type t =
   | GetAttrObj of S.pattr * S.exp * Env.t
   | GetAttrField of S.pattr * value * Env.t
   (* obj[field<#attr> = val] *)
-  | SetAttrObj of S.pattr * S.exp * S.exp * Env.t
-  | SetAttrField of S.pattr * value * S.exp * Env.t
-  | SetAttrNewval of S.pattr * value * value * Env.t
+  | SetAttrObj of Pos.t * S.pattr * S.exp * S.exp * Env.t
+  | SetAttrField of Pos.t * S.pattr * value * S.exp * Env.t
+  | SetAttrNewval of Pos.t * S.pattr * value * value * Env.t
   (* obj[<#attr>] *)
   | GetObjAttr of S.oattr * Env.t
   (* obj[<#attr> = val] *)
-  | SetObjAttr of S.oattr * S.exp * Env.t
-  | SetObjAttrNewval of S.oattr * value * Env.t
+  | SetObjAttr of Pos.t * S.oattr * S.exp * Env.t
+  | SetObjAttrNewval of Pos.t * S.oattr * value * Env.t
   (* get-own-field-names(obj) *)
-  | OwnFieldNames of Env.t
+  | OwnFieldNames of Pos.t * Env.t
   (* obj[delete exp] *)
   | DeleteFieldObj of S.exp * Env.t
   | DeleteFieldField of value * Env.t
   (* id := val *)
-  | SetBang of string * Address.t * Env.t
+  | SetBang of Pos.t * string * Address.t * Env.t
   (* label lab : exp *)
   | Label of string * Env.t
   (* break lab ret *)
@@ -107,7 +107,7 @@ let env_of_frame = function
   | Let (_, _, _, env)
   | ObjectAttrs (_, _, _, _, _, env)
   | ObjectProps (_, _, _, _, env)
-  | PropAccessor (_, _, env)
+  | PropAccessor (_, _, _, env)
   | Rec (_, _, _, _, env)
   | AppFun (_, _, env)
   | AppArgs (_, _, _, _, env)
@@ -115,27 +115,27 @@ let env_of_frame = function
   | If (_, _, env)
   | GetFieldObj (_, _, _, env)
   | SetFieldField (_, _, _, _, env)
-  | SetAttrObj (_, _, _, env)
-  | Op2Arg (_, _, env)
+  | SetAttrObj (_, _, _, _, env)
+  | Op2Arg (_, _, _, env)
   | Seq (_, env)
   | GetFieldField (_, _, _, env)
   | SetFieldNewval (_, _, _, _, env)
   | GetAttrObj (_, _, env)
-  | SetAttrField (_, _, _, env)
-  | PropData (_, env)
-  | Op1App (_, env)
-  | Op2App (_, _, env)
+  | SetAttrField (_, _, _, _, env)
+  | PropData (_, _, env)
+  | Op1App (_, _, env)
+  | Op2App (_, _, _, env)
   | GetFieldBody (_, _, _, env)
   | SetFieldArgs (_, _, _, _, env)
   | GetAttrField (_, _, env)
-  | SetAttrNewval (_, _, _, env)
+  | SetAttrNewval (_, _, _, _, env)
   | GetObjAttr (_, env)
-  | SetObjAttr (_, _, env)
-  | SetObjAttrNewval (_, _, env)
-  | OwnFieldNames env
+  | SetObjAttr (_, _, _, env)
+  | SetObjAttrNewval (_, _, _, env)
+  | OwnFieldNames (_, env)
   | DeleteFieldObj (_, env)
   | DeleteFieldField (_, env)
-  | SetBang (_, _, env)
+  | SetBang (_, _, _, env)
   | Label (_, env)
   | Break (_, env)
   | Throw env
@@ -195,19 +195,19 @@ let free_vars frame =
   | If (exp1, exp2, _)
   | GetFieldObj (_, exp1, exp2, _)
   | SetFieldField (_, _, exp1, exp2, _)
-  | SetAttrObj (_, exp1, exp2, _) ->
+  | SetAttrObj (_, _, exp1, exp2, _) ->
     fv_list S.free_vars [exp1; exp2]
 
   (* One exp *)
-  | Op2Arg (_, exp, _)
+  | Op2Arg (_, _, exp, _)
   | Seq (exp, _)
   | GetFieldField (_, _, exp, _)
   | SetFieldNewval (_, _, _, exp, _)
   | GetAttrObj (_, exp, _)
-  | SetAttrField (_, _, exp, _)
-  | SetObjAttr (_, exp, _)
+  | SetAttrField (_, _, _, exp, _)
+  | SetObjAttr (_, _, exp, _)
   | DeleteFieldObj (exp, _)
-  | PropAccessor (Some exp, _, _)
+  | PropAccessor (_, Some exp, _, _)
   | Rec (_, _, _, exp, _)
   | TryCatch (_, exp, _)
   | TryFinally (exp, _) ->
@@ -215,7 +215,7 @@ let free_vars frame =
 
   (* No exp *)
   | PropData _
-  | PropAccessor (None, _, _)
+  | PropAccessor (_, None, _, _)
   | Op1App _
   | Op2App _
   | GetFieldBody _
@@ -269,10 +269,10 @@ let touched_addresses_from_values frame =
   (* Special cases *)
   | AppArgs (_, f, args, _, _) ->
     addresses_of_vals (f :: args)
-  | PropData (({O.value = v; O.writable = w}, enum, config), _) ->
+  | PropData (_, ({O.value = v; O.writable = w}, enum, config), _) ->
     addresses_of_vals [(v :> value); (w :> value);
                        (enum :> value); (config :> value)]
-  | PropAccessor (_, ({O.getter = g; setter = s}, enum, config), _) ->
+  | PropAccessor (_, _, ({O.getter = g; setter = s}, enum, config), _) ->
     addresses_of_vals [(g :> value); (s :> value);
                        (enum :> value); (config :> value)]
 
@@ -307,12 +307,12 @@ let touched_addresses_from_values frame =
     addresses_of_vals []
 
   (* One value *)
-  | Op2App (_, v, _)
+  | Op2App (_, _, v, _)
   | SetFieldField (_, v, _, _, _)
   | GetAttrField (_, v, _)
-  | SetAttrField (_, v, _, _)
+  | SetAttrField (_, _, v, _, _)
   | GetFieldField (_, v, _, _)
-  | SetObjAttrNewval (_, v, _)
+  | SetObjAttrNewval (_, _, v, _)
   | DeleteFieldField (v, _)
   | TryCatchHandler (_, v, _)
   | TryFinallyExc (`Break (_, v), _)
@@ -321,7 +321,7 @@ let touched_addresses_from_values frame =
 
   (* Two values *)
   | SetFieldNewval (_, v1, v2, _, _)
-  | SetAttrNewval (_, v1, v2, _)
+  | SetAttrNewval (_, _, v1, v2, _)
   | GetFieldBody (_, v1, v2, _) ->
     addresses_of_vals [v1; v2]
 
@@ -345,14 +345,14 @@ let to_string = function
   | ObjectProps (_, name, _, _, _) -> "ObjectProps-" ^ name
   | ObjectAttrs (_, name, _, _, _,  _) -> "ObjectAttrs-" ^ name
   | PropData _ -> "PropData"
-  | PropAccessor (Some _, _, _) -> "PropAccessor-Get"
-  | PropAccessor (None, _, _) -> "PropAccessor-Set"
+  | PropAccessor (_, Some _, _, _) -> "PropAccessor-Get"
+  | PropAccessor (_, None, _, _) -> "PropAccessor-Set"
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
   | AppArgs _ -> "AppArgs"
-  | Op1App (op, _) -> "Op1App-" ^ op
-  | Op2Arg (op, _, _) -> "Op2Arg-" ^ op
-  | Op2App (op, _, _) -> "Op2App-" ^ op
+  | Op1App (_, op, _) -> "Op1App-" ^ op
+  | Op2Arg (_, op, _, _) -> "Op2Arg-" ^ op
+  | Op2App (_, op, _, _) -> "Op2App-" ^ op
   | If _ -> "If"
   | GetFieldObj _ -> "GetFieldObj"
   | GetFieldField _ -> "GetFieldField"
@@ -372,7 +372,7 @@ let to_string = function
   | OwnFieldNames _ -> "OwnFieldNames"
   | DeleteFieldObj _ -> "DeleteFieldObj"
   | DeleteFieldField _ -> "DeleteFieldField"
-  | SetBang (id, _, _) -> "SetBang-" ^ id
+  | SetBang (_, id, _, _) -> "SetBang-" ^ id
   | Label (lab, _) -> "Label-" ^ lab
   | Break (lab, _) -> "Break-" ^ lab
   | Throw _ -> "Throw"
@@ -420,13 +420,15 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')];
   | ObjectProps _, _ -> 1
   | _, ObjectProps _ -> -1
-  | PropData (prop, env), PropData (prop', env') ->
-    order_concat [lazy (Pervasives.compare prop prop');
+  | PropData (p, prop, env), PropData (p', prop', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare prop prop');
                   lazy (Env.compare env env')]
   | PropData _, _ -> 1
   | _, PropData _ -> -1
-  | PropAccessor (exp, acc, env), PropAccessor (exp', acc', env') ->
-    order_concat [lazy (Pervasives.compare exp exp');
+  | PropAccessor (p, exp, acc, env), PropAccessor (p', exp', acc', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare exp exp');
                   lazy (Pervasives.compare acc acc');
                   lazy (Env.compare env env')]
   | PropAccessor _, _ -> 1
@@ -450,19 +452,22 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | AppArgs _, _ -> 1
   | _, AppArgs _ -> -1
-  | Op1App (op, env), Op1App (op', env') ->
-    order_concat [lazy (Pervasives.compare op op');
+  | Op1App (p, op, env), Op1App (p', op', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare op op');
                   lazy (Env.compare env env')]
   | Op1App _, _ -> 1
   | _, Op1App _ -> -1
-  | Op2Arg (op, arg2, env), Op2Arg (op', arg2', env') ->
-    order_concat [lazy (Pervasives.compare op op');
+  | Op2Arg (p, op, arg2, env), Op2Arg (p', op', arg2', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare op op');
                   lazy (Pervasives.compare arg2 arg2');
                   lazy (Env.compare env env')]
   | Op2Arg _, _ -> 1
   | _, Op2Arg _ -> -1
-  | Op2App (op, arg1, env), Op2App (op', arg1', env') ->
-    order_concat [lazy (Pervasives.compare op op');
+  | Op2App (p, op, arg1, env), Op2App (p', op', arg1', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare op op');
                   lazy (compare_value arg1 arg1');
                   lazy (Env.compare env env')]
   | Op2App _, _ -> 1
@@ -542,25 +547,28 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | GetAttrField _, _ -> 1
   | _, GetAttrField _ -> -1
-  | SetAttrObj (pattr, field, newval, env),
-    SetAttrObj (pattr', field', newval', env') ->
-    order_concat [lazy (Pervasives.compare pattr pattr');
+  | SetAttrObj (p, pattr, field, newval, env),
+    SetAttrObj (p', pattr', field', newval', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare pattr pattr');
                   lazy (Pervasives.compare field field');
                   lazy (Pervasives.compare newval newval');
                   lazy (Env.compare env env')]
   | SetAttrObj _, _ -> 1
   | _, SetAttrObj _ -> -1
-  | SetAttrField (pattr, obj, newval, env),
-    SetAttrField (pattr', obj', newval', env') ->
-    order_concat [lazy (Pervasives.compare pattr pattr');
+  | SetAttrField (p, pattr, obj, newval, env),
+    SetAttrField (p', pattr', obj', newval', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare pattr pattr');
                   lazy (compare_value obj obj');
                   lazy (Pervasives.compare newval newval');
                   lazy (Env.compare env env')]
   | SetAttrField _, _ -> 1
   | _, SetAttrField _ -> -1
-  | SetAttrNewval (pattr, obj, field, env),
-    SetAttrNewval (pattr', obj', field', env') ->
-    order_concat [lazy (Pervasives.compare pattr pattr');
+  | SetAttrNewval (p, pattr, obj, field, env),
+    SetAttrNewval (p', pattr', obj', field', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare pattr pattr');
                   lazy (compare_value obj obj');
                   lazy (compare_value field field');
                   lazy (Env.compare env env')]
@@ -571,24 +579,30 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | GetObjAttr _, _ -> 1
   | _, GetObjAttr _ -> -1
-  | SetObjAttr (oattr, newval, env), SetObjAttr (oattr', newval', env') ->
-    order_concat [lazy (Pervasives.compare oattr oattr');
+  | SetObjAttr (p, oattr, newval, env),
+    SetObjAttr (p', oattr', newval', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare oattr oattr');
                   lazy (Pervasives.compare newval newval');
                   lazy (Env.compare env env')]
   | SetObjAttr _, _ -> 1
   | _, SetObjAttr _ -> -1
-  | SetObjAttrNewval (oattr, obj, env), SetObjAttrNewval (oattr', obj', env') ->
-    order_concat [lazy (Pervasives.compare oattr oattr');
+  | SetObjAttrNewval (p, oattr, obj, env),
+    SetObjAttrNewval (p', oattr', obj', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare oattr oattr');
                   lazy (compare_value obj obj');
                   lazy (Env.compare env env')]
   | SetObjAttrNewval _, _ -> 1
   | _, SetObjAttrNewval _ -> -1
-  | OwnFieldNames env, OwnFieldNames env' ->
-    Env.compare env env'
+  | OwnFieldNames (p, env), OwnFieldNames (p', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Env.compare env env')]
   | OwnFieldNames _, _ -> 1
   | _, OwnFieldNames _ -> -1
-  | SetBang (id, a, env), SetBang (id', a', env') ->
-    order_concat [lazy (Pervasives.compare id id');
+  | SetBang (p, id, a, env), SetBang (p', id', a', env') ->
+    order_concat [lazy (Pos.compare p p');
+                  lazy (Pervasives.compare id id');
                   lazy (Address.compare a a');
                   lazy (Env.compare env env')]
   | DeleteFieldObj (exp, env), DeleteFieldObj (exp', env') ->

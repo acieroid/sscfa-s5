@@ -79,8 +79,8 @@ module type Address_signature =
     val compare : t -> t -> int
     val is_reclaimable : t -> bool
     val to_string : t -> string
-    val alloc_obj : Pos.t option -> string -> time -> t
-    val alloc_var : Pos.t option -> string -> time -> t
+    val alloc_obj : Pos.t -> string -> time -> t
+    val alloc_var : Pos.t -> string -> time -> t
   end
 
 (* S5 uses Store.Loc module (util/store.ml) *)
@@ -88,12 +88,12 @@ module MakeAddress =
   functor (T : Time_signature) ->
 struct
   type time = T.t
-  type a = (Pos.t option * string * T.t)
+  type a = (Pos.t * string * T.t)
   type t = a addr_kind
-  let compare x y = match x, y with
+  let compare (x : t) (y : t) = match x, y with
     | `ObjAddress (p, id, t), `ObjAddress (p', id', t')
     | `VarAddress (p, id, t), `VarAddress (p', id', t') ->
-      order_concat [lazy (BatOption.compare ~cmp:Pos.compare p p');
+      order_concat [lazy (Pos.compare p p');
                     lazy (Pervasives.compare id id');
                     lazy (T.compare t t')]
     | `ObjAddress _, `VarAddress _ -> 1
@@ -116,11 +116,13 @@ struct
   let to_string = function
     | `ObjAddress (_, id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
     | `VarAddress (_, id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
-  let alloc_obj (p : Pos.t option) (id : string) (t : T.t) =
-    print_endline ("\027[33malloc_obj(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
+  let alloc_obj (p : Pos.t) (id : string) (t : T.t) : t =
+    print_endline ("\027[33malloc_obj(" ^ (Pos.string_of_pos p) ^ ", " ^ id ^
+                   ", " ^ (T.to_string t) ^ ")\027[0m");
     `ObjAddress (p, id, t)
-  let alloc_var (p : Pos.t option) (id : string) (t : T.t) =
-    print_endline ("\027[33malloc_var(" ^ id ^ ", " ^ (T.to_string t) ^ ")\027[0m");
+  let alloc_var (p : Pos.t) (id : string) (t : T.t) : t =
+    print_endline ("\027[33malloc_var(" ^ (Pos.string_of_pos p) ^ ", " ^ id ^
+                   ", " ^ (T.to_string t) ^ ")\027[0m");
     `VarAddress (p, id, t)
 end
 
@@ -187,7 +189,7 @@ module ParameterSensitive =
 
   end
 
-module K1 = struct let k = 1 end
+module K1 = struct let k = 2 end
 
 (* This is ugly as fuck, but it does the trick in a type-safe way *)
 module rec PSAddress :

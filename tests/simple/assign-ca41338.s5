@@ -1,0 +1,18 @@
+// Expected: 1.
+// 47s
+let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
+let (%global = {[#proto: %ObjectProto, #class: "Object", #extensible: true,]})
+let (%context = {[#proto: %global, #class: "Object", #extensible: true,]})
+let (%makeSetter = func(object , v) {
+  func(this , args) {
+            object[v] // both object and ids gets joined across calls
+  }})
+let (%defineOwnProperty = func(obj , fstr , attr-obj) {
+  obj[fstr<#configurable>=true];
+  obj[fstr<#writable>=true];
+  obj[fstr<#setter>=attr-obj]})
+let (%defineGlobalVar = func(context , id) {
+  %defineOwnProperty(context, id, %makeSetter(%global, id))
+})
+%defineGlobalVar(%context, "y");
+%defineGlobalVar(%context, "x")
