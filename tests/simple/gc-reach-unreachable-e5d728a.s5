@@ -1,0 +1,12 @@
+// Expected: true
+let (%global = {[#proto: null, #class: "Object", #extensible: true,]})
+let (%makeSetter = func(object, v) {
+  {[#code: func(this , args) {object[v]}]}})
+let (%defineOwnProperty = func(obj , fstr , attr-obj) {
+    obj[fstr<#configurable>=true];
+    obj[fstr<#writable>=true];
+    obj[fstr<#setter>=attr-obj]})
+let (%defineGlobalVar = func(context , id) {
+    %defineOwnProperty(context, id, %makeSetter(%global, id))})
+%defineGlobalVar(%global, "y");
+%defineGlobalVar(%global, "x")

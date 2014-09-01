@@ -1,5 +1,4 @@
-// Expected: 1.
-// 47s
+// Expected: true
 let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true,]})
 let (%global = {[#proto: %ObjectProto, #class: "Object", #extensible: true,]})
 let (%context = {[#proto: %global, #class: "Object", #extensible: true,]})
