@@ -6,6 +6,10 @@ open Lattice
 
 let gc = ref true
 
+let error msg exc =
+  print_endline msg;
+  raise exc
+
 module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
@@ -123,37 +127,7 @@ struct
     let push (ss : t) (global : global) (f : F.t) =
       AddressSet.union ss (Frame.touch f global.genv)
   end
-  module MCFAStackSummary =
-  struct
-    (* Stack summary used for [m = 1]-CFA addresses *)
-    type t = { last : F.t option; mtime : K1Time.t }
-    let empty = { last = None; mtime = K1Time.initial }
-    let compare ss ss' =
-      order_concat [lazy (K1Time.compare ss.mtime ss'.mtime);
-                    lazy (BatOption.compare ~cmp:F.compare ss.last ss'.last)]
-    let push (ss : t) (global : global) (f : F.t) =
-      {last = Some f;
-       mtime = match ss.last with
-         | Some (F.AppFun (p, [], _))
-         | Some (F.AppArgs (p, _, _, [], _)) ->
-           K1Time.tick p ss.mtime
-         | _ -> begin match f with
-             | F.RestoreEnv (p, _) ->
-               K1Time.tick p ss.mtime
-             | _ -> ss.mtime
-           end}
-  end
-  module StackSummary =
-  struct
-    type t = GCStackSummary.t * MCFAStackSummary.t
-    let empty = (GCStackSummary.empty, MCFAStackSummary.empty)
-    let compare (g, m) (g', m') =
-      order_concat [lazy (GCStackSummary.compare g g');
-                    lazy (MCFAStackSummary.compare m m')]
-    let push (g, m) global f =
-      (GCStackSummary.push g global f,
-       MCFAStackSummary.push m global f)
-  end
+  module StackSummary = GCStackSummary
 
   type conf = state * StackSummary.t
 
@@ -167,10 +141,8 @@ struct
       env
     else if Env.contains id env' then
       env'
-    else begin
-      print_endline ("Identifier cannot be resolved: " ^ id);
-      raise Not_found
-    end
+    else
+      error ("Identifier cannot be resolved: " ^ id) Not_found
 
   let which_ostore (a : Address.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
     : ObjectStore.t =
@@ -178,11 +150,9 @@ struct
       ostore
     else if ObjectStore.contains a ostore' then
       ostore'
-    else begin
-      print_endline ("Object lives at an unreachable address: " ^
-                     (Address.to_string a));
-      raise Not_found
-    end
+    else
+      error ("Object lives at an unreachable address: " ^
+             (Address.to_string a)) Not_found
 
   let ostore_set a obj ostore ostore' : ObjectStore.t =
     if ObjectStore.contains a ostore then
@@ -192,11 +162,9 @@ struct
       (* Object is only in the global store, add the modified object to the
          state store, using a join as it is a new object in this store *)
       ObjectStore.join a obj ostore
-    else begin
-      print_endline ("Cannot set object at unreachable location: " ^
-                     (Address.to_string a));
-      raise Not_found
-    end
+    else
+      error ("Cannot set object at unreachable location: " ^
+             (Address.to_string a)) Not_found
 
   let which_vstore (a : Address.t) (vstore : ValueStore.t) (vstore' : ValueStore.t)
     : ValueStore.t =
@@ -204,11 +172,9 @@ struct
       vstore
     else if ValueStore.contains a vstore' then
       vstore'
-    else begin
-      print_endline ("Value lives at an unreachable address: " ^
-                     (Address.to_string a));
-      raise Not_found
-    end
+    else
+      error ("Value lives at an unreachable address: " ^
+             (Address.to_string a)) Not_found
 
   (** Isolate garbage collection specific functions *)
   module GC =
@@ -228,19 +194,17 @@ struct
         | `Obj a -> if AddressSet.mem a visited_objs then
             acc
           else
-            if ObjectStore.contains a ostore then
-              match ObjectStore.lookup a ostore with
-              | `Obj obj -> aux_obj (AddressSet.add a acc) (AddressSet.add a visited_objs) obj
-              | `ObjT -> failwith "touch: an object was too abtsract"
-            else if ObjectStore.contains a global.gostore then
-              (* ignore addresses in the global store, as they are not
-                 reclaimable and can't point to reclaimable addresses *)
-              acc
-            else begin
-              print_endline ("GC reached a non-reachable object address: " ^
-                             (Address.to_string a));
-              raise Not_found
-            end
+          if ObjectStore.contains a ostore then
+            match ObjectStore.lookup a ostore with
+            | `Obj obj -> aux_obj (AddressSet.add a acc) (AddressSet.add a visited_objs) obj
+            | `ObjT -> failwith "touch: an object was too abtsract"
+          else if ObjectStore.contains a global.gostore then
+            (* ignore addresses in the global store, as they are not
+               reclaimable and can't point to reclaimable addresses *)
+            acc
+          else
+            error ("GC reached a non-reachable object address: " ^
+                   (Address.to_string a)) Not_found;
         | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
         aux_obj_props (List.fold_left AddressSet.union acc
@@ -289,7 +253,7 @@ struct
       | Exception (`Throw v) ->
         Frame.addresses_of_vals [v]
 
-    let root (state, (ss, _)) global : AddressSet.t =
+    let root ((state, ss) : conf) global : AddressSet.t =
       AddressSet.union ss (control_root state.control state.env
                              state.vstore state.ostore global)
 
@@ -366,17 +330,19 @@ struct
     let compare = compare_stack_change
   end
 
-  let alloc_var (p : Pos.t) (id : string) _ ((state, (_, ss)) : conf) =
+  let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     (* m-CFA *)
-    Address.alloc_var p id ss.MCFAStackSummary.mtime
-    (* k-CFA *)
-    (* Address.alloc_var p id state.time *)
+    (* Address.alloc_var p id ss.MCFAStackSummary.mtime *)
+    Address.alloc_var p id state.env.Env.call
+  (* k-CFA *)
+  (* Address.alloc_var p id state.time *)
 
-  let alloc_obj (p : Pos.t) (id : string) _ ((state, (_, ss)) : conf) =
+  let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     (* m-CFA *)
-    Address.alloc_obj p id ss.MCFAStackSummary.mtime
-    (* k-CFA *)
-    (* Address.alloc_obj p id state.time *)
+    (* Address.alloc_obj p id ss.MCFAStackSummary.mtime *)
+    Address.alloc_obj p id state.env.Env.call
+  (* k-CFA *)
+  (* Address.alloc_obj p id state.time *)
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
     | #AValue.t as v -> (state.ostore, v)
@@ -421,12 +387,13 @@ struct
       parameter sensitive addresses) *)
   let select_params args : (string * PSTime.v) list =
     let f (n, v) = match v with
-        | #PSTime.v as v' -> Some (n, v')
-        | _ -> None in
+      | #PSTime.v as v' -> Some (n, v')
+      | _ -> None in
     BatList.filter_map f args
 
   let rec apply_fun (p : Pos.t) f args ((state, ss) : conf) (global : global)
-    : (S.exp * state) = match f with
+    : (S.exp * state) =
+    match f with
     | `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
         (* This is *not* about Javascript closures, as an arity mismatch when
@@ -444,8 +411,9 @@ struct
                        env = Env.extend name a state.env}, ss) in
         let (state', ss) as conf' =
           BatList.fold_right2 alloc_arg args args'
-            ({ state with env = env'}, ss) in
+            ({ state with env = {env' with Env.call = state.env.Env.call }}, ss) in
         (body, {state' with
+                env = Env.call p state'.env;
                 (* k-CFA *)
                 time = Time.tick (S.pos_of body) state.time
                 (* Parameter-sensitive k-CFA *)
@@ -628,7 +596,7 @@ struct
           end
         | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
         | v1, v2 -> failwith ("SetFieldArgs on a non-object or non-string: " ^
-                               (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
+                              (F.string_of_value v1) ^ ", " ^ (F.string_of_value v2))
       end
     | F.GetAttrObj (pattr, field, env') ->
       [{state with control = Frame (Exp field, F.GetAttrField (pattr, v, env'));
@@ -788,9 +756,9 @@ struct
             (* TODO: BoolT *)
             | O.Data (_, _, b) | O.Accessor (_, _, b) ->
               begin match Delta.prim_to_bool b with
-              | `True -> [t]
-              | `False -> [f]
-              | `BoolT -> [t; f]
+                | `True -> [t]
+                | `False -> [f]
+                | `BoolT -> [t; f]
               end
           else
             [{state with control = Val `False; env = env'}]
@@ -884,10 +852,8 @@ struct
           Env.lookup id state.env
         else if Env.contains id global.genv then
           Env.lookup id global.genv
-        else begin
-          print_endline ("Identifier cannot be resolved: " ^ id);
-          raise Not_found
-        end in
+        else
+          error ("Identifier cannot be resolved: " ^ id) Not_found in
       let store = which_vstore a state.vstore global.gvstore in
       let v = ValueStore.lookup a store in
       (v :> v)
@@ -1029,7 +995,6 @@ struct
       push (F.Break (label, state.env))
         ({state with control = Exp ret}, ss) global
     | S.Throw (p, exp) ->
-      print_endline ("Throwing " ^ (full_string_of_exp exp));
       push (F.Throw state.env)
         ({state with control = Exp exp}, ss) global
     | S.TryCatch (p, body, catch) ->

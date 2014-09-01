@@ -1,6 +1,8 @@
 open Shared
 open Prelude
 
+let m = 1
+
 module type Env_signature =
   sig
     (** Type of the environment itself *)
@@ -43,32 +45,41 @@ module type Env_signature =
     (** Merge two environments together, giving priority to values from the
         first environment *)
     val merge : t -> t -> t
+
+    (** Store the call site in the environment (for m-CFA) *)
+    val call : Pos.t -> t -> t
   end
 
 (* S5 uses a map of identifier *)
-module Env : Env_signature =
+module Env =
   struct
     module StringMap = BatMap.Make(BatString)
 
-    type t = Address.t StringMap.t
+    type t = {
+      env : Address.t StringMap.t;
+      call : Pos.t list;
+    }
 
-    let empty = StringMap.empty
+    let empty = {env = StringMap.empty; call=[]}
 
-    let extend = StringMap.add
+    let extend id a e = {e with env = StringMap.add id a e.env}
 
-    let contains = StringMap.mem
+    let contains id e = StringMap.mem id e.env
 
-    let lookup = StringMap.find
+    let lookup id e = StringMap.find id e.env
 
-    let keep vars = StringMap.filter (fun var _ -> IdSet.mem var vars)
+    let keep vars e =
+      { e with env = StringMap.filter (fun var _ -> IdSet.mem var vars) e.env}
 
-    let compare = StringMap.compare Address.compare
+    let compare e e' =
+      order_concat [lazy (compare_list Pos.compare e.call e'.call);
+                    lazy (StringMap.compare Address.compare e.env e'.env)]
 
-    let size = StringMap.cardinal
+    let size e = StringMap.cardinal e.env
 
-    let to_string env = String.concat ", "
+    let to_string e = String.concat ", "
         (BatList.map (fun (v, a) -> v ^ ": " ^ (Address.to_string a))
-           (StringMap.bindings env))
+           (StringMap.bindings e.env))
 
     let subsumes e1 e2 =
       let merge_val _ v1 v2 =
@@ -78,17 +89,22 @@ module Env : Env_signature =
         | None, Some _ -> v2
         | Some _, None -> None
         | None, None -> None in
-      StringMap.is_empty (StringMap.merge merge_val e1 e2)
+      StringMap.is_empty (StringMap.merge merge_val e1.env e2.env)
 
     (* urr *)
-    let domain env = IdSet.from_list (BatList.of_enum (StringMap.keys env))
+    let domain e = IdSet.from_list (BatList.of_enum (StringMap.keys e.env))
 
-    let range env = AddressSet.of_enum (StringMap.values env)
+    let range e = AddressSet.of_enum (StringMap.values e.env)
 
     let merge e1 e2 =
       let merge_val _ v1 v2 =
         match v1, v2 with
         | Some x, _ | None, Some x -> Some x
         | None, None -> None in
-      StringMap.merge merge_val e1 e2
+      {env = StringMap.merge merge_val e1.env e2.env;
+       call = e1.call}
+
+    let call p env =
+      print_endline ("Call: " ^ (Pos.string_of_pos p));
+      {env with call = BatList.take m (p :: env.call)}
   end
