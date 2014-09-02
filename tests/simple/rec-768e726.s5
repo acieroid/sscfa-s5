@@ -1,4 +1,7 @@
 // Expected: null
+// This is where the race for precision stops, as we don't want to precisely
+// interpret every recursive call. It seems that it will become necessary to
+// implement some of the S5's environment functions by hand to avoid this
 rec (%protoOfField = func(object, fld) {
   if (prim("stx=", object, null)) {
     object

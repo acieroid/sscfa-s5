@@ -34,6 +34,9 @@ let string_of_map fold k v m =
   "{" ^ (String.concat "\n"
            (fold (fun k' v' a -> ((k k') ^ ": " ^ (v v')) :: a) m [])) ^ "}"
 
+let string_of_set fold e s =
+  "{" ^ (String.concat ", " (fold (fun e' a -> (e e') :: a) s [])) ^ "}"
+
 module StringSet = BatSet.Make(struct
     type t = string
     let compare = Pervasives.compare

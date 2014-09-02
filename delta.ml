@@ -121,6 +121,13 @@ let print v = match v with
   | _ -> printf "%s\n%!" (AValue.to_string v); `Undef
 (*  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v) *)
 
+let print_obj lookup v = match v with
+  | `Obj a -> begin match lookup a with
+    | `Obj o -> print_endline (O.to_string o); `Undef
+    | `ObjT -> print_endline "ObjT"; `Undef
+    end
+  | _ -> failwith ("Not an object: " ^ (AValue.to_string v))
+
 let pretty v =
   printf "%s\n%!" (AValue.to_string v); `Undef
 
@@ -243,6 +250,7 @@ let op1 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   match op with
   (* return undef *)
   | "print" -> print
+  | "print-obj" -> print_obj lookup
   | "pretty" -> pretty
   | "void" -> void
 
@@ -504,6 +512,27 @@ let is_accessor lookup obj field =
     | _ -> raise (PrimErr "isAccessor") in
   aux (`A obj) field
 
+let proto_of_field lookup obj field =
+  let rec aux (obj : AValue.t) field = match obj, field with
+    | `Null, _ -> `Null
+    | `Obj loc, `Str s ->
+      begin match prim_to_bool (has_own_property lookup (`Obj loc) (`Str s)) with
+        | `True -> `Obj loc
+        | `False ->
+          let proto = begin match lookup loc with
+            | `Obj (attrs, _) -> attrs.O.proto
+            | `ObjT -> failwith "proto_of_field: object too abstract"
+          end in
+          begin match proto with
+            | `A v -> aux v field
+            | `StackObj _ -> failwith "TODO: proto_of_field on a stack object"
+          end
+        | `BoolT -> `ObjT
+      end
+    | _, _ -> failwith "proto_of_field on a non-object or non-string"
+  in
+  aux obj field
+
 let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   : AValue.t -> AValue.t -> AValue.t =
   let lookup = to_lookup store gstore in
@@ -536,5 +565,6 @@ let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   | "pow" -> pow
   | "to-fixed" -> to_fixed
   | "isAccessor" -> is_accessor lookup
+  | "protoOfField" -> proto_of_field lookup
   | _ ->
     raise (PrimErr ("no implementation of binary operator: " ^ op))
