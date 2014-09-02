@@ -28,14 +28,9 @@ let typeof lookup = function
   | `Num _ -> AValue.str "number"
   | `True | `False -> AValue.str "boolean"
   | `Obj a -> begin match lookup a with
-      | `Obj ({ O.code = `Bot; _ }, _) -> AValue.str "object"
+      | `Obj ({ O.code = `A `Bot; _ }, _) -> AValue.str "object"
       | _ -> AValue.str "function"
     end
-  (* OSet.fold
-     (fun (attrs, _) acc -> match attrs with
-     | { code = `Bot } -> AValue.join acc (AValue.str "object")
-     | _ -> join acc (AValue.str "function"))
-     (get_objs a store) `Bot *)
   | `Clos _ -> raise (PrimErr "typeof got lambda")
   | _ -> `StrT
 
@@ -115,6 +110,10 @@ let prim_to_bool v =
   | `True
   | _ -> `True
 
+let prim_to_bool_v v = match v with
+  | `A v -> prim_to_bool v
+  | `StackObj _ -> `True
+
 (* TODO: how to deal with such side effects in an abstract interpreter? *)
 let print v = match v with
   | `Str s -> printf "%s\n%!" s; `Undef
@@ -127,7 +126,8 @@ let pretty v =
 
 let is_extensible lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
-    | `Obj ({ O.extensible = ext; _ }, _) -> ext
+    | `Obj ({ O.extensible = `A ext; _ }, _) -> ext
+    | `Obj ({ O.extensible = `StackObj _; _ }, _) -> `True
     | `ObjT -> `BoolT
     end
   | `ObjT -> `BoolT
@@ -138,7 +138,7 @@ let is_extensible lookup obj = match obj with
 let object_to_string lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
       | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
-        | `Str s -> AValue.str ("[object " ^ s ^ "]")
+        | `A `Str s -> AValue.str ("[object " ^ s ^ "]")
         | _ -> `StrT
         end
       | `ObjT -> `StrT
@@ -149,8 +149,8 @@ let object_to_string lookup obj = match obj with
 let is_array lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
     | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
-      | `Str "Array" -> `True
-      | `Str _ -> `False
+      | `A `Str "Array" -> `True
+      | `A `Str _ -> `False
       | _ -> `BoolT
       end
     | `ObjT -> `BoolT
@@ -374,22 +374,29 @@ let same_value v1 v2 = match v1, v2 with
   | `BoolT, `BoolT -> `BoolT
   | _ -> AValue.bool (Pervasives.compare v1 v2 = 0)
 
-let rec has_property lookup obj field = match obj, field with
-  | `Obj loc, _ -> begin match lookup loc with
-    | `Obj (({ O.proto = proto; _ }, _) as o) ->
-      if O.has_prop o field then
+let has_property lookup obj field =
+  let rec aux obj field = match obj, field with
+    | `A (`Obj loc), `Str s -> begin match lookup loc with
+        | `Obj (({O.proto = proto; _}, _) as o) ->
+          if O.has_prop o s then
+            `True
+          else
+            aux proto field
+        | `ObjT -> `BoolT
+      end
+    | `StackObj (({O.proto = proto; _}, _) as o), `Str s ->
+      if O.has_prop o s then
         `True
       else
-        has_property lookup proto field
-    | `ObjT -> `BoolT
-    end
-  | `ObjT, _ -> `BoolT
-  | _ -> `False
+        aux proto field
+    | `A `ObjT, _ -> `BoolT
+    | _ -> `False in
+  aux (`A obj) field
 
 let has_own_property lookup obj field = match obj, field with
-  | `Obj loc, `Str _ -> begin match lookup loc with
+  | `Obj loc, `Str s -> begin match lookup loc with
       | `Obj (({ O.proto = proto; _ }, _) as o) ->
-        AValue.bool (O.has_prop o field)
+        AValue.bool (O.has_prop o s)
       | `ObjT -> `BoolT
     end
   | `Obj _, `StrT | `ObjT, `Str _ | `ObjT, `StrT -> `BoolT
@@ -469,22 +476,33 @@ let to_fixed a b = match a, b with
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT -> `NumT
   | _ -> raise (PrimErr "to-fixed didn't get 2 numbers")
 
-let rec is_accessor lookup a b = match a, b with
-  | `Obj loc, _ -> begin match lookup loc with
-    | `Obj o ->
-      if O.has_prop o b then
-        begin match O.lookup_prop o b with
+let is_accessor lookup obj field =
+  let rec aux obj field = match obj, field with
+    | `A (`Obj loc), `Str s -> begin match lookup loc with
+        | `Obj o ->
+          if O.has_prop o s then
+            begin match O.lookup_prop o s with
+              | O.Data _ -> `False
+              | O.Accessor _ -> `True
+            end
+          else
+            let ({O.proto = proto; _}, _) = o in
+            aux proto field
+        | `ObjT -> `BoolT
+      end
+    | `StackObj o , `Str s->
+      if O.has_prop o s then
+        begin match O.lookup_prop o s with
           | O.Data _ -> `False
           | O.Accessor _ -> `True
         end
       else
-        let ({ O.proto = proto; _ }, _) = o in
-        is_accessor lookup proto b
-    | `ObjT -> `BoolT
-    end
-  | `ObjT, `Str _ -> `BoolT
-  | `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
-  | _ -> raise (PrimErr "isAccessor")
+        let ({O.proto = proto; _}, _) = o in
+        aux proto field
+    | `A `ObjT, `Str _ -> `BoolT
+    | `A `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
+    | _ -> raise (PrimErr "isAccessor") in
+  aux (`A obj) field
 
 let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   : AValue.t -> AValue.t -> AValue.t =

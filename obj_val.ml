@@ -1,43 +1,95 @@
 open Prelude
 open Lattice
 
+(* TODO: this is duplicated from shared.ml *)
+let order_comp x y =
+  if x = 0 then y else x
+
+let order_concat l =
+  let rec aux last = function
+    | [] -> last
+    | (h::t) ->
+      if last <> 0 then last else aux (order_comp last (Lazy.force h)) t
+  in aux 0 l
+
 module S = Ljs_syntax
 
 type attrs = {
-  code : AValue.t;
-  proto : AValue.t;
-  primval : AValue.t;
-  klass : AValue.t;
-  extensible : AValue.t;
+  code : value; (* callable (closure or object) *)
+  proto : value; (* object *)
+  primval : value; (* any value *)
+  klass : value; (* string? *)
+  extensible : value; (* boolean *)
 }
-
-type data = {
-  value : AValue.t;
-  writable : AValue.t;
+and data = {
+  value : value; (* any value *)
+  writable : value; (* boolean *)
 }
-
-type accessor = {
-  getter : AValue.t;
-  setter : AValue.t;
+and accessor = {
+  getter : value; (* callable *)
+  setter : value; (* callable *)
 }
+and prop =
+  | Data of data * value * value (* enum & config are booleans *)
+  | Accessor of accessor * value * value (* same *)
+and t = attrs * (prop IdMap.t)
+(* a StackObj is an object that lives on the stack, it avoids allocating
+   too much objects and allows to use identifiers for the objects' addresses
+   (which is not possible on anonymous objects) *)
+and value = [ `A of AValue.t | `StackObj of t ]
 
-type prop =
-  | Data of data * AValue.t * AValue.t
-  | Accessor of accessor * AValue.t * AValue.t
+let rec compare_value (x : value) (y : value) = match x, y with
+  | `A v, `A v' -> AValue.compare v v'
+  | `A _, _ -> 1
+  | _, `A _ -> -1
+  | `StackObj o, `StackObj o' -> compare o o'
+and compare ((attrs, props) : t) ((attrs', props') : t) =
+  order_concat [lazy (compare_value attrs.code attrs'.code);
+                lazy (compare_value attrs.proto attrs'.proto);
+                lazy (compare_value attrs.primval attrs'.primval);
+                lazy (compare_value attrs.klass attrs'.klass);
+                lazy (compare_value attrs.extensible attrs'.extensible);
+                lazy (IdMap.compare prop_compare props props')]
+and prop_compare x y = match x, y with
+  | Data ({value = v; writable = w}, enum, config),
+    Data ({value = v'; writable = w'}, enum', config') ->
+    order_concat [lazy (compare_value v v');
+                  lazy (compare_value w w');
+                  lazy (compare_value enum enum');
+                  lazy (compare_value config config')]
+  | Data _, _ -> 1
+  | _, Data _ -> -1
+  | Accessor ({getter = g; setter = s}, enum, config),
+    Accessor ({getter = g'; setter = s'}, enum', config') ->
+    order_concat [lazy (compare_value g g');
+                  lazy (compare_value s s');
+                  lazy (compare_value enum enum');
+                  lazy (compare_value config config')]
+
+let to_string ((attrs, props) : t) =
+  "Obj"
+
+let string_of_value = function
+  | `A v -> AValue.to_string v
+  | `StackObj o -> "StackObj(" ^ (to_string o) ^ ")"
+
+module Value = struct
+  type t = value
+  let to_string = string_of_value
+  let compare = compare_value
+  let inj (v : AValue.t) = `A v
+end
 
 let string_of_prop : prop -> string = function
-  | Data ({value = v; _}, _, _) -> "Data(" ^ (AValue.to_string v) ^ ")"
-  | Accessor ({getter = g; setter = s}, _, _) -> "Accessor(" ^ (AValue.to_string g) ^ ", " ^ (AValue.to_string s) ^ ")"
-
-(* TODO: use a PropMap that is keyed on AValue.t instead of an IdMap *)
-type t = attrs * (prop IdMap.t)
+  | Data ({value = v; _}, _, _) ->
+    "Data(" ^ (string_of_value v) ^ ")"
+  | Accessor ({getter = g; setter = s}, _, _) ->
+    "Accessor(" ^ (string_of_value g) ^ ", " ^ (string_of_value s) ^ ")"
 
 (* TODO: should use AValue.compare, as its definition could change *)
 let compare : t -> t -> int = Pervasives.compare
 
-let to_string (o : t) = "Obj"
-
-let set_attr_str ((attrs, props) : t) (attr : string) (value : AValue.t) = match attr with
+let set_attr_str ((attrs, props) : t) (attr : string) (value : value) = match attr with
   | "proto" -> ({ attrs with proto = value }, props)
   | "code" -> ({ attrs with code = value }, props)
   | "prim" -> ({ attrs with primval = value }, props)
@@ -46,101 +98,100 @@ let set_attr_str ((attrs, props) : t) (attr : string) (value : AValue.t) = match
 let set_prop ((attrs, props) : t) (prop : string) (value : prop) =
   (attrs, IdMap.add prop value props)
 
-let has_prop ((attrs, props) : t) : AValue.t -> bool = function
-  | `Str prop -> IdMap.mem prop props
-  | `StrT -> failwith "has_prop on abstract string"
-  | _ -> failwith "has_prop: invalid field name"
+let has_prop ((attrs, props) : t) (prop : string) : bool =
+  IdMap.mem prop props
 
-let lookup_prop ((attrs, props) : t) : AValue.t -> prop = function
-  | `Str prop -> IdMap.find prop props
-  | `StrT -> failwith "lookup_prop on abstract string"
-  | _ -> failwith "lookup_prop: invalid field name"
+let lookup_prop ((attrs, props) : t) (prop : string) : prop =
+  IdMap.find prop props
 
-let remove_prop ((attrs, props) : t) : AValue.t -> t = function
-  | `Str prop -> (attrs, IdMap.remove prop props)
-  | `StrT -> failwith "remove_prop on abstract string"
-  | _ -> failwith "remove_prop: invalid field name"
+let remove_prop ((attrs, props) : t) (prop : string) : t =
+  (attrs, IdMap.remove prop props)
 
 (* Mostly taken from Ljs_eval.get_attr *)
-let get_attr ((attrs, props) : t) (attr : S.pattr)
-  : AValue.t -> AValue.t = function
-  | `Str field ->
-    if not (IdMap.mem field props) then
-      `Undef
-    else
-      begin match (IdMap.find field props), attr with
-        | Data (_, _, config), S.Config
-        | Accessor (_, _, config), S.Config -> config
-        | Data (_, enum, _), S.Enum
-        | Accessor (_, enum, _), S.Enum -> enum
-        | Data ({writable = w; _}, _, _), S.Writable -> w
-        | Data ({value = v; _}, _, _), S.Value -> v
-        | Accessor ({ getter = g; _}, _, _), S.Getter -> g
-        | Accessor ({ setter = s; _}, _, _), S.Setter -> s
-        | _ -> failwith "bad access of attriubte"
-      end
-  | `StrT -> failwith "get_attr on abstract string"
-  | _ -> failwith "get_attr: invalid field name"
+let get_attr ((attrs, props) : t) (attr : S.pattr) (field : string) : value =
+  if not (IdMap.mem field props) then
+    (`A `Undef)
+  else begin match (IdMap.find field props), attr with
+    | Data (_, _, config), S.Config
+    | Accessor (_, _, config), S.Config -> config
+    | Data (_, enum, _), S.Enum
+    | Accessor (_, enum, _), S.Enum -> enum
+    | Data ({writable = w; _}, _, _), S.Writable -> w
+    | Data ({value = v; _}, _, _), S.Value -> v
+    | Accessor ({ getter = g; _}, _, _), S.Getter -> g
+    | Accessor ({ setter = s; _}, _, _), S.Setter -> s
+    | _ -> failwith "bad access of attriubte"
+  end
 
 (* Mostly taken from Ljs_eval.set_attr *)
 let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
-    (field : string) (value : AValue.t) : t =
+    (field : string) (value : value) : t =
   let newprop =
     if not (IdMap.mem field props) then
       match ext with
-      | `True -> begin match attr with
-          | S.Getter -> Accessor ({getter = value; setter = `Undef},
-                                  `False, `False)
-          | S.Setter -> Accessor ({getter = `Undef; setter = value},
-                                  `False, `False)
-          | S.Value -> Data ({value = value; writable = `False},
-                             `False, `False)
-          | S.Writable -> Data ({value = `Undef; writable = value},
-                                `False, `False)
-          | S.Enum -> Data ({value = `Undef; writable = `False},
-                            value, `True)
-          | S.Config -> Data ({value = `Undef; writable = `False},
-                              `True, value)
+      | `A `True -> begin match attr with
+          | S.Getter -> Accessor ({getter = value;
+                                   setter = `A `Undef},
+                                  `A `False,
+                                  `A `False)
+          | S.Setter -> Accessor ({getter = `A `Undef;
+                                   setter = value},
+                                  `A `False,
+                                  `A `False)
+          | S.Value -> Data ({value = value;
+                              writable = `A `False},
+                             `A `False,
+                             `A `False)
+          | S.Writable -> Data ({value = `A `Undef;
+                                 writable = value},
+                                `A `False,
+                                `A `False)
+          | S.Enum -> Data ({value = `A `Undef;
+                             writable = `A `False},
+                            value, `A `True)
+          | S.Config -> Data ({value = `A `Undef;
+                               writable = `A `False},
+                              `A `True, value)
         end
-      | `False -> failwith "extending inextensible object"
-      | `BoolT -> failwith "set_attr: TODO"
+      | `A `False -> failwith "extending inextensible object" (* TODO: raise an error that will be thrown instead *)
+      | `A `BoolT -> failwith "set_attr: TODO (branching)"
       | _ -> failwith "set_attr: TODO"
     else
       match (IdMap.find field props), attr with
-      | Data ({writable = `True; _} as d, enum, config), S.Writable
-      | Data (d, enum, (`True as config)), S.Writable ->
+      | Data ({writable = `A `True; _} as d, enum, config), S.Writable
+      | Data (d, enum, (`A `True as config)), S.Writable ->
         Data ({d with writable = value}, enum, config)
-      | Data ({writable = `True; _} as d, enum, config), S.Value ->
+      | Data ({writable = `A `True; _} as d, enum, config), S.Value ->
         Data ({d with value = value}, enum, config)
-      | Data (d, enum, `True), S.Setter ->
-        Accessor ({getter = `Undef; setter = value}, enum, `True)
-      | Data (d, enum, `True), S.Getter ->
-        Accessor ({getter = value; setter = `Undef}, enum, `True)
-      | Accessor (a, enum, `True), S.Getter ->
-        Accessor ({a with getter = value}, enum, `True)
-      | Accessor (a, enum, `True), S.Setter ->
-        Accessor ({a with setter = value}, enum, `True)
-      | Accessor (a, enum, `True), S.Value ->
-        Data ({value = value; writable = `False}, enum, `True)
-      | Accessor (a, enum, `True), S.Writable ->
-        Data ({value = `Undef; writable = value}, enum, `True)
-      | Data (d, _, `True), S.Enum ->
-        Data (d, value, `True)
-      | Data (d, enum, `True), S.Config ->
+      | Data (d, enum, `A `True), S.Setter ->
+        Accessor ({getter = `A `Undef; setter = value}, enum, `A `True)
+      | Data (d, enum, `A `True), S.Getter ->
+        Accessor ({getter = value; setter = `A `Undef}, enum, `A `True)
+      | Accessor (a, enum, `A `True), S.Getter ->
+        Accessor ({a with getter = value}, enum, `A `True)
+      | Accessor (a, enum, `A `True), S.Setter ->
+        Accessor ({a with setter = value}, enum, `A `True)
+      | Accessor (a, enum, `A `True), S.Value ->
+        Data ({value = value; writable = `A `False}, enum, `A `True)
+      | Accessor (a, enum, `A `True), S.Writable ->
+        Data ({value = `A `Undef; writable = value}, enum, `A `True)
+      | Data (d, _, `A `True), S.Enum ->
+        Data (d, value, `A `True)
+      | Data (d, enum, `A `True), S.Config ->
         Data (d, enum, value)
-      | Data (d, enum, `False), S.Config when value = `False ->
-        Data (d, enum, `False)
-      | Accessor (a, enum, `True), S.Config ->
+      | Data (d, enum, `A `False), S.Config when value = `A `False ->
+        Data (d, enum, `A `False)
+      | Accessor (a, enum, `A `True), S.Config ->
         Accessor (a, enum, value)
-      | Accessor (a, enum, `True), S.Enum ->
-        Accessor (a, value, `True)
-      | Accessor (a, enum, `False), S.Config when value = `False ->
-        Accessor (a, enum, `False)
+      | Accessor (a, enum, `A `True), S.Enum ->
+        Accessor (a, value, `A `True)
+      | Accessor (a, enum, `A `False), S.Config when value = `A `False ->
+        Accessor (a, enum, `A `False)
       | _ -> failwith "bad property set"
   in
   (attrs, IdMap.add field newprop props)
 
-let get_obj_attr ((attrs, _) : t) (attr : S.oattr) : AValue.t =
+let get_obj_attr ((attrs, _) : t) (attr : S.oattr) : value =
   match attrs, attr with
   | {proto = v; _}, S.Proto
   | {extensible = v; _}, S.Extensible
@@ -149,9 +200,9 @@ let get_obj_attr ((attrs, _) : t) (attr : S.oattr) : AValue.t =
   | {klass = v; _}, S.Klass -> v
 
 let d_attrsv = {
-  primval = `Undef;
-  code = `Undef;
-  proto = `Null;
-  extensible = `False;
-  klass = `Str "LambdaJS internal"
+  primval = `A `Undef;
+  code = `A `Bot;
+  proto = `A `Null;
+  extensible = `A `False;
+  klass = `A (`Str "LambdaJS internal");
 }

@@ -1,40 +1,23 @@
 open Prelude
 open Shared
 open Env
-open Lattice
 
 module D = Delta
 module S = Ljs_syntax
 module O = Obj_val
-
-(* a StackObj is an object that lives on the stack, it avoids allocating
-   too much objects and allows to use identifiers for the objects' addresses
-   (which is not possible on anonymous objects) *)
-type stack_value = [ `StackObj of O.t ]
-
-type value = [ AValue.t | stack_value ]
-
-let compare_value (x : value) (y : value) = match x, y with
-  | (#AValue.t as v), (#AValue.t as v') -> AValue.compare v v'
-  | #AValue.t, _ -> 1
-  | _, #AValue.t -> -1
-  | `StackObj o, `StackObj o' -> O.compare o o'
-
-let string_of_value = function
-  | #AValue.t as v -> AValue.to_string v
-  | `StackObj o -> "StackObj(" ^ (O.to_string o) ^ ")"
+module V = O.Value
 
 type exc =
-  [ `Break of string * value | `Throw of value ]
+  [ `Break of string * V.t | `Throw of V.t ]
 
 let compare_exc x y = match x, y with
   | `Break (l, v), `Break (l', v') ->
     order_concat [lazy (Pervasives.compare l l');
-                  lazy (compare_value v v')]
+                  lazy (V.compare v v')]
   | `Break _, _ -> 1
   | _, `Break _ -> -1
   | `Throw v, `Throw v' ->
-    compare_value v v'
+    V.compare v v'
 
 type t =
   (* {let (id = exp) body}, where the exp in the frame is body *)
@@ -44,46 +27,46 @@ type t =
   (* {[field1: val1, ...]} *)
   | ObjectAttrs of Pos.t * string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of Pos.t * string * O.t * (string * S.prop) list * Env.t
-  | PropData of Pos.t * string * (O.data * AValue.t * AValue.t) * Env.t
-  | PropAccessor of Pos.t * string * S.exp option * (O.accessor * AValue.t * AValue.t) * Env.t
+  | PropData of Pos.t * string * (O.data * V.t * V.t) * Env.t
+  | PropAccessor of Pos.t * string * S.exp option * (O.accessor * V.t * V.t) * Env.t
   (* left; right *)
   | Seq of S.exp * Env.t
   (* f(arg1, ...) *)
   | AppFun of Pos.t * S.exp list * Env.t
-  | AppArgs of Pos.t * value * value list * S.exp list * Env.t
+  | AppArgs of Pos.t * V.t * V.t list * S.exp list * Env.t
   (* op arg *)
   | Op1App of Pos.t * string * Env.t
   (* arg1 op arg2 *)
   | Op2Arg of Pos.t * string * S.exp * Env.t
-  | Op2App of Pos.t * string * value * Env.t
+  | Op2App of Pos.t * string * V.t * Env.t
   (* if pred then cons else alt *)
   | If of S.exp * S.exp * Env.t
   (* obj[field] *)
   | GetFieldObj of Pos.t * S.exp * S.exp * Env.t
-  | GetFieldField of Pos.t * value * S.exp * Env.t
-  | GetFieldBody of Pos.t * value * value * Env.t
+  | GetFieldField of Pos.t * V.t * S.exp * Env.t
+  | GetFieldBody of Pos.t * V.t * V.t * Env.t
   (* obj[field] = val *)
   | SetFieldObj of Pos.t * S.exp * S.exp * S.exp * Env.t
-  | SetFieldField of Pos.t * value * S.exp * S.exp * Env.t
-  | SetFieldNewval of Pos.t * value * value * S.exp * Env.t
-  | SetFieldArgs of Pos.t * value * value * value * Env.t
+  | SetFieldField of Pos.t * V.t * S.exp * S.exp * Env.t
+  | SetFieldNewval of Pos.t * V.t * V.t * S.exp * Env.t
+  | SetFieldArgs of Pos.t * V.t * V.t * V.t * Env.t
   (* obj[field<#attr>] *)
   | GetAttrObj of S.pattr * S.exp * Env.t
-  | GetAttrField of S.pattr * value * Env.t
+  | GetAttrField of S.pattr * V.t * Env.t
   (* obj[field<#attr> = val] *)
   | SetAttrObj of Pos.t * S.pattr * S.exp * S.exp * Env.t
-  | SetAttrField of Pos.t * S.pattr * value * S.exp * Env.t
-  | SetAttrNewval of Pos.t * S.pattr * value * value * Env.t
+  | SetAttrField of Pos.t * S.pattr * V.t * S.exp * Env.t
+  | SetAttrNewval of Pos.t * S.pattr * V.t * V.t * Env.t
   (* obj[<#attr>] *)
   | GetObjAttr of S.oattr * Env.t
   (* obj[<#attr> = val] *)
   | SetObjAttr of Pos.t * S.oattr * S.exp * Env.t
-  | SetObjAttrNewval of Pos.t * S.oattr * value * Env.t
+  | SetObjAttrNewval of Pos.t * S.oattr * V.t * Env.t
   (* get-own-field-names(obj) *)
   | OwnFieldNames of Pos.t * Env.t
   (* obj[delete exp] *)
   | DeleteFieldObj of S.exp * Env.t
-  | DeleteFieldField of value * Env.t
+  | DeleteFieldField of V.t * Env.t
   (* id := val *)
   | SetBang of Pos.t * string * Address.t * Env.t
   (* label lab : exp *)
@@ -96,7 +79,7 @@ type t =
                          ^^^^^^^^^^^^^^^^^
                               exp'           *)
   | TryCatch of Pos.t * S.exp * Env.t
-  | TryCatchHandler of Pos.t * value * Env.t
+  | TryCatchHandler of Pos.t * V.t * Env.t
   (* try { exp } finally { exp' } *)
   | TryFinally of S.exp * Env.t
   | TryFinallyExc of exc * Env.t
@@ -239,20 +222,20 @@ let touched_addresses = function
   | _ -> AddressSet.empty
 
 (* TODO: some of those functions should probably go elsewhere *)
-let vals_of_prop : O.prop -> value list = function
+let vals_of_prop : O.prop -> V.t list = function
   | O.Data ({O.value = v; O.writable = w}, enum, config) ->
-    [(v :> value); (w :> value); (enum :> value); (config :> value)]
+    [v; w; enum; config]
   | O.Accessor ({O.getter = g; O.setter = s}, enum, config) ->
-    [(g :> value); (s :> value); (enum :> value); (config :> value)]
+    [g; s; enum; config]
 
-let rec addresses_of_vals (l : value list) =
+let rec addresses_of_vals (l : V.t list) =
   let rec aux acc = function
     | [] -> acc
     | h :: t -> begin match h with
-        | `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
-        | `ClosT -> failwith "Closure was too abstracted"
-        | `Obj a -> aux (AddressSet.add a acc) t
-        | `ObjT -> failwith "Object was too abstracted"
+        | `A `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
+        | `A `ClosT -> failwith "Closure was too abstracted"
+        | `A `Obj a -> aux (AddressSet.add a acc) t
+        | `A `ObjT -> failwith "Object was too abstracted"
         | `StackObj o -> addresses_of_obj o
         | _ -> aux acc t
       end in
@@ -260,9 +243,7 @@ let rec addresses_of_vals (l : value list) =
 and addresses_of_obj ({O.code = code; O.proto = proto; O.primval = primval;
                        O.klass = klass; O.extensible = extensible}, props) =
   IdMap.fold (fun _ prop -> AddressSet.union (addresses_of_vals (vals_of_prop prop)))
-    props (addresses_of_vals
-             [(code :> value); (proto :> value); (primval :> value);
-              (klass :> value); (extensible :> value)])
+    props (addresses_of_vals [code; proto; primval; klass; extensible])
 
 let touched_addresses_from_values frame =
   match frame with
@@ -270,11 +251,9 @@ let touched_addresses_from_values frame =
   | AppArgs (_, f, args, _, _) ->
     addresses_of_vals (f :: args)
   | PropData (_, _, ({O.value = v; O.writable = w}, enum, config), _) ->
-    addresses_of_vals [(v :> value); (w :> value);
-                       (enum :> value); (config :> value)]
+    addresses_of_vals [v; w; enum; config]
   | PropAccessor (_, _, _, ({O.getter = g; setter = s}, enum, config), _) ->
-    addresses_of_vals [(g :> value); (s :> value);
-                       (enum :> value); (config :> value)]
+    addresses_of_vals [g; s; enum; config]
 
   (* Object *)
   | ObjectAttrs (_, _, o, _, _, _)
@@ -327,7 +306,7 @@ let touched_addresses_from_values frame =
 
   (* Three values *)
   | SetFieldArgs (_, v1, v2, v3, _) ->
-    addresses_of_vals [(v1 :> value); (v2 :> value); (v3 :> value)]
+    addresses_of_vals [v1; v2; v3]
 
 let touch frame genv =
   AddressSet.union
@@ -448,8 +427,8 @@ let compare f f' = match f, f' with
   | _, AppFun _ -> -1
   | AppArgs (p, f, vals, args, env), AppArgs (p', f', vals', args', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value f f');
-                  lazy (compare_list compare_value vals vals');
+                  lazy (V.compare f f');
+                  lazy (compare_list V.compare vals vals');
                   lazy (Pervasives.compare args args');
                   lazy (Env.compare env env')]
   | AppArgs _, _ -> 1
@@ -470,7 +449,7 @@ let compare f f' = match f, f' with
   | Op2App (p, op, arg1, env), Op2App (p', op', arg1', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare op op');
-                  lazy (compare_value arg1 arg1');
+                  lazy (V.compare arg1 arg1');
                   lazy (Env.compare env env')]
   | Op2App _, _ -> 1
   | _, Op2App _ -> -1
@@ -489,15 +468,15 @@ let compare f f' = match f, f' with
   | _, GetFieldObj _ -> -1
   | GetFieldField (p, obj, body, env), GetFieldField (p', obj', body', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value obj obj');
+                  lazy (V.compare obj obj');
                   lazy (Pervasives.compare body body');
                   lazy (Env.compare env env')]
   | GetFieldField _, _ -> 1
   | _, GetFieldField _ -> -1
   | GetFieldBody (p, obj, field, env), GetFieldBody (p', obj', field', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value obj obj');
-                  lazy (compare_value field field');
+                  lazy (V.compare obj obj');
+                  lazy (V.compare field field');
                   lazy (Env.compare env env')]
   | GetFieldBody _, _ -> 1
   | _, GetFieldBody _ -> -1
@@ -513,7 +492,7 @@ let compare f f' = match f, f' with
   | SetFieldField (p, obj, newval, body, env),
     SetFieldField (p', obj', newval', body', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value obj obj');
+                  lazy (V.compare obj obj');
                   lazy (Pervasives.compare newval newval');
                   lazy (Pervasives.compare body body');
                   lazy (Env.compare env env')]
@@ -522,8 +501,8 @@ let compare f f' = match f, f' with
   | SetFieldNewval (p, obj, field, body, env),
     SetFieldNewval (p', obj', field', body', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value obj obj');
-                  lazy (compare_value field field');
+                  lazy (V.compare obj obj');
+                  lazy (V.compare field field');
                   lazy (Pervasives.compare body body');
                   lazy (Env.compare env env')]
   | SetFieldNewval _, _ -> 1
@@ -531,9 +510,9 @@ let compare f f' = match f, f' with
   | SetFieldArgs (p, obj, field, newval, env),
     SetFieldArgs (p', obj', field', newval', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value obj obj');
-                  lazy (compare_value field field');
-                  lazy (compare_value newval newval');
+                  lazy (V.compare obj obj');
+                  lazy (V.compare field field');
+                  lazy (V.compare newval newval');
                   lazy (Env.compare env env')]
   | SetFieldArgs _, _ -> 1
   | _, SetFieldArgs _ -> -1
@@ -545,7 +524,7 @@ let compare f f' = match f, f' with
   | _, GetAttrObj _ -> -1
   | GetAttrField (pattr, obj, env), GetAttrField (pattr', obj', env') ->
     order_concat [lazy (Pervasives.compare pattr pattr');
-                  lazy (compare_value obj obj');
+                  lazy (V.compare obj obj');
                   lazy (Env.compare env env')]
   | GetAttrField _, _ -> 1
   | _, GetAttrField _ -> -1
@@ -562,7 +541,7 @@ let compare f f' = match f, f' with
     SetAttrField (p', pattr', obj', newval', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare pattr pattr');
-                  lazy (compare_value obj obj');
+                  lazy (V.compare obj obj');
                   lazy (Pervasives.compare newval newval');
                   lazy (Env.compare env env')]
   | SetAttrField _, _ -> 1
@@ -571,8 +550,8 @@ let compare f f' = match f, f' with
     SetAttrNewval (p', pattr', obj', field', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare pattr pattr');
-                  lazy (compare_value obj obj');
-                  lazy (compare_value field field');
+                  lazy (V.compare obj obj');
+                  lazy (V.compare field field');
                   lazy (Env.compare env env')]
   | SetAttrNewval _, _ -> 1
   | _, SetAttrNewval _ -> -1
@@ -593,7 +572,7 @@ let compare f f' = match f, f' with
     SetObjAttrNewval (p', oattr', obj', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare oattr oattr');
-                  lazy (compare_value obj obj');
+                  lazy (V.compare obj obj');
                   lazy (Env.compare env env')]
   | SetObjAttrNewval _, _ -> 1
   | _, SetObjAttrNewval _ -> -1
@@ -613,7 +592,7 @@ let compare f f' = match f, f' with
   | DeleteFieldObj _, _ -> 1
   | _, DeleteFieldObj _ -> -1
   | DeleteFieldField (v, env), DeleteFieldField (v', env') ->
-    order_concat [lazy (compare_value v v');
+    order_concat [lazy (V.compare v v');
                   lazy (Env.compare env env')]
   | DeleteFieldField _, _ -> 1
   | _, DeleteFieldField _ -> -1
@@ -641,7 +620,7 @@ let compare f f' = match f, f' with
   | _, TryCatch _ -> -1
   | TryCatchHandler (p, v, env), TryCatchHandler (p', v', env') ->
     order_concat [lazy (Pos.compare p p');
-                  lazy (compare_value v v');
+                  lazy (V.compare v v');
                   lazy (Env.compare env env')]
   | TryCatchHandler _, _ -> 1
   | _, TryCatchHandler _ -> -1

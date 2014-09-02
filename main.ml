@@ -74,12 +74,13 @@ let eval exp env =
   let (c0, global) = LJS.inject exp env in
   let rec aux graph stack conf =
     try
+      print_endline ("conf: " ^ (LJS.string_of_conf conf) ^ ", top: " ^ (BatOption.map_default (fun (_, f) -> F.to_string f) "-" (top stack)));
       let confs' = LJS.step conf global (top stack) in
       match confs' with
       | [] ->
         graph, conf
       | (g, ((s, _) as conf')) :: _ ->
-        (* print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf')); *)
+        print_endline ((LJS.string_of_conf conf) ^ " -> " ^ (LJS.string_of_stack_change g) ^ " -> " ^ (LJS.string_of_conf conf'));
         aux (G.add_edge_e graph (conf, g, conf'))
           (match g with
            | LJS.StackPush f -> push stack (conf', f)
