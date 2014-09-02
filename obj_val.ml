@@ -66,12 +66,21 @@ and prop_compare x y = match x, y with
                   lazy (compare_value enum enum');
                   lazy (compare_value config config')]
 
-let to_string ((attrs, props) : t) =
-  "Obj"
+let string_of_map fold k v m =
+  "{" ^ (String.concat "\n"
+           (fold (fun k' v' a -> ((k k') ^ ": " ^ (v v')) :: a) m [])) ^ "}"
 
-let string_of_value = function
+let rec to_string ((attrs, props) : t) =
+  "Obj(" ^
+  (string_of_map IdMap.fold (fun x -> x) string_of_prop props) ^ ")"
+and string_of_value = function
   | `A v -> AValue.to_string v
   | `StackObj o -> "StackObj(" ^ (to_string o) ^ ")"
+and string_of_prop : prop -> string = function
+  | Data ({value = v; _}, _, _) ->
+    "Data(" ^ (string_of_value v) ^ ")"
+  | Accessor ({getter = g; setter = s}, _, _) ->
+    "Accessor(" ^ (string_of_value g) ^ ", " ^ (string_of_value s) ^ ")"
 
 module Value = struct
   type t = value
@@ -79,12 +88,6 @@ module Value = struct
   let compare = compare_value
   let inj (v : AValue.t) = `A v
 end
-
-let string_of_prop : prop -> string = function
-  | Data ({value = v; _}, _, _) ->
-    "Data(" ^ (string_of_value v) ^ ")"
-  | Accessor ({getter = g; setter = s}, _, _) ->
-    "Accessor(" ^ (string_of_value g) ^ ", " ^ (string_of_value s) ^ ")"
 
 (* TODO: should use AValue.compare, as its definition could change *)
 let compare : t -> t -> int = Pervasives.compare

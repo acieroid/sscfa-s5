@@ -95,7 +95,7 @@ struct
     time : Time.t;
   }
 
-  let string_of_state state =
+  let string_of_state (state : state) =
     (*    Printf.sprintf "Env: %d, VStore: %d, OStore: %d"
           (Env.size state.env) (ValueStore.size state.vstore) (ObjectStore.size state.ostore) *)
     (string_of_control state.control)
