@@ -1,0 +1,16 @@
+// Expected: null
+rec (%protoOfField = func(object, fld) {
+  if (prim("stx=", object, null)) {
+    object
+  } else {
+    if (prim("hasOwnProperty", object, fld)) {
+      object
+    } else {
+      %protoOfField(object[<#proto>], fld)
+    }
+  }
+})
+let (%ObjectProto = {[#proto: null, #class: "Object", #extensible: true]})
+let (%global = {[#proto: %ObjectProto, #class: "Object", #extensible: true]})
+let (%context = {[#proto: %global, #class: "Object", #extensible: true]})
+%protoOfField(%context, "foo")
