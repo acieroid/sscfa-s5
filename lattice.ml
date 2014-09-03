@@ -82,9 +82,8 @@ module BoolF(L : BoolS) = struct
   let to_top ((`True | `False | `BoolT) : t0) = `BoolT
 end
 
-type env = Env.t
 module ClosT = struct
-  type t = [ `Clos of env * Prelude.id list * SYN.exp | `ClosT ]
+  type t = [ `Clos of Env.t * Prelude.id list * SYN.exp | `ClosT ]
 end
 module type ClosS = sig
   type t0 = private [> ClosT.t]
@@ -93,16 +92,24 @@ end
 module ClosF(L : ClosS) = struct
   type t0 = ClosT.t
   type t = L.t
+  let compare c c' = match c, c' with
+    | `Clos (env, args, exp), `Clos (env', args', exp') ->
+      order_concat [lazy (Env.compare env env');
+                    lazy (Pervasives.compare args args');
+                    lazy (Pervasives.compare exp exp')]
+    | `Clos _, _ -> 1
+    | _, `Clos _ -> -1
+    | `ClosT, `ClosT -> 0
   let join ((`Clos _ | `ClosT) as c : t0)
       ((`Clos _ | `ClosT) as c' : t0) : t =
-    if c = c' then c else `ClosT
+    if compare c c' == 0 then c else `ClosT
   let singletonp ((`Clos _ | `ClosT) as c : t0) =
     match c with `Clos _ -> true | _ -> false
   let subsumes ((`Clos _ | `ClosT) as c : t0)
       ((`Clos _ | `ClosT) as c' : t0) = match c, c' with
       | `ClosT, _ -> true
       | `Clos (env, xs, exp), `Clos (env', xs', exp') ->
-        Env.subsumes env env' && xs = xs' && compare exp exp' = 0
+        Env.subsumes env env' && xs = xs' && Pervasives.compare exp exp' = 0
       | _ -> false
   let to_string ((`Clos _ | `ClosT) as c : t0) : string = match c with
     | `Clos (env, xs, exp) ->
@@ -122,14 +129,21 @@ end
 module ObjF(L : ObjS) = struct
   type t0 = ObjT.t
   type t = L.t
-  let join ((`Obj _ | `ObjT) as o : t0)
-      ((`Obj _ | `ObjT) as o' : t0): t =
-    if o = o' then o else `ObjT
+  let compare (o : t0) (o' : t0) : int= match o, o' with
+    | `Obj a, `Obj a' -> Address.compare a a'
+    | `Obj _, _ -> 1
+    | _, `Obj _ -> -1
+    | `ObjT, `ObjT -> 0
+  let join (o : t0) (o' : t0) : t =
+    if compare o o' = 0 then
+      (o :> t)
+    else
+      `ObjT
   let singletonp ((`Obj _ | `ObjT) as o : t0) =
     match o with `Obj _ -> true | _ -> false
   let subsumes ((`Obj _ | `ObjT) as o : t0)
       ((`Obj _ | `ObjT) as o' : t0) : bool =
-    match o, o' with `ObjT, _ -> true | _ -> o = o'
+    match o, o' with `ObjT, _ -> true | _ -> compare o o' == 0
   let to_string ((`Obj _ | `ObjT) as o : t0) = match o with
     | `Obj a -> "obj"^(Address.to_string a)
     | `ObjT -> "objT"
@@ -222,7 +236,7 @@ module type AValueS = sig
   val compare: t -> t -> int
 
   val bool: bool -> t
-  val clos: env -> Prelude.id list -> SYN.exp -> t
+  val clos: Env.t -> Prelude.id list -> SYN.exp -> t
   val num: float -> t
   val obj: addr -> t
   val str: string -> t
@@ -247,7 +261,7 @@ module AValueF
 
     (* and swap one of these creators, then you're done! *)
     let bool (b : bool) = if b then `True else `False
-    let clos (env : env) (xs : Prelude.id list) (exp : SYN.exp) =
+    let clos (env : Env.t) (xs : Prelude.id list) (exp : SYN.exp) =
       `Clos (env, xs, exp)
     let num (f : float) = `Num f
     let obj (a : addr) = `Obj a
@@ -318,7 +332,7 @@ module type AValueFixpoint = sig
   include VLATTICE with type t = t0
   val compare: t -> t -> int
   val bool: bool -> t
-  val clos: env -> Prelude.id list -> SYN.exp -> t
+  val clos: Env.t -> Prelude.id list -> SYN.exp -> t
   val num: float -> t
   val obj: addr -> t
   val str: string -> t
