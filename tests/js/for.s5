@@ -1,4 +1,4 @@
-// Expected: 55.
+// Expected: 55. or NumT
 let (%context = %nonstrictContext)
 {%defineGlobalVar(%context,
                   "sum");
