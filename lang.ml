@@ -27,6 +27,8 @@ sig
   val string_of_conf : conf -> string
   module ConfOrdering : BatInterfaces.OrderedType with type t = conf
 
+  val is_value_conf : conf -> bool
+
   (** Global information that can be useful. It remains constant throughout the
       evaluation, and is passed to the step function at each step. It can for
       example be used to model a global environment and/or store *)
@@ -501,10 +503,16 @@ struct
       let ostore'', arg2' = alloc_if_necessary p conf' ("op2-" ^ op ^ "arg2") v in
       [{state with control = Val (`A (D.op2 ostore'' global.gostore op arg1' arg2'));
                    ostore = ostore''; env = env'}]
-    | F.If (cons, alt, env') -> begin match Delta.prim_to_bool_v v with
+    | F.If (cons, alt, env') ->
+      print_endline ("If: " ^ AValue.to_string (Delta.prim_to_bool_v v));
+      begin match Delta.prim_to_bool_v v with
         | `True -> [{state with control = Exp cons; env = env'}]
-        | `BoolT -> [{state with control = Exp cons; env = env'};
-                                  {state with control = Exp alt; env = env'}]
+        | `BoolT ->
+          print_endline ("Leads to two states: " ^
+                         (full_string_of_exp cons) ^ ", and " ^
+                         (full_string_of_exp alt));
+          [{state with control = Exp cons; env = env'};
+           {state with control = Exp alt; env = env'}]
         | `False -> [{state with control = Exp alt; env = env'}]
       end
     | F.GetFieldObj (p, field, body, env') ->
@@ -1033,4 +1041,9 @@ struct
                  vstore = ValueStore.merge state.vstore state'.vstore;
                  ostore = ObjectStore.merge state.ostore state'.ostore},
      ss)
+
+  let is_value_conf ((state, _) : conf) =
+    match state.control with
+    | Val _ | PropVal _ -> true
+    | _ -> false
 end

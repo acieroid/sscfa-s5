@@ -250,11 +250,18 @@ module BuildDSG =
         (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
 
     let final_states dsg =
-      G.fold_vertex (fun v acc -> if BatList.is_empty (G.succ dsg.g v) then
-                        v :: acc
-                      else
-                        acc)
-        dsg.g []
+      (* The initial state is the only one which has no vertex coming into it *)
+      let initial = G.fold_vertex
+          (fun v -> function
+            | None -> if G.in_degree dsg.g v = 0 then Some v else None
+            | Some init -> Some init)
+          dsg.g None in
+      match initial with
+      | Some init ->
+        (* The final states are all value states reachable from the initial
+           state in the ECG *)
+        BatList.filter L.is_value_conf (G.succ dsg.ecg init)
+      | None -> failwith "final_states: no initial state found"
   end
 
 module L = LJS
