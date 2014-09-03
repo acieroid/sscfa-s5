@@ -92,11 +92,11 @@ module BuildDSG =
           (fun e (de, dh) -> match e with
              | (c1, L.StackPush k, c1') when L.ConfOrdering.compare c1' c == 0 ->
                let de', dh' =
-                 (List.fold_left (fun acc edge -> match edge with
+                 (List.fold_left (fun (de, dh) edge -> match edge with
                       | (L.StackPop k', c2) when L.FrameOrdering.compare k k' == 0 ->
                         (EdgeSet.add (c', L.StackPop k, c2) de,
                          EpsSet.add (c1, c2) dh)
-                      | _ -> acc)
+                      | _ -> (de, dh))
                      (EdgeSet.empty, EpsSet.empty)
                      (L.step c' dsg.global (Some (c, k)))) in
                (EdgeSet.union de de', EpsSet.union dh dh')
