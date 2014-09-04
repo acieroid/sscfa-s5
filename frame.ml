@@ -32,8 +32,8 @@ type t =
   (* left; right *)
   | Seq of S.exp * Env.t
   (* f(arg1, ...) *)
-  | AppFun of Pos.t * S.exp list * Env.t
-  | AppArgs of Pos.t * V.t * V.t list * S.exp list * Env.t
+  | AppFun of Pos.t * S.exp * S.exp list * Env.t
+  | AppArgs of Pos.t * S.exp * V.t * V.t list * S.exp list * Env.t
   (* op arg *)
   | Op1App of Pos.t * string * Env.t
   (* arg1 op arg2 *)
@@ -92,8 +92,8 @@ let env_of_frame = function
   | ObjectProps (_, _, _, _, env)
   | PropAccessor (_, _, _, _, env)
   | Rec (_, _, _, _, env)
-  | AppFun (_, _, env)
-  | AppArgs (_, _, _, _, env)
+  | AppFun (_, _, _, env)
+  | AppArgs (_, _, _, _, _, env)
   | SetFieldObj (_, _, _, _, env)
   | If (_, _, env)
   | GetFieldObj (_, _, _, env)
@@ -149,7 +149,7 @@ let free_vars frame =
   let fv_prop = function
     | (_, S.Data ({S.value = v; _}, _, _)) -> S.free_vars v
     | (_, S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
-       IdSet.union (S.free_vars g) (S.free_vars s) in
+      IdSet.union (S.free_vars g) (S.free_vars s) in
   let fv_attrs = fv_list fv_attr in
   let fv_props = fv_list fv_prop in
   match frame with
@@ -160,8 +160,10 @@ let free_vars frame =
   | ObjectProps (_, _, _, props, _) -> fv_props props
 
   (* List of exps *)
-  | AppFun (_, args, _)
-  | AppArgs (_, _, _, args, _) ->
+  (* the first exp in AppFun and AppArgs is just for information about the
+     callee, and is not reachable. However, the the args are reachable *)
+  | AppFun (_, _, args, _)
+  | AppArgs (_, _, _, _, args, _) ->
     fv_list S.free_vars args
 
   (* Three exps *)
@@ -242,7 +244,7 @@ and addresses_of_obj ({O.code = code; O.proto = proto; O.primval = primval;
 let touched_addresses_from_values frame =
   match frame with
   (* Special cases *)
-  | AppArgs (_, f, args, _, _) ->
+  | AppArgs (_, _, f, args, _, _) ->
     addresses_of_vals (f :: args)
   | PropData (_, _, ({O.value = v; O.writable = w}, enum, config), _) ->
     addresses_of_vals [v; w; enum; config]
@@ -322,7 +324,7 @@ let to_string = function
   | PropAccessor (_, name, None, _, _) -> "PropAccessor-Set-" ^ name
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
-  | AppArgs (p, _, _, _, _) -> "AppArgs-" ^ (Pos.string_of_pos p)
+  | AppArgs (p, _, _, _, _, _) -> "AppArgs-" ^ (Pos.string_of_pos p)
   | Op1App (_, op, _) -> "Op1App-" ^ op
   | Op2Arg (_, op, _, _) -> "Op2Arg-" ^ op
   | Op2App (_, op, _, _) -> "Op2App-" ^ op
@@ -413,13 +415,14 @@ let compare f f' = match f, f' with
                   lazy (Env.compare env env')]
   | Seq _, _ -> 1
   | _, Seq _ -> -1
-  | AppFun (p, args, env), AppFun (p', args', env') ->
+  | AppFun (p, _, args, env), AppFun (p', _, args', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare args args');
                   lazy (Env.compare env env')]
   | AppFun _, _ -> 1
   | _, AppFun _ -> -1
-  | AppArgs (p, f, vals, args, env), AppArgs (p', f', vals', args', env') ->
+  | AppArgs (p, _, f, vals, args, env),
+    AppArgs (p', _, f', vals', args', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (V.compare f f');
                   lazy (compare_list V.compare vals vals');

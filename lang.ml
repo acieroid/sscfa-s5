@@ -203,7 +203,8 @@ struct
               else
                 error ("GC reached a non-reachable object address: " ^
                        (Address.to_string a)) Not_found;
-            | `ClosT | `ObjT | `Top -> failwith "touch: a value was too abstract"
+            | `ClosT | `ObjT | `Top -> failwith ("touch: a value was too abstract: " ^
+                                                  (AValue.to_string v))
           end
         | `StackObj obj -> aux_obj acc visited_objs obj
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
@@ -475,18 +476,19 @@ struct
                    env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
-    | F.AppFun (p, [], env') ->
+    | F.AppFun (p, _, [], env') ->
       let (exp, state') = apply_fun p v [] conf global in
       [{state' with control = Exp exp}]
-    | F.AppFun (p, arg :: args, env') ->
-      [{state with control = Frame (Exp arg, (F.AppArgs (p, v, [], args, env')));
+    | F.AppFun (p, exp, arg :: args, env') ->
+      [{state with control = Frame (Exp arg, (F.AppArgs (p, exp, v, [], args, env')));
                    env = env'}]
-    | F.AppArgs (p, f, vals, [], env') ->
+    | F.AppArgs (p, exp, f, vals, [], env') ->
       let args = BatList.rev (v :: vals) in
       let (exp, state') = apply_fun p f args conf global in
       [{state' with control = Exp exp}]
-    | F.AppArgs (p, f, vals, arg :: args, env') ->
-      [{state with control = Frame (Exp arg, (F.AppArgs (p, f, v :: vals, args, env')));
+    | F.AppArgs (p, exp, f, vals, arg :: args, env') ->
+      [{state with control = Frame (Exp arg,
+                                    (F.AppArgs (p, exp, f, v :: vals, args, env')));
                    env = env'}]
     | F.Op1App (p, op, env') ->
       (* TODO: we should avoid allocating for op1 and op2 *)
@@ -942,7 +944,7 @@ struct
       push (F.Seq (right, state.env))
         ({state with control = Exp left}, ss) global
     | S.App (p, f, args) ->
-      push (F.AppFun (p, args, state.env))
+      push (F.AppFun (p, f, args, state.env))
         ({state with control = Exp f}, ss) global
     | S.Op1 (p, op, arg) ->
       push (F.Op1App (p, op, state.env))
