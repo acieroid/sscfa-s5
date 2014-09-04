@@ -1,0 +1,9 @@
+// Expected: numT
+rec (f = func(n) {
+  if (prim("stx=", n, 0)) {
+    n
+  } else {
+    f(prim("-", n, 1))
+  }
+})
+f(150)
