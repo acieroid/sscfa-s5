@@ -3,6 +3,8 @@ open Prelude
 
 let m = 1
 
+type allocation_strategy = [ `MCFA | `PSKCFA ]
+
 module type Env_signature =
   sig
     (** Type of the environment itself *)
@@ -46,8 +48,15 @@ module type Env_signature =
         first environment *)
     val merge : t -> t -> t
 
+    (* Some parameters that are stack-properties are stored in the environment,
+       as the environment is itself a stack property: it is modified at function
+       application and restored at the end of a function application *)
+
     (** Store the call site in the environment (for m-CFA) *)
     val call : Pos.t -> t -> t
+
+    (** Change the allocation strategy *)
+    val set_alloc : allocation_strategy -> t -> t
   end
 
 (* S5 uses a map of identifier *)
@@ -58,9 +67,10 @@ module Env =
     type t = {
       env : Address.t StringMap.t;
       call : Pos.t list;
+      strategy : allocation_strategy;
     }
 
-    let empty = {env = StringMap.empty; call=[]}
+    let empty = {env = StringMap.empty; call = []; strategy = `MCFA}
 
     let extend id a e = {e with env = StringMap.add id a e.env}
 
@@ -73,7 +83,9 @@ module Env =
 
     let compare e e' =
       order_concat [lazy (compare_list Pos.compare e.call e'.call);
+                    lazy (Pervasives.compare e.strategy e'.strategy);
                     lazy (StringMap.compare Address.compare e.env e'.env)]
+
 
     let size e = StringMap.cardinal e.env
 
@@ -101,10 +113,11 @@ module Env =
         match v1, v2 with
         | Some x, _ | None, Some x -> Some x
         | None, None -> None in
-      {env = StringMap.merge merge_val e1.env e2.env;
-       call = e1.call}
+      {e1 with env = StringMap.merge merge_val e1.env e2.env}
 
     let call p env =
-      print_endline ("Call: " ^ (Pos.string_of_pos p));
       {env with call = BatList.take m (p :: env.call)}
+
+    let set_alloc strategy env =
+      {env with strategy = strategy}
   end
