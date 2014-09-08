@@ -94,7 +94,7 @@ struct
     env : Env.t;
     vstore : ValueStore.t;
     ostore : ObjectStore.t;
-    time : Time.t;
+    time : Time.t; (* only used for increasing context-sensitivity in some places *)
   }
 
   let string_of_state (state : state) =
@@ -258,9 +258,10 @@ struct
 
     let touching_rel1 (vstore : ValueStore.t) (ostore : ObjectStore.t)
         (global : global) (addr : Address.t)
-      : AddressSet.t = let v = match addr with
-      | `ObjAddress _ -> `Obj addr
-      | `VarAddress _ ->
+      : AddressSet.t = let v =
+      if Address.is_obj_addr addr then
+        `Obj addr
+      else
         let store = which_vstore addr vstore global.gvstore in
         ValueStore.lookup addr store
       in
@@ -330,18 +331,14 @@ struct
   end
 
   let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) =
-    (* m-CFA *)
-    (* Address.alloc_var p id ss.MCFAStackSummary.mtime *)
-    Address.alloc_var p id state.env.Env.call
-  (* k-CFA *)
-  (* Address.alloc_var p id state.time *)
+    match state.env.Env.strategy with
+    | `MCFA -> Address.alloc_var p id (`MCFATime state.env.Env.call)
+    | `PSKCFA -> Address.alloc_var p id (`PSKCFATime state.time)
 
   let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) =
-    (* m-CFA *)
-    (* Address.alloc_obj p id ss.MCFAStackSummary.mtime *)
-    Address.alloc_obj p id state.env.Env.call
-  (* k-CFA *)
-  (* Address.alloc_obj p id state.time *)
+    match state.env.Env.strategy with
+    | `MCFA -> Address.alloc_obj p id (`MCFATime state.env.Env.call)
+    | `PSKCFA -> Address.alloc_obj p id (`PSKCFATime state.time)
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
     | `A v -> (state.ostore, v)
@@ -352,7 +349,7 @@ struct
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = { control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
-                  ostore = ObjectStore.empty; time = Time.initial } in
+                  ostore = ObjectStore.empty; time = PSTime.initial } in
     let empty_global = { genv = Env.empty; gvstore = ValueStore.empty;
                          gostore = ObjectStore.empty } in
     (empty, StackSummary.empty),
@@ -384,14 +381,18 @@ struct
 
   (** Do the selection of parameters that will be used in timestamps (for
       parameter sensitive addresses) *)
-  let select_params args : (string * PSTime.v) list =
-    let f (n, v) = match v with
-      | #PSTime.v as v' -> Some (n, v')
+  let select_params (args : (string * V.t) list) : (string * Time.v) list =
+    let f ((n, v) : string * V.t) : ((string * Time.v) option) = match v with
+      | `A v' ->
+        begin match v' with
+        | #PSTime.v as v'' -> Some (n, v'')
+        | _ -> None
+        end
       | _ -> None in
     BatList.filter_map f args
 
-  let rec apply_fun (p : Pos.t) (f : V.t) (args : V.t list) ((state, ss) : conf)
-      (global : global) : (S.exp * state) =
+  let rec apply_fun (p : Pos.t) (name : string option) (f : V.t) (args : V.t list)
+      ((state, ss) : conf) (global : global) : (S.exp * state) =
     match f with
     | `A `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
@@ -414,25 +415,25 @@ struct
         print_endline ("Call : " ^ (string_of_list args' (fun x -> x)));
         (body, {state' with
                 env = Env.call p state'.env;
-                (* k-CFA *)
-                time = Time.tick (S.pos_of body) state.time
-                (* Parameter-sensitive k-CFA *)
-                (* time = Time.tick ((S.pos_of body),
+                time = match state'.env.Env.strategy with
+               (* | `KCFA -> Time.tick (S.pos_of body) state.time *)
+                | `PSKCFA -> Time.tick ((S.pos_of body),
                                   select_params (BatList.combine args' args))
-                    state.time *)})
+                              state.time
+                | `MCFA -> state.time})
     | `A `ClosT -> failwith "Closure too abstracted"
     | `A `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `A (`Clos f); _}, _) ->
-          apply_fun p (`A (`Clos f)) args (state, ss) global
+          apply_fun p name (`A (`Clos f)) args (state, ss) global
         | `ObjT -> failwith "Applied too abstracted object"
         (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith "Applied object without code attribute"
       end
     | `A `ObjT -> failwith "Object too abstracted when applying function"
     | `StackObj ({O.code = `A (`Clos f); _}, _) ->
-      apply_fun p (`A (`Clos f)) args (state, ss) global
+      apply_fun p name (`A (`Clos f)) args (state, ss) global
     | `StackObj _ -> failwith "Applied object without code attribute"
     (* TODO: S5 or JS error? *)
     | _ -> failwith "Applied non-function"
@@ -476,15 +477,20 @@ struct
                    env = env'}]
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
-    | F.AppFun (p, _, [], env') ->
-      let (exp, state') = apply_fun p v [] conf global in
+    | F.AppFun (p, exp, [], env') ->
+      let (exp, state') = apply_fun p (match exp with
+                                         | S.Id (_, name) -> Some name
+                                         | _ -> None)
+          v [] conf global in
       [{state' with control = Exp exp}]
     | F.AppFun (p, exp, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (p, exp, v, [], args, env')));
                    env = env'}]
     | F.AppArgs (p, exp, f, vals, [], env') ->
       let args = BatList.rev (v :: vals) in
-      let (exp, state') = apply_fun p f args conf global in
+      let (exp, state') = apply_fun p (match exp with
+          | S.Id (_, name) -> Some name
+          | _ -> None) f args conf global in
       [{state' with control = Exp exp}]
     | F.AppArgs (p, exp, f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg,
@@ -506,15 +512,10 @@ struct
       [{state with control = Val (`A (D.op2 ostore'' global.gostore op arg1' arg2'));
                    ostore = ostore''; env = env'}]
     | F.If (cons, alt, env') ->
-      print_endline ("If: " ^ AValue.to_string (Delta.prim_to_bool_v v));
       begin match Delta.prim_to_bool_v v with
         | `True -> [{state with control = Exp cons; env = env'}]
-        | `BoolT ->
-          print_endline ("Leads to two states: " ^
-                         (full_string_of_exp cons) ^ ", and " ^
-                         (full_string_of_exp alt));
-          [{state with control = Exp cons; env = env'};
-           {state with control = Exp alt; env = env'}]
+        | `BoolT -> [{state with control = Exp cons; env = env'};
+                     {state with control = Exp alt; env = env'}]
         | `False -> [{state with control = Exp alt; env = env'}]
       end
     | F.GetFieldObj (p, field, body, env') ->
@@ -531,7 +532,7 @@ struct
             | Some (O.Data ({O.value = v; _}, _, _)) ->
               [{state with control = Val v; env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun p g [obj; v] conf global in
+              let (body, state') = apply_fun p None g [obj; v] conf global in
               [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
             | None -> [{state with control = Val (`A `Undef); env = env'}]
           end
@@ -574,7 +575,7 @@ struct
                 | Some (O.Accessor ({O.setter = `A `Undef; _}, _, _)) ->
                   [{state with control = Exception (`Throw (`A (`Str "uwritable-field")))}]
                 | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, state') = apply_fun p setter [obj; body] conf global in
+                  let (exp, state') = apply_fun p None setter [obj; body] conf global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
@@ -785,7 +786,7 @@ struct
       [{state with control = Val v; env = env'}]
     | F.TryCatchHandler (p, exc, env') ->
       (* Exception should be handled by the handler *)
-      let (body, state') = apply_fun p v [exc] conf global in
+      let (body, state') = apply_fun p None v [exc] conf global in
       [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
     | F.TryFinally (finally, env') ->
       (* No exception, execute the finally *)
@@ -924,9 +925,9 @@ struct
          are defined without funcalls in between (see tests/objs-imprecision.s5)
       *)
       (* k-CFA *)
-      let state = {state with time = Time.tick p state.time} in
+      (* let state = {state with time = Time.tick p state.time} in *)
       (* Parameter-sensitive k-CFA *)
-      (* let state = {state with time = Time.tick (p, []) state.time} in *)
+      let state = {state with time = PSTime.tick (p, []) state.time} in
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
