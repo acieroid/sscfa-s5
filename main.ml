@@ -14,12 +14,14 @@ let speclist = [
   "environment file to load";
   "-dump", Arg.String (fun s -> dump := Some s),
   "where to dump the final environment (and store) of the execution";
-  "-restricted-gc", Arg.Unit (fun () -> restricted_gc := true),
+  "-restricted-gc", Arg.Set restricted_gc,
   "disable GC for global S5 variables (starting with %)";
   "-no-gc", Arg.Unit (fun () -> gc := false),
   "entirely disable GC";
   "-deterministic", Arg.Unit (fun () -> computation := `Eval),
-  "assume all transitions are deterministic, resulting in a list of states instead of a graph"
+  "assume all transitions are deterministic, resulting in a list of states instead of a graph";
+  "-only-mcfa", Arg.Set only_mcfa,
+  "only use m-CFA addresses, and no parameter-sensitive k-CFA";
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"

@@ -3,6 +3,7 @@ open Ljs_syntax
 
 let debug = ref false
 let restricted_gc = ref false
+let only_mcfa = ref false
 
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =

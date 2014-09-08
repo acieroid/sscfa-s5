@@ -412,10 +412,17 @@ struct
         let (state', ss) as conf' =
           BatList.fold_right2 alloc_arg args args'
             ({ state with env = {env' with Env.call = state.env.Env.call }}, ss) in
-        print_endline ("Call : " ^ (string_of_list args' (fun x -> x)));
+        let alloc =
+          if BatOption.map_default (fun id -> Env.contains id global.genv)
+              false name && not !only_mcfa then
+            (* Improve precision by switching to PS k-CFA *)
+            `PSKCFA
+          else
+            `MCFA in
+        print_endline ("Call : " ^ (BatOption.map_default (fun x -> x) "anonymous" name));
         (body, {state' with
-                env = Env.call p state'.env;
-                time = match state'.env.Env.strategy with
+                env = Env.set_alloc alloc (Env.call p state'.env);
+                time = match alloc with
                (* | `KCFA -> Time.tick (S.pos_of body) state.time *)
                 | `PSKCFA -> Time.tick ((S.pos_of body),
                                   select_params (BatList.combine args' args))
