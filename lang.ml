@@ -4,8 +4,6 @@ open Env
 open Store
 open Lattice
 
-let gc = ref true
-
 let error msg exc =
   print_endline msg;
   raise exc
@@ -289,7 +287,7 @@ struct
         r AddressSet.empty
 
     let gc ((state, ss) : conf) (global : global) : conf =
-      if !gc then
+      if !gc != `NoGC then
         let r = reachable (state, ss) global in
         ({state with
           vstore = ValueStore.restrict r state.vstore;

@@ -134,7 +134,10 @@ let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet
       if Env.contains v env then
         AddressSet.add (Env.lookup v env) acc
       else if Env.contains v genv then
-        AddressSet.add (Env.lookup v genv) acc
+        if !gc != `NoGlobalGC then
+          AddressSet.add (Env.lookup v genv) acc
+        else
+          acc
       else  begin
         (* TODO: this should only happen for actual unbound variables.
            Shouldn't they be reported before doing the interpretation? *)

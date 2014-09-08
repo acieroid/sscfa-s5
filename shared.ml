@@ -1,8 +1,7 @@
 open Prelude
 open Ljs_syntax
 
-let debug = ref false
-let restricted_gc = ref false
+let gc : [ `NormalGC | `NoGC | `NoGlobalGC | `RestrictedGC ] ref = ref `NormalGC
 let only_mcfa = ref false
 
 (* Some functions to simplify the writing of comparison functions *)
@@ -106,7 +105,7 @@ struct
     | `ObjAddress _, `VarAddress _ -> 1
     | `VarAddress _, `ObjAddress _ -> -1
   let is_reclaimable a =
-    if !restricted_gc then
+    if !gc != `RestrictedGC then
       match a with
       (* %or is a special variable frequetly present in desugared S5 code, but
          it is *not* used to denote a global identifier *)

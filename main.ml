@@ -14,9 +14,11 @@ let speclist = [
   "environment file to load";
   "-dump", Arg.String (fun s -> dump := Some s),
   "where to dump the final environment (and store) of the execution";
-  "-restricted-gc", Arg.Set restricted_gc,
+  "-no-global-gc", Arg.Unit (fun () -> gc := `NoGlobalGC),
+  "don't inspect global environment/store when doing GC (may lead to unsoundness)";
+  "-restricted-gc", Arg.Unit (fun () -> gc := `RestrictedGC),
   "disable GC for global S5 variables (starting with %)";
-  "-no-gc", Arg.Unit (fun () -> gc := false),
+  "-no-gc", Arg.Unit (fun () -> gc := `NoGC),
   "entirely disable GC";
   "-deterministic", Arg.Unit (fun () -> computation := `Eval),
   "assume all transitions are deterministic, resulting in a list of states instead of a graph";

@@ -1,7 +1,7 @@
 TARGET     = main
 TEST       = test
 OPTS       = -use-ocamlfind
-TAGS       = annot,debug
+TAGS       = annot,debug,profile
 LIBS       = unix,str,graph,oUnit
 PKGS       = batteries,ocamlgraph
 EXTENSION  = native
