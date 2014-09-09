@@ -124,6 +124,7 @@ let () =
           | Some s -> save_state final env s
           | None -> ()
         end
-    end
+    end;
+    Stats.print ();
   | None ->
     print_endline usage

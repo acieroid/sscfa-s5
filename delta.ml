@@ -101,7 +101,7 @@ let prim_to_bool v =
     | true -> `True
     | false -> `False in
   match v with
-  | `Num x ->  helper (not (x == nan || x = 0.0 || x = -0.0))
+  | `Num x -> helper (not (x == nan || x = 0.0 || x = -0.0))
   | `Str s -> helper (not (String.length s = 0))
   | `BoolT | `NumT | `StrT -> `BoolT
   | `False

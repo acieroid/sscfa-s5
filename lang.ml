@@ -188,8 +188,7 @@ struct
               AddressSet.union acc (Env.range env)
             | `Obj a -> if AddressSet.mem a visited_objs then
                 acc
-              else
-              if ObjectStore.contains a ostore then
+              else if ObjectStore.contains a ostore then
                 match ObjectStore.lookup a ostore with
                 | `Obj obj -> aux_obj (AddressSet.add a acc)
                                 (AddressSet.add a visited_objs) obj
@@ -200,9 +199,9 @@ struct
                 acc
               else
                 error ("GC reached a non-reachable object address: " ^
-                       (Address.to_string a)) Not_found;
+                       (Address.to_string a)) Not_found
             | `ClosT | `ObjT | `Top -> failwith ("touch: a value was too abstract: " ^
-                                                  (AValue.to_string v))
+                                                 (AValue.to_string v))
           end
         | `StackObj obj -> aux_obj acc visited_objs obj
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
@@ -383,8 +382,8 @@ struct
     let f ((n, v) : string * V.t) : ((string * Time.v) option) = match v with
       | `A v' ->
         begin match v' with
-        | #PSTime.v as v'' -> Some (n, v'')
-        | _ -> None
+          | #PSTime.v as v'' -> Some (n, v'')
+          | _ -> None
         end
       | _ -> None in
     BatList.filter_map f args
@@ -417,15 +416,15 @@ struct
             `PSKCFA
           else
             `MCFA in
-        print_endline ("Call : " ^ (BatOption.map_default (fun x -> x) "anonymous" name));
+        Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name) ();
         (body, {state' with
                 env = Env.set_alloc alloc (Env.call p state'.env);
                 time = match alloc with
-               (* | `KCFA -> Time.tick (S.pos_of body) state.time *)
-                | `PSKCFA -> Time.tick ((S.pos_of body),
-                                  select_params (BatList.combine args' args))
-                              state.time
-                | `MCFA -> state.time})
+                  (* | `KCFA -> Time.tick (S.pos_of body) state.time *)
+                  | `PSKCFA -> Time.tick ((S.pos_of body),
+                                          select_params (BatList.combine args' args))
+                                 state.time
+                  | `MCFA -> state.time})
     | `A `ClosT -> failwith "Closure too abstracted"
     | `A `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
@@ -484,8 +483,8 @@ struct
       [{state with control = Exp exp; env = env'}]
     | F.AppFun (p, exp, [], env') ->
       let (exp, state') = apply_fun p (match exp with
-                                         | S.Id (_, name) -> Some name
-                                         | _ -> None)
+          | S.Id (_, name) -> Some name
+          | _ -> None)
           v [] conf global in
       [{state' with control = Exp exp}]
     | F.AppFun (p, exp, arg :: args, env') ->
