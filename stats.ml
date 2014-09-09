@@ -1,6 +1,7 @@
 let stats = BatHashtbl.create 20
 
 let called name () =
+  print_endline ("Called: " ^ name);
   match BatHashtbl.Exceptionless.find stats  name with
   | Some v -> BatHashtbl.replace stats name (1+v)
   | None -> BatHashtbl.add stats name 1

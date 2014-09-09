@@ -288,6 +288,7 @@ end
            | `Null | `Undef
            | `Top | `Bot ]
 end *)
+(*
 module PSTime = struct
   include KCFABased(ParameterSensitiveNoObj)(K1)
   type v = ParameterSensitiveNoObj.v
@@ -298,6 +299,7 @@ module PSTime = struct
  module K1Time = KCFABased(KPos)(K1)
  module K1Address = MakeAddress(K1Time)
 
+*)
  (* This is a bit verbose, it would be cool to find a way to lift values inside
     `ObjAddress and `VarAddress to the outside *)
  module ProductAddress =
@@ -364,6 +366,71 @@ module PSTime = struct
  end
 
 
+(* Two kinds of timestamps (and therefore two kinds of addresses).
+   This could be more modular, but is not easy to get right *)
+let k = 1
+module rec Address : sig
+  include Address_signature with type time = Time.t
+end
+  = MakeAddress(Time)
+and Time : sig
+  type v = [ `True | `False | `BoolT
+           | `Obj of Address.t | `ObjT
+           | `Str of string | `StrT
+           | `Num of float | `NumT
+           | `Null | `Undef
+           | `Top | `Bot ]
+  include Time_signature with type arg = Pos.t * (string * v) list
+                          and type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
+end
+= struct
+  type v = [ `True | `False | `BoolT
+           | `Obj of Address.t | `ObjT
+           | `Str of string | `StrT
+           | `Num of float | `NumT
+           | `Null | `Undef
+           | `Top | `Bot ]
+  type arg = Pos.t * (string * v) list
+  type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
+  let initial = `PSKCFATime PSTime.initial
+  let compare x y = match x, y with
+    | `MCFATime t, `MCFATime t' -> K1Time.compare t t'
+    | `MCFATime _, _ -> 1
+    | _, `MCFATime __ -> 1
+    | `PSKCFATime t, `PSKCFATime t' -> PSTime.compare t t'
+  let to_string = function
+    | `MCFATime t -> K1Time.to_string t
+    | `PSKCFATime t -> PSTime.to_string t
+  let tick (arg : arg) : t -> t = function
+    | `MCFATime t -> `MCFATime t (* don't tick here with m-CFA *)
+    | `PSKCFATime t -> `PSKCFATime (PSTime.tick arg t)
+end
+and PSTime : sig
+  type v = [ `True | `False | `BoolT
+           | `Obj of Address.t | `ObjT
+           | `Str of string | `StrT
+           | `Num of float | `NumT
+           | `Null | `Undef
+           | `Top | `Bot ]
+  include Time_signature with type arg = Pos.t * (string * v) list
+end
+= struct
+  module PS = ParameterSensitive(Address)
+  include KCFABased(PS)(K1)
+  type v = PS.v
+end
+and K1Time : sig
+  include Time_signature with type arg = Pos.t and type t = Pos.t list
+end
+= struct
+  type arg = Pos.t
+  type t = arg list
+  let initial = []
+  let compare = compare_list Pos.compare
+  let to_string t = string_of_list t Pos.string_of_pos
+  let tick x t = BatList.take k (x :: t)
+end
+(*
  module Time = PSTime
  module Address = struct
    module A = ProductAddress(K1Address)(PSAddress)
@@ -375,6 +442,7 @@ module PSTime = struct
      | `MCFATime t -> A.alloc_var p id (`LeftTime t)
      | `PSKCFATime t -> A.alloc_var p id (`RightTime t)
 end
+*)
 
 module AddressSet = BatSet.Make(Address)
 

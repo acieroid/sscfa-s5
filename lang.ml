@@ -330,12 +330,12 @@ struct
   let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     match state.env.Env.strategy with
     | `MCFA -> Address.alloc_var p id (`MCFATime state.env.Env.call)
-    | `PSKCFA -> Address.alloc_var p id (`PSKCFATime state.time)
+    | `PSKCFA -> Address.alloc_var p id state.time
 
   let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     match state.env.Env.strategy with
     | `MCFA -> Address.alloc_obj p id (`MCFATime state.env.Env.call)
-    | `PSKCFA -> Address.alloc_obj p id (`PSKCFATime state.time)
+    | `PSKCFA -> Address.alloc_obj p id state.time
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
     | `A v -> (state.ostore, v)
@@ -345,8 +345,8 @@ struct
       (ostore', `Obj a)
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
-    let empty = { control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
-                  ostore = ObjectStore.empty; time = PSTime.initial } in
+    let empty = {control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
+                 ostore = ObjectStore.empty; time = Time.initial} in
     let empty_global = { genv = Env.empty; gvstore = ValueStore.empty;
                          gostore = ObjectStore.empty } in
     (empty, StackSummary.empty),
@@ -386,7 +386,9 @@ struct
           | _ -> None
         end
       | _ -> None in
-    BatList.filter_map f args
+    let res = BatList.filter_map f args in
+    print_endline ("Selecting params: " ^ (string_of_list res (fun (x, _) -> x)));
+    res
 
   let rec apply_fun (p : Pos.t) (name : string option) (f : V.t) (args : V.t list)
       ((state, ss) : conf) (global : global) : (S.exp * state) =
@@ -931,7 +933,7 @@ struct
       (* k-CFA *)
       (* let state = {state with time = Time.tick p state.time} in *)
       (* Parameter-sensitive k-CFA *)
-      let state = {state with time = PSTime.tick (p, []) state.time} in
+      let state = {state with time = Time.tick (p, []) state.time} in
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
