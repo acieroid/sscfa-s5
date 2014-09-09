@@ -1,0 +1,4 @@
+rec (f = func(%args) {
+    f(1)
+  })
+f(1)
