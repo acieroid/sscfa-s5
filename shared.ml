@@ -354,7 +354,7 @@ module PSTime = struct
        | `RightTime t -> unlift_right (A2.alloc_obj p id t)
      let alloc_var p id = function
        | `LeftTime t -> unlift_left (A1.alloc_var p id t)
-       | `RightTime t -> unlift_right (A2.alloc_obj p id t)
+       | `RightTime t -> unlift_right (A2.alloc_var p id t)
      let is_obj_addr : t -> bool = function
        | `ObjAddress _ -> true
        | `VarAddress _ -> false
@@ -369,19 +369,11 @@ module PSTime = struct
    module A = ProductAddress(K1Address)(PSAddress)
    include A
    let alloc_obj p id = function
-     | `MCFATime t ->
-       print_endline "Alloc obj MCFA";
-       A.alloc_obj p id (`LeftTime t)
-     | `PSKCFATime t ->
-       print_endline "Alloc obj PSKCFA";
-       A.alloc_obj p id (`RightTime t)
+     | `MCFATime t -> A.alloc_obj p id (`LeftTime t)
+     | `PSKCFATime t -> A.alloc_obj p id (`RightTime t)
    let alloc_var p id = function
-     | `MCFATime t ->
-       print_endline "Alloc var MCFA";
-       A.alloc_var p id (`LeftTime t)
-     | `PSKCFATime t ->
-      print_endline "Alloc var PSKCFA";
-      A.alloc_var p id (`RightTime t)
+     | `MCFATime t -> A.alloc_var p id (`LeftTime t)
+     | `PSKCFATime t -> A.alloc_var p id (`RightTime t)
 end
 
 module AddressSet = BatSet.Make(Address)
