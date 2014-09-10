@@ -411,8 +411,9 @@ struct
             ({ state with env = {env' with Env.call = state.env.Env.call;
                                            Env.strategy = state.env.Env.strategy}}, ss) in
         let alloc =
-          if BatOption.map_default (fun id -> Env.contains id global.genv)
-              false name && not !only_mcfa then
+          if state.env.Env.strategy = `PSKCFA ||
+             (BatOption.map_default (fun id -> Env.contains id global.genv)
+                false name && not !only_mcfa) then
             (* Improve precision by switching to PS k-CFA *)
             `PSKCFA
           else
@@ -898,7 +899,6 @@ struct
                                      `A (AValue.bool config)),
                             state.env))
         ({state with control = Exp g}, ss) global
-
 
   (* Inspired from LambdaS5's Ljs_cesk.eval_cesk function *)
   let step_exp (exp : S.exp) ((state, ss) as conf : conf) (global : global)
