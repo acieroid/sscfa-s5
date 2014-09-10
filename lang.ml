@@ -933,7 +933,7 @@ struct
       (* k-CFA *)
       (* let state = {state with time = Time.tick p state.time} in *)
       (* Parameter-sensitive k-CFA *)
-      let state = {state with time = Time.tick (p, []) state.time} in
+      (* let state = {state with time = Time.tick (p, []) state.time} in *)
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
