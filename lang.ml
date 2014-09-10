@@ -386,9 +386,7 @@ struct
           | _ -> None
         end
       | _ -> None in
-    let res = BatList.filter_map f args in
-    print_endline ("Selecting params: " ^ (string_of_list res (fun (x, _) -> x)));
-    res
+    BatList.filter_map f args
 
   let rec apply_fun (p : Pos.t) (name : string option) (f : V.t) (args : V.t list)
       ((state, ss) : conf) (global : global) : (S.exp * state) =
@@ -410,7 +408,8 @@ struct
                        env = Env.extend name a state.env}, ss) in
         let (state', ss) as conf' =
           BatList.fold_right2 alloc_arg args args'
-            ({ state with env = {env' with Env.call = state.env.Env.call }}, ss) in
+            ({ state with env = {env' with Env.call = state.env.Env.call;
+                                           Env.strategy = state.env.Env.strategy}}, ss) in
         let alloc =
           if BatOption.map_default (fun id -> Env.contains id global.genv)
               false name && not !only_mcfa then
@@ -927,13 +926,6 @@ struct
                   O.klass = `A (`Str kls);
                   O.extensible = `A (AValue.bool ext)},
                  IdMap.empty) in
-      (* We *need* to tick here, to avoid losing precision when multiple objects
-         are defined without funcalls in between (see tests/objs-imprecision.s5)
-      *)
-      (* k-CFA *)
-      (* let state = {state with time = Time.tick p state.time} in *)
-      (* Parameter-sensitive k-CFA *)
-      (* let state = {state with time = Time.tick (p, []) state.time} in *)
       begin match attrs, props with
         | [], [] ->
           unch (Val (`StackObj obj)) (state, ss)
