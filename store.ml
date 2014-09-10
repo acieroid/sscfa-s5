@@ -121,19 +121,4 @@ module Make =
 
 module ValueStore = Make(AValue)
 
-module ObjValue =
-struct
-  type t = [ `Obj of Obj_val.t ]
-  let compare x y = match x, y with
-    | `Obj o, `Obj o' -> Obj_val.compare o o'
-  let join x y = match x, y with
-    | `Obj o, `Obj o' ->
-      if Obj_val.compare o o' == 0 then
-        `Obj o
-      else
-        failwith "joining object (nyi)"
-  let to_string = function
-    | `Obj o -> Obj_val.to_string o
-end
-
-module ObjectStore = Make(ObjValue)
+module ObjectStore = Make(Obj_val)

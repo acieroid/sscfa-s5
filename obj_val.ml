@@ -203,6 +203,35 @@ let get_obj_attr ((attrs, _) : t) (attr : S.oattr) : value =
   | {primval = v; _}, S.Primval
   | {klass = v; _}, S.Klass -> v
 
+let rec join ((attrs, props) : t) ((attrs', props') : t) : t =
+  let new_attrs = {code = join_value attrs.code attrs'.code;
+                   proto = join_value attrs.proto attrs'.proto;
+                   primval = join_value attrs.primval attrs'.primval;
+                   klass = join_value attrs.primval attrs'.primval;
+                   extensible = join_value attrs.primval attrs'.primval} in
+  let join_props (p : prop) (p' : prop) : prop = match p, p' with
+    | Data ({value = v; writable = w}, enum, config),
+      Data ({value = v'; writable = w'}, enum', config') ->
+      Data ({value = join_value v v'; writable = join_value w w'},
+            join_value enum enum', join_value config config')
+    | Accessor ({getter = g; setter = s}, enum, config),
+      Accessor ({getter = g'; setter = s'}, enum', config') ->
+      Accessor ({getter = join_value g g'; setter = join_value s s'},
+                join_value enum enum', join_value config config')
+    | Data _, Accessor _
+    | Accessor _, Data _ -> failwith "joining different props (TODO)" in
+  let merge_props _ x y = match x, y with
+    | Some p, Some p' -> Some (join_props p p')
+    | Some p, None | None, Some p -> Some p
+    | None, None -> None in
+  let new_props = IdMap.merge merge_props props props' in
+  (new_attrs, new_props)
+and join_value (x : value) (y : value) : value = match x, y with
+  | `A v, `A v' -> `A (AValue.join v v')
+  | `StackObj o, `StackObj o' -> `StackObj (join o o')
+  | _, _ -> failwith ("cannot join " ^ (string_of_value x) ^ " and " ^ (string_of_value y))
+  
+
 let d_attrsv = {
   primval = `A `Undef;
   code = `A `Bot;

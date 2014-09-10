@@ -189,9 +189,9 @@ struct
             | `Obj a -> if AddressSet.mem a visited_objs then
                 acc
               else if ObjectStore.contains a ostore then
-                match ObjectStore.lookup a ostore with
-                | `Obj obj -> aux_obj (AddressSet.add a acc)
-                                (AddressSet.add a visited_objs) obj
+                let obj = ObjectStore.lookup a ostore in
+                aux_obj (AddressSet.add a acc)
+                  (AddressSet.add a visited_objs) obj
               else if ObjectStore.contains a global.gostore then
                 (* ignore addresses in the global store, as they are not
                    reclaimable and can't point to reclaimable addresses *)
@@ -340,14 +340,14 @@ struct
     | `A v -> (state.ostore, v)
     | `StackObj obj ->
       let a = alloc_obj p id obj conf in
-      let ostore' = ObjectStore.join a (`Obj obj) state.ostore in
+      let ostore' = ObjectStore.join a obj state.ostore in
       (ostore', `Obj a)
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = {control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
                  ostore = ObjectStore.empty; time = Time.initial} in
-    let empty_global = { genv = Env.empty; gvstore = ValueStore.empty;
-                         gostore = ObjectStore.empty } in
+    let empty_global = {genv = Env.empty; gvstore = ValueStore.empty;
+                        gostore = ObjectStore.empty} in
     (empty, StackSummary.empty),
     BatOption.map_default
       (fun (init, ss) ->
@@ -361,7 +361,7 @@ struct
     | `A `Obj a ->
       let store = which_ostore a ostore global.gostore in
       begin match ObjectStore.lookup a store with
-        | `Obj ({O.proto = pvalue; _}, props) ->
+        | ({O.proto = pvalue; _}, props) ->
           begin try Some (IdMap.find prop props)
             with Not_found -> get_prop pvalue prop ostore global
           end
@@ -405,8 +405,8 @@ struct
                        env = Env.extend name a state.env}, ss) in
         let (state', ss) as conf' =
           BatList.fold_right2 alloc_arg args args'
-            ({ state with env = {env' with Env.call = state.env.Env.call;
-                                           Env.strategy = state.env.Env.strategy}}, ss) in
+            ({state with env = {env' with Env.call = state.env.Env.call;
+                                          Env.strategy = state.env.Env.strategy}}, ss) in
         let alloc =
           if state.env.Env.strategy = `PSKCFA ||
              (BatOption.map_default (fun id -> Env.contains id global.genv)
@@ -429,7 +429,7 @@ struct
     | `A `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
-        | `Obj ({O.code = `A (`Clos f); _}, _) ->
+        | ({O.code = `A (`Clos f); _}, _) ->
           apply_fun p name (`A (`Clos f)) args (state, ss) global
         (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith ("Applied object without code attribute at " ^
@@ -563,7 +563,7 @@ struct
         | `A (`Obj a), `A (`Str s) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj ({O.extensible = extensible; _} as attrs, props) ->
+            | ({O.extensible = extensible; _} as attrs, props) ->
               begin match get_prop obj s state.ostore global with
                 | Some (O.Data ({O.writable = `A `True; _}, enum, config)) ->
                   let (enum, config) = if O.has_prop (attrs, props) s then
@@ -573,7 +573,7 @@ struct
                   let newobj = O.set_prop (attrs, props) s
                       (O.Data ({O.value = newval; O.writable = `A `True},
                                enum, config)) in
-                  let ostore' = ostore_set a (`Obj newobj) state.ostore global.gostore in
+                  let ostore' = ostore_set a newobj state.ostore global.gostore in
                   [{state with control = Val newval; env = env'; ostore = ostore'}]
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `A `Undef; _}, _, _)) ->
@@ -586,7 +586,7 @@ struct
                     let newobj = O.set_prop (attrs, props) s
                         (O.Data ({O.value = newval; O.writable = `A `True},
                                  `A `True, `A `True)) in
-                    let ostore' = ostore_set a (`Obj newobj)
+                    let ostore' = ostore_set a newobj
                         state.ostore global.gostore in
                     {state with control = Val newval; env = env'; ostore = ostore'} in
                   let f = {state with control = Val (`A `Undef)} in
@@ -608,7 +608,7 @@ struct
         | `A (`Obj a), `A (`Str s) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj o -> let attr = O.get_attr o pattr s in
+            | o -> let attr = O.get_attr o pattr s in
               [{state with control = Val attr; env = env'}]
           end
         | `StackObj obj, `A (`Str s) ->
@@ -632,9 +632,9 @@ struct
         | `A (`Obj a), `A (`Str s) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj o ->
+            | o ->
               let newobj = O.set_attr o pattr s newval in
-              let ostore' = ostore_set a (`Obj newobj) state.ostore global.gostore in
+              let ostore' = ostore_set a newobj state.ostore global.gostore in
               [{state with control = Val (`A `True); env = env'; ostore = ostore'}]
           end
         | `StackObj o, `A (`Str s) -> failwith "TODO: SetAttrNewval on a stack object"
@@ -644,7 +644,7 @@ struct
         | `A (`Obj a) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
+            | obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
           end
         | `StackObj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
         | _ -> failwith "GetObjAttr on a non-object"
@@ -657,7 +657,7 @@ struct
         | S.Proto, `A (`Obj _) | S.Proto, `A `Null -> {attrs with O.proto = v'}
         | S.Proto, _ -> failwith "Cannot update proto without an object or null"
         | S.Extensible, `A `True | S.Extensible, `A `False | S.Extensible, `A `BoolT ->
-          { attrs with O.extensible = v'}
+          {attrs with O.extensible = v'}
         | S.Extensible, _ -> failwith "Cannot update extensible without a boolean"
         | S.Code, _ -> failwith "Cannot update code"
         | S.Primval, _ -> {attrs with O.primval = v'}
@@ -666,9 +666,9 @@ struct
         | `A (`Obj a) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj (attrs, props) ->
+            | (attrs, props) ->
               let newobj = (helper attrs v, props) in
-              let ostore' = ostore_set a (`Obj newobj) state.ostore global.gostore in
+              let ostore' = ostore_set a newobj state.ostore global.gostore in
               [{state with control = Val v;
                            ostore = ostore'; env = env'}]
           end
@@ -700,7 +700,7 @@ struct
         | `A (`Obj a) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
-            | `Obj (_, props) -> helper props
+            | (_, props) -> helper props
           end
         | `StackObj (_, props) -> helper props
         | _ -> failwith "OwnFieldNames on a non-object"
@@ -712,11 +712,11 @@ struct
         | `A (`Obj a), `A (`Str s) ->
           if ObjectStore.contains a state.ostore then
             begin match ObjectStore.lookup a state.ostore with
-              | `Obj obj ->
+              | obj ->
                 if O.has_prop obj s then
                   let t =
                     let newobj = O.remove_prop obj s in
-                    let ostore' = ObjectStore.set a (`Obj newobj) state.ostore in
+                    let ostore' = ObjectStore.set a newobj state.ostore in
                     {state with control = Val (`A `True); env = env'; ostore = ostore'} in
                   let f =
                     {state with control = Exception (`Throw (`A (`Str "unconfigurable-delete")));
@@ -795,7 +795,7 @@ struct
       let obj' = O.set_prop obj name v in
       (* TODO: do we really need allocation? *)
       let a = alloc_obj p name obj' conf in
-      let ostore' = ObjectStore.join a (`Obj obj') state.ostore in
+      let ostore' = ObjectStore.join a obj' state.ostore in
       {state with control = Val (`A (`Obj a)); env = env'; ostore = ostore'}
     | F.ObjectProps (p, name, obj, (name', prop) :: props, env') ->
       let obj' = O.set_prop obj name v in

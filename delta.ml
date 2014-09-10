@@ -28,7 +28,7 @@ let typeof lookup = function
   | `Num _ -> `Str "number"
   | `True | `False -> `Str "boolean"
   | `Obj a -> begin match lookup a with
-      | `Obj ({ O.code = `A `Bot; _ }, _) -> `Str "object"
+      | ({O.code = `A `Bot; _}, _) -> `Str "object"
       | _ -> `Str "function"
     end
   | `Clos _ -> raise (PrimErr "typeof got lambda")
@@ -126,8 +126,8 @@ let pretty v =
 
 let is_extensible lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
-    | `Obj ({ O.extensible = `A ext; _ }, _) -> ext
-    | `Obj ({ O.extensible = `StackObj _; _ }, _) -> `True
+    | ({O.extensible = `A ext; _}, _) -> ext
+    | ({O.extensible = `StackObj _; _}, _) -> `True
     end
   | _ -> raise (PrimErr "is-extensible")
 
@@ -135,8 +135,8 @@ let is_extensible lookup obj = match obj with
      property outside of the delta function *)
 let object_to_string lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
-      | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
-        | `A `Str s -> `Str ("[object " ^ s ^ "]")
+      | ({O.klass = kls; _}, _) -> begin match kls with
+        | `A (`Str s) -> `Str ("[object " ^ s ^ "]")
         | _ -> `StrT
         end
     end
@@ -144,9 +144,9 @@ let object_to_string lookup obj = match obj with
 
 let is_array lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
-    | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
-      | `A `Str "Array" -> `True
-      | `A `Str _ -> `False
+    | ({O.klass = kls; _}, _) -> begin match kls with
+      | `A (`Str "Array") -> `True
+      | `A (`Str _) -> `False
       | _ -> `BoolT
       end
     end
@@ -371,7 +371,7 @@ let same_value v1 v2 = match v1, v2 with
 let has_property lookup obj field =
   let rec aux obj field = match obj, field with
     | `A (`Obj loc), `Str s -> begin match lookup loc with
-        | `Obj (({O.proto = proto; _}, _) as o) ->
+        | (({O.proto = proto; _}, _) as o) ->
           if O.has_prop o s then
             `True
           else
@@ -387,7 +387,7 @@ let has_property lookup obj field =
 
 let has_own_property lookup obj field = match obj, field with
   | `Obj loc, `Str s -> begin match lookup loc with
-      | `Obj (({ O.proto = proto; _ }, _) as o) ->
+      | (({O.proto = proto; _}, _) as o) ->
         AValue.bool (O.has_prop o s)
     end
   | `Obj _, `StrT -> `BoolT
@@ -469,23 +469,20 @@ let to_fixed a b = match a, b with
 
 let is_accessor lookup obj field =
   let rec aux obj field = match obj, field with
-    | `A (`Obj loc), `Str s -> begin match lookup loc with
-        | `Obj o ->
-          if O.has_prop o s then
-            begin match O.lookup_prop o s with
-              | O.Data _ -> `False
-              | O.Accessor _ -> `True
-            end
-          else
-            let ({O.proto = proto; _}, _) = o in
-            aux proto field
-      end
+    | `A (`Obj loc), `Str s ->
+      let o = lookup loc in
+      if O.has_prop o s then
+        match O.lookup_prop o s with
+        | O.Data _ -> `False
+        | O.Accessor _ -> `True
+      else
+        let ({O.proto = proto; _}, _) = o in
+        aux proto field
     | `StackObj o , `Str s->
       if O.has_prop o s then
-        begin match O.lookup_prop o s with
+        match O.lookup_prop o s with
           | O.Data _ -> `False
           | O.Accessor _ -> `True
-        end
       else
         let ({O.proto = proto; _}, _) = o in
         aux proto field
