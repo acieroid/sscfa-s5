@@ -1,0 +1,17 @@
+// Expected: 1.
+rec (f = func(args) {
+    let (this = %resolveThis(#strict, undefined))
+    let (n = args["0", null])
+    if (%EqEq(n, 0.)) {
+      1
+    } else {
+      f(%mkArgsObj({[]
+                    '0' : {#value 0.,
+                           #writable true,
+                           #configurable true}}))
+    }
+})
+f(%mkArgsObj({[]
+             '0' : {#value 1,
+                    #writable true ,
+                    #configurable true}}))
