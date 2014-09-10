@@ -203,7 +203,7 @@ module ParameterSensitive =
        this in another file. We cannot use the Lattice module here as it depends
        on this module for addresses *)
     type v = [ `True | `False | `BoolT
-             | `Obj of A.t | `ObjT
+             | `Obj of A.t
              | `Str of string | `StrT
              | `Num of float | `NumT
              | `Null | `Undef
@@ -214,7 +214,6 @@ module ParameterSensitive =
       | `False -> "false"
       | `BoolT -> "boolT"
       | `Obj a -> "obj" ^ (A.to_string a)
-      | `ObjT -> "objT"
       | `Num n -> string_of_float n
       | `NumT -> "numT"
       | `Str s -> "'" ^ s ^ "'"
@@ -226,7 +225,7 @@ module ParameterSensitive =
 
     let compare_v x y = match x, y with
       | `True, `True | `False, `False | `BoolT, `BoolT
-      | `ObjT, `ObjT | `StrT, `StrT | `NumT, `NumT
+      | `StrT, `StrT | `NumT, `NumT
       | `Null, `Null | `Undef, `Undef
       | `Top, `Top | `Bot, `Bot -> 0
       | `Obj a, `Obj a' -> A.compare a a'
@@ -236,7 +235,6 @@ module ParameterSensitive =
       | `False, _ -> 1 | _, `False -> -1
       | `BoolT, _ -> 1 | _, `BoolT -> -1
       | `Obj _, _ -> 1 | _, `Obj _ -> -1
-      | `ObjT, _ -> 1 | _, `ObjT -> -1
       | `Str _, _ -> 1 | _, `Str _ -> -1
       | `StrT, _ -> 1 | _, `StrT -> -1
       | `Num _, _ -> 1 | _, `Num _ -> -1
@@ -336,7 +334,7 @@ end
   = MakeAddress(Time)
 and Time : sig
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t | `ObjT
+           | `Obj of Address.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef
@@ -346,7 +344,7 @@ and Time : sig
 end
 = struct
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t | `ObjT
+           | `Obj of Address.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef
@@ -368,7 +366,7 @@ end
 end
 and PSTime : sig
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t | `ObjT
+           | `Obj of Address.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef

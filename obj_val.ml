@@ -92,7 +92,8 @@ end
 (* TODO: should use AValue.compare, as its definition could change *)
 let compare : t -> t -> int = Pervasives.compare
 
-let set_attr_str ((attrs, props) : t) (attr : string) (value : value) = match attr with
+let set_attr_str ((attrs, props) : t) (attr : string) (value : value) =
+  match attr with
   | "proto" -> ({ attrs with proto = value }, props)
   | "code" -> ({ attrs with code = value }, props)
   | "prim" -> ({ attrs with primval = value }, props)

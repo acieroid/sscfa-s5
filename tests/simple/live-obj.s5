@@ -1,2 +1,2 @@
-// Expected: StackObj(Obj{})
+// Expected: StackObj(Obj({}))
 {[#proto: null, #class: "Object", #extensible: true,]}

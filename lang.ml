@@ -192,7 +192,6 @@ struct
                 match ObjectStore.lookup a ostore with
                 | `Obj obj -> aux_obj (AddressSet.add a acc)
                                 (AddressSet.add a visited_objs) obj
-                | `ObjT -> failwith "touch: an object was too abtsract"
               else if ObjectStore.contains a global.gostore then
                 (* ignore addresses in the global store, as they are not
                    reclaimable and can't point to reclaimable addresses *)
@@ -200,8 +199,8 @@ struct
               else
                 error ("GC reached a non-reachable object address: " ^
                        (Address.to_string a)) Not_found
-            | `ClosT | `ObjT | `Top -> failwith ("touch: a value was too abstract: " ^
-                                                 (AValue.to_string v))
+            | `ClosT | `Top -> failwith ("touch: a value was too abstract: " ^
+                                         (AValue.to_string v))
           end
         | `StackObj obj -> aux_obj acc visited_objs obj
       and aux_obj acc visited_objs ((attrs, props) : O.t) =
@@ -366,13 +365,11 @@ struct
           begin try Some (IdMap.find prop props)
             with Not_found -> get_prop pvalue prop ostore global
           end
-        | `ObjT -> failwith "get_prop: too abstracted"
       end
     | `StackObj ({O.proto = pvalue; _}, props) ->
       begin try Some (IdMap.find prop props)
         with Not_found -> get_prop pvalue prop ostore global
       end
-    | `A `ObjT -> failwith "get_prop: too abstracted"
     | `A `Null -> None
     | `A v -> failwith ("get_prop on non-object: " ^ (AValue.to_string v))
 
@@ -434,14 +431,10 @@ struct
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `A (`Clos f); _}, _) ->
           apply_fun p name (`A (`Clos f)) args (state, ss) global
-        | `ObjT -> failwith ("Applied too abstracted object at " ^
-                             (Pos.to_string p))
         (* TODO: should this be an S5 error or a JS error? *)
         | _ -> failwith ("Applied object without code attribute at " ^
                          (Pos.to_string p))
       end
-    | `A `ObjT -> failwith ("Object too abstracted when applying function at " ^
-                            (Pos.to_string p))
     | `StackObj ({O.code = `A (`Clos f); _}, _) ->
       apply_fun p name (`A (`Clos f)) args (state, ss) global
     | `StackObj _ -> failwith ("Applied object without code attribute: " ^
@@ -552,7 +545,6 @@ struct
           (* We can handle this case more precisely by returning a state for
              each possible value of a field in this object *)
           [{state with control = Val (`A `Top); env = env'}]
-        | `A `ObjT, _ -> failwith "GetFieldBody: object too abstracted"
         | o, s -> failwith ("GetFieldBody on a non-object or non-string field: " ^
                             (V.to_string o) ^ ", " ^ (V.to_string s))
       end
@@ -603,7 +595,6 @@ struct
                   | `False -> [f]
                   | `BoolT -> [t; f]
               end
-            | `ObjT -> failwith "SetFieldArgs: object too abstracted"
           end
         | `StackObj _, _ -> failwith "TODO: SetFieldArgs on a stack object"
         | v1, v2 -> failwith ("SetFieldArgs on a non-object or non-string: " ^
@@ -619,14 +610,12 @@ struct
           begin match ObjectStore.lookup a store with
             | `Obj o -> let attr = O.get_attr o pattr s in
               [{state with control = Val attr; env = env'}]
-            | `ObjT -> failwith "GetAttrField: object too abstracted"
           end
         | `StackObj obj, `A (`Str s) ->
           let attr = O.get_attr obj pattr s in
           [{state with control = Val attr; env = env'}]
         | `A (`Obj _), `A `StrT | `StackObj _, `A `StrT ->
           failwith "GetAttrField with a top string as field"
-        | `A `ObjT, _ -> failwith "GetAttrField on a top object"
         | _ -> failwith "GetAttrField on a non-object or non-string"
       end
     | F.SetAttrObj (p, pattr, field, newval, env') ->
@@ -647,10 +636,8 @@ struct
               let newobj = O.set_attr o pattr s newval in
               let ostore' = ostore_set a (`Obj newobj) state.ostore global.gostore in
               [{state with control = Val (`A `True); env = env'; ostore = ostore'}]
-            | `ObjT -> failwith "SetAttrNewval: object too abstracted"
           end
         | `StackObj o, `A (`Str s) -> failwith "TODO: SetAttrNewval on a stack object"
-        | `A `ObjT, _ -> failwith "SetAttrNewval: object too abstracted"
         | _ -> failwith "SetAttrNewval on a non-object or non-string attribute"
       end
     | F.GetObjAttr (oattr, env') -> begin match v with
@@ -658,12 +645,8 @@ struct
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
             | `Obj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
-            | `ObjT ->
-              (* TODO: Could be more precise here *)
-              [{state with control = Val (`A `Top); env = env'}]
           end
         | `StackObj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
-        | `A `ObjT -> failwith "GetObjAttr: object too abstracted"
         | _ -> failwith "GetObjAttr on a non-object"
       end
     | F.SetObjAttr (p, oattr, newval, env') ->
@@ -688,13 +671,11 @@ struct
               let ostore' = ostore_set a (`Obj newobj) state.ostore global.gostore in
               [{state with control = Val v;
                            ostore = ostore'; env = env'}]
-            | `ObjT -> failwith "SetObjAttrNewval: object too abstract"
           end
         | `StackObj _ ->
           (* TODO: this object lives on the stack and will not be returned by
              this operation, it is therefore not reachable. Is this expected? *)
           [{state with control = Val v; env = env'}]
-        | `A `ObjT -> failwith "SetObjAttrNewval: object too abstracted"
         | _ -> failwith "SetObjAttrNewval on a non-object"
       end
     | F.OwnFieldNames (p, env') ->
@@ -720,10 +701,8 @@ struct
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
             | `Obj (_, props) -> helper props
-            | `ObjT -> failwith "OwnFieldNames: object too abstracted"
           end
         | `StackObj (_, props) -> helper props
-        | `A `ObjT -> failwith "OwnFieldNames: object too abstracted"
         | _ -> failwith "OwnFieldNames on a non-object"
       end
     | F.DeleteFieldObj (field, env') ->
@@ -751,7 +730,6 @@ struct
                     end
                 else
                   [{state with control = Val (`A `False); env = env'}]
-              | `ObjT -> failwith "DeleteFieldField: object too abstracted"
             end
           else if ObjectStore.contains a global.gostore then
             failwith "DeleteFieldField: cannot update object in the global store"

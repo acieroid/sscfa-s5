@@ -1,2 +1,2 @@
-// Expected: undef
+// Expected: undefined
 prim("print", "foo")

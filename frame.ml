@@ -234,7 +234,6 @@ let rec addresses_of_vals (l : V.t list) =
         | `A `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
         | `A `ClosT -> failwith "Closure was too abstracted"
         | `A `Obj a -> aux (AddressSet.add a acc) t
-        | `A `ObjT -> failwith "Object was too abstracted"
         | `StackObj o -> addresses_of_obj o
         | _ -> aux acc t
       end in

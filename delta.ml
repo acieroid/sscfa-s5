@@ -22,14 +22,14 @@ let to_lookup ostore ostore' = fun a ->
     failwith ("No object found at address " ^ (Address.to_string a))
 
 let typeof lookup = function
-  | `Undef -> AValue.str "undefined"
-  | `Null -> AValue.str "null"
-  | `Str _ -> AValue.str "string"
-  | `Num _ -> AValue.str "number"
-  | `True | `False -> AValue.str "boolean"
+  | `Undef -> `Str "undefined"
+  | `Null -> `Str "null"
+  | `Str _ -> `Str "string"
+  | `Num _ -> `Str "number"
+  | `True | `False -> `Str "boolean"
   | `Obj a -> begin match lookup a with
-      | `Obj ({ O.code = `A `Bot; _ }, _) -> AValue.str "object"
-      | _ -> AValue.str "function"
+      | `Obj ({ O.code = `A `Bot; _ }, _) -> `Str "object"
+      | _ -> `Str "function"
     end
   | `Clos _ -> raise (PrimErr "typeof got lambda")
   | _ -> `StrT
@@ -53,14 +53,14 @@ let float_str n =
       else string_of_float n
 
 let prim_to_str v = match v with
-  | `Undef -> AValue.str "undefined"
-  | `Null -> AValue.str "null"
-  | `Str s -> AValue.str s
+  | `Undef -> `Str "undefined"
+  | `Null -> `Str "null"
+  | `Str s -> `Str s
   | `Num n ->
     let fs = float_str n in
     let fslen = String.length fs in
     if String.get fs (fslen - 1) = '.' then
-      AValue.str (String.sub fs 0 (fslen - 1))
+      `Str (String.sub fs 0 (fslen - 1))
     else
         (* This is because we don't want leading zeroes in the "-e" part.
          * For example, OCaml says 1.2345e-07, but ES5 wants 1.2345e-7 *)
@@ -72,10 +72,10 @@ let prim_to_str v = match v with
            let fixed = if slen > 1 && (String.get suffix 0 = '0')
              then String.sub suffix 1 (slen - 1)
              else suffix in
-           AValue.str (prefix ^ fixed)
-      else AValue.str fs
-  | `True -> AValue.str "true"
-  | `False -> AValue.str "false"
+           `Str (prefix ^ fixed)
+      else `Str fs
+  | `True -> `Str "true"
+  | `False -> `Str "false"
   | `BoolT | `NumT | `StrT -> `StrT
   | _ -> raise (PrimErr ("prim_to_str with value " ^ (AValue.to_string v)))
 
@@ -121,13 +121,6 @@ let print v = match v with
   | _ -> printf "%s\n%!" (AValue.to_string v); `Undef
 (*  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v) *)
 
-let print_obj lookup v = match v with
-  | `Obj a -> begin match lookup a with
-    | `Obj o -> print_endline (O.to_string o); `Undef
-    | `ObjT -> print_endline "ObjT"; `Undef
-    end
-  | _ -> failwith ("Not an object: " ^ (AValue.to_string v))
-
 let pretty v =
   printf "%s\n%!" (AValue.to_string v); `Undef
 
@@ -135,9 +128,7 @@ let is_extensible lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
     | `Obj ({ O.extensible = `A ext; _ }, _) -> ext
     | `Obj ({ O.extensible = `StackObj _; _ }, _) -> `True
-    | `ObjT -> `BoolT
     end
-  | `ObjT -> `BoolT
   | _ -> raise (PrimErr "is-extensible")
 
   (* Implement this here because there's no need to expose the class
@@ -145,12 +136,10 @@ let is_extensible lookup obj = match obj with
 let object_to_string lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
       | `Obj ({ O.klass = kls; _ }, _) -> begin match kls with
-        | `A `Str s -> AValue.str ("[object " ^ s ^ "]")
+        | `A `Str s -> `Str ("[object " ^ s ^ "]")
         | _ -> `StrT
         end
-      | `ObjT -> `StrT
     end
-  | `ObjT -> `StrT
   | _ -> raise (PrimErr "object-to-string, wasn't given object")
 
 let is_array lookup obj = match obj with
@@ -160,9 +149,7 @@ let is_array lookup obj = match obj with
       | `A `Str _ -> `False
       | _ -> `BoolT
       end
-    | `ObjT -> `BoolT
     end
-  | `ObjT -> `BoolT
   | _ -> raise (PrimErr "is-array")
 
 let to_int32 v = match v with
@@ -178,7 +165,7 @@ let nnot e = match e with
   | `Str s when (s = "") -> `True
   | `Num _
   | `Str _
-  | `Obj _ | `ObjT
+  | `Obj _
   | `Clos _ | `ClosT
   | `True -> `False
   | `NumT | `StrT | `BoolT | `Top -> `BoolT
@@ -250,7 +237,6 @@ let op1 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   match op with
   (* return undef *)
   | "print" -> print
-  | "print-obj" -> print_obj lookup
   | "pretty" -> pretty
   | "void" -> void
 
@@ -390,14 +376,12 @@ let has_property lookup obj field =
             `True
           else
             aux proto field
-        | `ObjT -> `BoolT
       end
     | `StackObj (({O.proto = proto; _}, _) as o), `Str s ->
       if O.has_prop o s then
         `True
       else
         aux proto field
-    | `A `ObjT, _ -> `BoolT
     | _ -> `False in
   aux (`A obj) field
 
@@ -405,9 +389,8 @@ let has_own_property lookup obj field = match obj, field with
   | `Obj loc, `Str s -> begin match lookup loc with
       | `Obj (({ O.proto = proto; _ }, _) as o) ->
         AValue.bool (O.has_prop o s)
-      | `ObjT -> `BoolT
     end
-  | `Obj _, `StrT | `ObjT, `Str _ | `ObjT, `StrT -> `BoolT
+  | `Obj _, `StrT -> `BoolT
   | `Obj loc, _ ->
     raise (PrimErr "has-own-property: field not a string")
   | _, `Str s ->
@@ -496,7 +479,6 @@ let is_accessor lookup obj field =
           else
             let ({O.proto = proto; _}, _) = o in
             aux proto field
-        | `ObjT -> `BoolT
       end
     | `StackObj o , `Str s->
       if O.has_prop o s then
@@ -507,31 +489,9 @@ let is_accessor lookup obj field =
       else
         let ({O.proto = proto; _}, _) = o in
         aux proto field
-    | `A `ObjT, `Str _ -> `BoolT
     | `A `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
     | _ -> raise (PrimErr "isAccessor") in
   aux (`A obj) field
-
-let proto_of_field lookup obj field =
-  let rec aux (obj : AValue.t) field = match obj, field with
-    | `Null, _ -> `Null
-    | `Obj loc, `Str s ->
-      begin match prim_to_bool (has_own_property lookup (`Obj loc) (`Str s)) with
-        | `True -> `Obj loc
-        | `False ->
-          let proto = begin match lookup loc with
-            | `Obj (attrs, _) -> attrs.O.proto
-            | `ObjT -> failwith "proto_of_field: object too abstract"
-          end in
-          begin match proto with
-            | `A v -> aux v field
-            | `StackObj _ -> failwith "TODO: proto_of_field on a stack object"
-          end
-        | `BoolT -> `ObjT
-      end
-    | _, _ -> failwith "proto_of_field on a non-object or non-string"
-  in
-  aux obj field
 
 let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   : AValue.t -> AValue.t -> AValue.t =
@@ -565,6 +525,5 @@ let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   | "pow" -> pow
   | "to-fixed" -> to_fixed
   | "isAccessor" -> is_accessor lookup
-  | "protoOfField" -> proto_of_field lookup
   | _ ->
     raise (PrimErr ("no implementation of binary operator: " ^ op))

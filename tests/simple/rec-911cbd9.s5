@@ -1,4 +1,4 @@
-// Expected: numT
+// Expected: NumT
 rec (f = func(n) {
   if (prim("stx=", n, 0)) {
     n
