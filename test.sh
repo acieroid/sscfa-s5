@@ -21,7 +21,7 @@ FAILED=0
 function run_test {
     TEST="$1"
     echo -n "Running $TEST ... "
-    RES=$($EXEC "$TEST" | tail -1 | sed -En 's/.*Val\((.*)\).*/\1/p')
+    RES=$($EXEC "$TEST" | grep "^Final" | sed -En 's/.*Val\((.*)\).*/\1/p')
     EXPECTED=$(sed -En 's|// Expected: (.*)$|\1|p' "$TEST")
     if [ "$RES" != "$EXPECTED" ]; then
         echo "failure!"
