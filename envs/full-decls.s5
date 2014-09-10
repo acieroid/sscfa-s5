@@ -7,8 +7,15 @@ let (%Immut = func(obj , prop)
               {prim("pretty", obj);
                obj[prop<#enumerable>=false];
                obj[prop<#configurable>=false]})
+rec (%protoOfField = func(object , fld)
+                     {if (prim("stx=", object , null))
+                        {object}
+                      else if (prim("hasOwnProperty", object , fld))
+                        {object}
+                      else
+                        {%protoOfField(object[<#proto>], fld)}})
 let (%isUnbound = func(context , id)
-                  {if (prim("stx=", prim("protoOfField", context, id) , %globalContext))
+                  {if (prim("stx=", %protoOfField(context, id) , %globalContext))
                       {prim("!", prim("hasProperty", %global , id))}
                       else
                       {false}})
