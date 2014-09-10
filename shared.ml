@@ -125,11 +125,11 @@ struct
     | `ObjAddress (_, id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
     | `VarAddress (_, id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
   let alloc_obj (p : Pos.t) (id : string) (t : T.t) : t =
-    print_endline ("\027[33malloc_obj(" ^ (Pos.string_of_pos p) ^ ", " ^ id ^
+    print_endline ("\027[33malloc_obj(" ^ (Pos.to_string p) ^ ", " ^ id ^
                    ", " ^ (T.to_string t) ^ ")\027[0m");
     `ObjAddress (p, id, t)
   let alloc_var (p : Pos.t) (id : string) (t : T.t) : t =
-    print_endline ("\027[33malloc_var(" ^ (Pos.string_of_pos p) ^ ", " ^ id ^
+    print_endline ("\027[33malloc_var(" ^ (Pos.to_string p) ^ ", " ^ id ^
                    ", " ^ (T.to_string t) ^ ")\027[0m");
     `VarAddress (p, id, t)
   let is_obj_addr = function
@@ -261,109 +261,70 @@ module ParameterSensitive =
 
 module K1 = struct let k = 1 end
 
-(*
-(* This is ugly as fuck, but it does the trick in a type-safe way *)
-module rec PSAddress :
-sig
-  include Address_signature with type time = PSTime.t
-end
-  = MakeAddress(PSTime)
-and PSTime :
-sig
-  type v = [ `True | `False | `BoolT
-           | `Obj of PSAddress.t | `ObjT
-           | `Str of string | `StrT
-           | `Num of float | `NumT
-           | `Null | `Undef
-           | `Top | `Bot ]
+(* This is a bit verbose, it would be cool to find a way to lift values inside
+   `ObjAddress and `VarAddress to the outside *)
+module ProductAddress =
+  functor (A1 : Address_signature) -> functor (A2 : Address_signature) -> struct
+    type time = [
+      | `LeftTime of A1.time
+      | `RightTime of A2.time
+    ]
+    type a = [
+      | `Left of A1.a
+      | `Right of A2.a
+    ]
+    type t = a addr_kind
+    let lift_left = function
+      | `ObjAddress (`Left a) -> `ObjAddress a
+      | `VarAddress (`Left a) -> `VarAddress a
+    let lift_right = function
+      | `ObjAddress (`Right a) -> `ObjAddress a
+      | `VarAddress (`Right a) -> `VarAddress a
+    let unlift_left = function
+      | `ObjAddress a -> `ObjAddress (`Left a)
+      | `VarAddress a -> `VarAddress (`Left a)
+    let unlift_right = function
+      | `ObjAddress a -> `ObjAddress (`Right a)
+      | `VarAddress a -> `VarAddress (`Right a)
 
-  include Time_signature with type arg = Pos.t * (string * v) list
-end
-= struct
-  include KCFABased(ParameterSensitive(PSAddress))(K1)
-  type v = [ `True | `False | `BoolT
-           | `Obj of PSAddress.t | `ObjT
-           | `Str of string | `StrT
-           | `Num of float | `NumT
-           | `Null | `Undef
-           | `Top | `Bot ]
-end *)
-(*
-module PSTime = struct
-  include KCFABased(ParameterSensitiveNoObj)(K1)
-  type v = ParameterSensitiveNoObj.v
- end
- module PSAddress = MakeAddress(PSTime)
-
- module KPos = struct include Pos let to_string = string_of_pos end
- module K1Time = KCFABased(KPos)(K1)
- module K1Address = MakeAddress(K1Time)
-
-*)
- (* This is a bit verbose, it would be cool to find a way to lift values inside
-    `ObjAddress and `VarAddress to the outside *)
- module ProductAddress =
-   functor (A1 : Address_signature) -> functor (A2 : Address_signature) -> struct
-     type time = [
-       | `LeftTime of A1.time
-       | `RightTime of A2.time
-     ]
-     type a = [
-       | `Left of A1.a
-       | `Right of A2.a
-     ]
-     type t = a addr_kind
-     let lift_left = function
-       | `ObjAddress (`Left a) -> `ObjAddress a
-       | `VarAddress (`Left a) -> `VarAddress a
-     let lift_right = function
-       | `ObjAddress (`Right a) -> `ObjAddress a
-       | `VarAddress (`Right a) -> `VarAddress a
-     let unlift_left = function
-       | `ObjAddress a -> `ObjAddress (`Left a)
-       | `VarAddress a -> `VarAddress (`Left a)
-     let unlift_right = function
-       | `ObjAddress a -> `ObjAddress (`Right a)
-       | `VarAddress a -> `VarAddress (`Right a)
-
-     let compare (x : t) (y : t) = match x, y with
-       | `ObjAddress (`Left a), `ObjAddress (`Left a') ->
-         A1.compare (`ObjAddress a) (`ObjAddress a')
-       | `ObjAddress (`Left _), _ -> 1
-       | _, `ObjAddress (`Left _) -> -1
-       | `ObjAddress (`Right a), `ObjAddress (`Right a') ->
-         A2.compare (`ObjAddress a) (`ObjAddress a')
-       | `ObjAddress (`Right _), _ -> 1
-       | _, `ObjAddress (`Right _) -> -1
-       | `VarAddress (`Left a), `VarAddress (`Left a') ->
-         A1.compare (`VarAddress a) (`VarAddress a')
-       | `VarAddress (`Left _), _ -> 1
-       | _, `VarAddress (`Left _) -> -1
-       | `VarAddress (`Right a), `VarAddress (`Right a') ->
-         A2.compare (`VarAddress a) (`VarAddress a')
-     let is_reclaimable (a : t) : bool = match a with
-       | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
-         A1.is_reclaimable (lift_left a)
-       | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
-         A2.is_reclaimable (lift_right a)
-     let to_string (a : t) = match a with
-       | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
-         A1.to_string (lift_left a)
-       | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
-         A2.to_string (lift_right a)
-     let alloc_obj p id : time -> t = function
-       | `LeftTime t -> unlift_left (A1.alloc_obj p id t)
-       | `RightTime t -> unlift_right (A2.alloc_obj p id t)
-     let alloc_var p id = function
-       | `LeftTime t -> unlift_left (A1.alloc_var p id t)
-       | `RightTime t -> unlift_right (A2.alloc_var p id t)
-     let is_obj_addr : t -> bool = function
-       | `ObjAddress _ -> true
-       | `VarAddress _ -> false
-     let is_var_addr : t -> bool = function
-       | `ObjAddress _ -> false
-       | `VarAddress _ -> true
- end
+    let compare (x : t) (y : t) = match x, y with
+      | `ObjAddress (`Left a), `ObjAddress (`Left a') ->
+        A1.compare (`ObjAddress a) (`ObjAddress a')
+      | `ObjAddress (`Left _), _ -> 1
+      | _, `ObjAddress (`Left _) -> -1
+      | `ObjAddress (`Right a), `ObjAddress (`Right a') ->
+        A2.compare (`ObjAddress a) (`ObjAddress a')
+      | `ObjAddress (`Right _), _ -> 1
+      | _, `ObjAddress (`Right _) -> -1
+      | `VarAddress (`Left a), `VarAddress (`Left a') ->
+        A1.compare (`VarAddress a) (`VarAddress a')
+      | `VarAddress (`Left _), _ -> 1
+      | _, `VarAddress (`Left _) -> -1
+      | `VarAddress (`Right a), `VarAddress (`Right a') ->
+        A2.compare (`VarAddress a) (`VarAddress a')
+    let is_reclaimable (a : t) : bool = match a with
+      | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
+        A1.is_reclaimable (lift_left a)
+      | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
+        A2.is_reclaimable (lift_right a)
+    let to_string (a : t) = match a with
+      | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
+        A1.to_string (lift_left a)
+      | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
+        A2.to_string (lift_right a)
+    let alloc_obj p id : time -> t = function
+      | `LeftTime t -> unlift_left (A1.alloc_obj p id t)
+      | `RightTime t -> unlift_right (A2.alloc_obj p id t)
+    let alloc_var p id = function
+      | `LeftTime t -> unlift_left (A1.alloc_var p id t)
+      | `RightTime t -> unlift_right (A2.alloc_var p id t)
+    let is_obj_addr : t -> bool = function
+      | `ObjAddress _ -> true
+      | `VarAddress _ -> false
+    let is_var_addr : t -> bool = function
+      | `ObjAddress _ -> false
+      | `VarAddress _ -> true
+  end
 
 
 (* Two kinds of timestamps (and therefore two kinds of addresses).
@@ -427,22 +388,9 @@ end
   type t = arg list
   let initial = []
   let compare = compare_list Pos.compare
-  let to_string t = string_of_list t Pos.string_of_pos
+  let to_string t = string_of_list t Pos.to_string
   let tick x t = BatList.take k (x :: t)
 end
-(*
- module Time = PSTime
- module Address = struct
-   module A = ProductAddress(K1Address)(PSAddress)
-   include A
-   let alloc_obj p id = function
-     | `MCFATime t -> A.alloc_obj p id (`LeftTime t)
-     | `PSKCFATime t -> A.alloc_obj p id (`RightTime t)
-   let alloc_var p id = function
-     | `MCFATime t -> A.alloc_var p id (`LeftTime t)
-     | `PSKCFATime t -> A.alloc_var p id (`RightTime t)
-end
-*)
 
 module AddressSet = BatSet.Make(Address)
 

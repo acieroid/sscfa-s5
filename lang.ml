@@ -427,22 +427,28 @@ struct
                                           select_params (BatList.combine args' args))
                                  state.time
                   | `MCFA -> state.time})
-    | `A `ClosT -> failwith "Closure too abstracted"
+    | `A `ClosT -> failwith ("Closure too abstracted when called at " ^
+                             (Pos.to_string p))
     | `A `Obj a ->
       let store = which_ostore a state.ostore global.gostore in
       begin match ObjectStore.lookup a store with
         | `Obj ({O.code = `A (`Clos f); _}, _) ->
           apply_fun p name (`A (`Clos f)) args (state, ss) global
-        | `ObjT -> failwith "Applied too abstracted object"
+        | `ObjT -> failwith ("Applied too abstracted object at " ^
+                             (Pos.to_string p))
         (* TODO: should this be an S5 error or a JS error? *)
-        | _ -> failwith "Applied object without code attribute"
+        | _ -> failwith ("Applied object without code attribute at " ^
+                         (Pos.to_string p))
       end
-    | `A `ObjT -> failwith "Object too abstracted when applying function"
+    | `A `ObjT -> failwith ("Object too abstracted when applying function at " ^
+                            (Pos.to_string p))
     | `StackObj ({O.code = `A (`Clos f); _}, _) ->
       apply_fun p name (`A (`Clos f)) args (state, ss) global
-    | `StackObj _ -> failwith "Applied object without code attribute"
+    | `StackObj _ -> failwith ("Applied object without code attribute: " ^
+                               (V.to_string f) ^ " at " ^ (Pos.to_string p))
     (* TODO: S5 or JS error? *)
-    | _ -> failwith "Applied non-function"
+    | _ -> failwith ("Applied non-function: " ^ (V.to_string f) ^ " at " ^
+                     (Pos.to_string p))
 
   let apply_frame (v : V.t) (frame : frame) ((state, ss) as conf : conf)
       (global : global) : state list = match frame with

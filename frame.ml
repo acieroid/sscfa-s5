@@ -327,7 +327,7 @@ let to_string = function
   | PropAccessor (_, name, None, _, _) -> "PropAccessor-Set-" ^ name
   | Seq _ -> "Seq"
   | AppFun _ -> "AppFun"
-  | AppArgs (p, _, _, _, _, _) -> "AppArgs-" ^ (Pos.string_of_pos p)
+  | AppArgs (p, _, _, _, _, _) -> "AppArgs-" ^ (Pos.to_string p)
   | Op1App (_, op, _) -> "Op1App-" ^ op
   | Op2Arg (_, op, _, _) -> "Op2Arg-" ^ op
   | Op2App (_, op, _, _) -> "Op2App-" ^ op

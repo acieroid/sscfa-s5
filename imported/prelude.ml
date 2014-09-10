@@ -35,12 +35,12 @@ module Pos = struct
       (e.pos_cnum - e.pos_bol)
     else Format.sprintf "%d:%d-%d:%d" p.pos_lnum (p.pos_cnum - p.pos_bol)
       e.pos_lnum (e.pos_cnum - e.pos_bol)
-  let string_of_pos (p, e, _) = rangeToString p e
+  let to_string (p, e, _) = rangeToString p e
   let toLexPos (s, e, _) = (s, e)
   let isSynthetic (_, _, synth) = synth
   let fname (s, e, _) = s.pos_fname
 
-  (* let string_of_pos p = *)
+  (* let to_string p = *)
   (*   Printf.sprintf "[%s]: Line %d, Col %d - Line %d, Col %d" *)
   (*     (fst p).Lexing.pos_fname *)
   (*     (fst p).Lexing.pos_lnum *)

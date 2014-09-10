@@ -42,12 +42,12 @@ let load_s5 file : S.exp =
   with
   |  Failure "lexing: empty token" ->
     failwith (sprintf "lexical error at %s"
-                (Pos.string_of_pos (Pos.real
-                                      (lexbuf.lex_curr_p, lexbuf.lex_curr_p))))
+                (Pos.to_string
+                   (Pos.real (lexbuf.lex_curr_p, lexbuf.lex_curr_p))))
   | Parsing.Parse_error ->
     failwith (sprintf "parse error at %s; unexpected token %s"
-                (Pos.string_of_pos (Pos.real
-                                      (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
+                (Pos.to_string
+                   (Pos.real (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))
 
 let save_state (c : LJS.conf) (env : LJS.conf option) file =
