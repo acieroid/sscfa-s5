@@ -182,6 +182,7 @@ struct
         | `A v -> begin match v with
             | `Null | `True | `False | `BoolT | `Num _ | `NumT
             | `Str _ | `StrT | `Undef | `Bot -> acc
+            | `Nullable v -> aux acc visited_objs (`A v)
             | `Clos (env, args, exp) ->
               AddressSet.union_vars (Env.range env) acc
             | `Obj a -> if ObjAddressSet.subset a visited_objs then
@@ -656,6 +657,13 @@ struct
         | `A (`Obj a) ->
           let store = which_ostore a state.ostore global.gostore in
           begin match ObjectStore.lookup a store with
+            | obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
+          end
+        | `A (`Nullable (`Obj a)) ->
+          let store = which_ostore a state.ostore global.gostore in
+          begin match ObjectStore.lookup a store with
+            (* TODO: add a failure state (this is a S5 error, and should not
+               happen in code desugared from Javascript *)
             | obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]
           end
         | `StackObj obj -> [{state with control = Val (O.get_obj_attr obj oattr); env = env'}]

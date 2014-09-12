@@ -55,7 +55,7 @@ module Make =
           if not (Address.is_reclaimable a) || (AddressSet.mem a addrs) then
             true
           else begin
-            Printf.printf "\027[32mreclaim(%s)\027[0m\n" (Address.to_string a);
+            Printf.printf "\027[32mreclaim(%s)\027[0m\n%!" (Address.to_string a);
             false
           end)
 

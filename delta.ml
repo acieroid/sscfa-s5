@@ -385,10 +385,16 @@ let has_property lookup obj field =
     | _ -> `False in
   aux (`A obj) field
 
-let has_own_property lookup obj field = match obj, field with
+let rec has_own_property lookup obj field =
+  match obj, field with
   | `Obj loc, `Str s -> begin match lookup loc with
       | (({O.proto = proto; _}, _) as o) ->
         AValue.bool (O.has_prop o s)
+    end
+  | `Nullable (`Obj loc as obj), _ ->
+    begin match has_own_property lookup obj field with
+    | `False -> `False
+    | _ -> `BoolT
     end
   | `Obj _, `StrT -> `BoolT
   | `Obj loc, _ ->
