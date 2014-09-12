@@ -112,6 +112,10 @@ module MakeVarAddress =
       else
         true
     let to_string a = "@var-" ^ (A.to_string a)
+    let alloc p id t =
+      Printf.printf "\027[33malloc_var(%s, %s, %s)\027[0m\n"
+        (Pos.to_string p) id (T.to_string t);
+      A.alloc p id t
   end
 
 module MakeObjAddress =
@@ -126,6 +130,10 @@ module MakeObjAddress =
       else
         true
     let to_string a = "@obj-" ^ (A.to_string a)
+    let alloc p id t =
+      Printf.printf "\027[33malloc_obj(%s, %s, %s)\027[0m\n"
+        (Pos.to_string p) id (T.to_string t);
+      A.alloc p id t
   end
 
 module type ParameterSensitiveArgument = sig

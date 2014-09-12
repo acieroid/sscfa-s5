@@ -159,7 +159,8 @@ let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
         end
       | `A `False -> failwith "extending inextensible object" (* TODO: raise an error that will be thrown instead *)
       | `A `BoolT -> failwith "set_attr: TODO (branching)"
-      | _ -> failwith "set_attr: TODO"
+      | `A v -> failwith ("set_attr: " ^ (AValue.to_string v))
+      | `StackObj o -> failwith ("set_attr: StackObj: " ^ (to_string o))
     else
       match (IdMap.find field props), attr with
       | Data ({writable = `A `True; _} as d, enum, config), S.Writable
@@ -191,7 +192,8 @@ let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
         Accessor (a, value, `A `True)
       | Accessor (a, enum, `A `False), S.Config when value = `A `False ->
         Accessor (a, enum, `A `False)
-      | _ -> failwith "bad property set"
+      | prop, _ -> failwith ("bad property set: " ^ (string_of_prop prop) ^
+                             ", " ^ (S.string_of_attr attr))
   in
   (attrs, IdMap.add field newprop props)
 
@@ -218,8 +220,9 @@ let rec join ((attrs, props) : t) ((attrs', props') : t) : t =
       Accessor ({getter = g'; setter = s'}, enum', config') ->
       Accessor ({getter = join_value g g'; setter = join_value s s'},
                 join_value enum enum', join_value config config')
-    | Data _, Accessor _
-    | Accessor _, Data _ -> failwith "joining different props (TODO)" in
+    | p1, p2 ->
+      failwith ("joining different props:" ^
+                (string_of_prop p1) ^ " and " ^ (string_of_prop p2)) in
   let merge_props _ x y = match x, y with
     | Some p, Some p' -> Some (join_props p p')
     | Some p, None | None, Some p -> Some p

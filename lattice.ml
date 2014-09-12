@@ -62,7 +62,7 @@ module AValue = struct
     | `Undef -> "undefined"
     | `Clos (_, args, body) -> "Clos(" ^ (string_of_list (fun x -> x) args) ^ ")"
     | `ClosT -> "ClosT"
-    | `Obj addrs -> "Obj( " ^ (ObjAddressSet.to_string addrs) ^ ")"
+    | `Obj addrs -> "Obj(" ^ (ObjAddressSet.to_string addrs) ^ ")"
     | `Bot -> "Bot"
 
 end
