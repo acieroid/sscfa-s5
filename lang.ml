@@ -426,7 +426,8 @@ struct
             `PSKCFA
           else
             `MCFA in
-        Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name) ();
+        Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name)
+          (BatList.map V.to_string args);
         (body, {state' with
                 env = Env.set_alloc alloc (Env.call p state'.env);
                 time = match alloc with
