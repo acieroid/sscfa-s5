@@ -90,7 +90,7 @@ module ObjectStore = struct
     ObjAddressSet.fold (fun addr s -> NormalObjectStore.join addr o s) a store
 
   let set (a : ObjAddressSet.t) (o : O.t) (store : t) : t =
-    ObjAddressSet.fold (fun addr s -> NormalObjectStore.join addr o s) a store
+    ObjAddressSet.fold (fun addr s -> NormalObjectStore.set addr o s) a store
 
   let contains (a : ObjAddressSet.t) (store : t) : bool =
     (* store contains the address set if it contains each address of the set *)
