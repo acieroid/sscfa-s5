@@ -60,7 +60,7 @@ module AValue = struct
     | `BoolT -> "BoolT"
     | `Null -> "null"
     | `Undef -> "undefined"
-    | `Clos (_, args, body) -> "Clos(" ^ (string_of_list args (fun x -> x)) ^ ")"
+    | `Clos (_, args, body) -> "Clos(" ^ (string_of_list (fun x -> x) args) ^ ")"
     | `ClosT -> "ClosT"
     | `Obj addrs -> "Obj( " ^ (ObjAddressSet.to_string addrs) ^ ")"
     | `Bot -> "Bot"

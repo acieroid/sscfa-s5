@@ -107,7 +107,8 @@ let () =
       | `Dsg ->
         let dsg = DSG.build_dyck s5 env in
         let final_states = DSG.final_states dsg in
-        print_endline ("Final states: " ^ (string_of_list final_states LJS.string_of_conf));
+        print_endline ("Final states: " ^ (string_of_list LJS.string_of_conf
+                                             final_states));
         DSG.output_dsg dsg "dsg.dot";
         DSG.output_ecg dsg "ecg.dot";
         begin match !dump with

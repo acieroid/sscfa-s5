@@ -24,7 +24,7 @@ let compare_list cmp l1 l2 =
   else
     l
 
-let string_of_list l s_o_elt =
+let string_of_list s_o_elt l =
   if List.length l > 0 then
     let elts = List.fold_right (fun elt a -> (s_o_elt elt)^", "^a) l "" in
     "["^(String.sub elts 0 ((String.length elts)-2))^"]"
@@ -67,7 +67,7 @@ module KCFABased =
     type t = Arg.t list
     let initial = []
     let compare = compare_list Arg.compare
-    let to_string t = string_of_list t Arg.to_string
+    let to_string = string_of_list Arg.to_string
     let tick x t =
       (* print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m"); *)
       BatList.take K.k (x :: t)
@@ -190,7 +190,7 @@ module ParameterSensitive =
                     lazy (compare_list cmp l l')]
 
     let to_string ((p, l) : t) =
-      string_of_list l (fun (n, v) -> n ^ ": " ^ (string_of_v v))
+      string_of_list (fun (n, v) -> n ^ ": " ^ (string_of_v v)) l
 
   end
 
@@ -271,7 +271,7 @@ end
   type t = arg list
   let initial = []
   let compare = compare_list Pos.compare
-  let to_string t = string_of_list t Pos.to_string
+  let to_string = string_of_list Pos.to_string
   let tick x t = BatList.take k (x :: t)
 end
 
@@ -326,39 +326,39 @@ module AddressSet = struct
 end
 
 let rec string_of_exp exp = match exp with
-  | Null p -> "null"
-  | Undefined _ -> "undef"
-  | String (_, v) -> "'"^v^"'"
+  | Null p -> "Null"
+  | Undefined _ -> "Undefined"
+  | String (_, v) -> "'" ^ v ^ "'"
   | Num (_, f) -> (string_of_float f)
-  | True _ -> "true"
-  | False _ -> "false"
+  | True _ -> "True"
+  | False _ -> "False"
   | Id (_, x) -> x
-  | Object (_, _, _) -> "object"
-  | GetAttr (_, _, _, _) -> "getattr"
-  | SetAttr (_, _, _, _, _) -> "setattr"
-  | GetObjAttr (_, _, _) -> "getobjattr"
-  | SetObjAttr (_, _, _, _) -> "setobjattr"
-  | GetField (_, _, _, _) -> "getfield"
-  | SetField (_, _, _, _, _) -> "setfield"
-  | DeleteField (_, _, _) -> "deletefield"
-  | OwnFieldNames (_, _) -> "ownfieldnames"
-  | SetBang (_, _, _) -> "setbang"
-  | Op1 (_, s, e) -> "op1(" ^ s ^ ", " ^ (string_of_exp e) ^ ")"
-  | Op2 (_, s, e1, e2) -> "op2(" ^ s ^ ", " ^ (string_of_exp e1) ^ ", " ^ (string_of_exp e2) ^ ")"
-  | If (_, _, _, _) -> "if"
-  | App (_, _, _) -> "app"
-  | Seq (_, _, _) -> "seq"
+  | Object (_, _, _) -> "Object"
+  | GetAttr (_, _, _, _) -> "GetAttr"
+  | SetAttr (_, _, _, _, _) -> "SetAttr"
+  | GetObjAttr (_, _, _) -> "GetObjAttr"
+  | SetObjAttr (_, _, _, _) -> "SetObjAttr"
+  | GetField (_, _, _, _) -> "GetField"
+  | SetField (_, _, _, _, _) -> "SetField"
+  | DeleteField (_, _, _) -> "DeleteField"
+  | OwnFieldNames (_, _) -> "OwnFieldNames"
+  | SetBang (_, _, _) -> "SetBang"
+  | Op1 (_, s, e) -> "Op1(" ^ s ^ ", " ^ (string_of_exp e) ^ ")"
+  | Op2 (_, s, e1, e2) -> "Op2(" ^ s ^ ", " ^ (string_of_exp e1) ^ ", " ^ (string_of_exp e2) ^ ")"
+  | If (_, _, _, _) -> "If"
+  | App (_, _, _) -> "App"
+  | Seq (_, _, _) -> "Seq"
   | Let (_, x, e, _) ->
-    "let "^x^" = "^(string_of_exp e)^""
+    "let (" ^ x ^ " = " ^ (string_of_exp e) ^ ")"
   | Rec (_, x, e1, e2) ->
-    "rec("^x^", "^(string_of_exp e1)^", "^(string_of_exp e2)^")"
-  | Label (_, _, _) -> "label"
-  | Break (_, _, _) -> "break"
-  | TryCatch (_, _, _) -> "catch"
-  | TryFinally (_, _, _) -> "finally"
-  | Throw (_, _) -> "throw"
+    "rec(" ^ x ^ ", " ^ (string_of_exp e1) ^ ", " ^ (string_of_exp e2) ^ ")"
+  | Label (_, _, _) -> "Label"
+  | Break (_, _, _) -> "Break"
+  | TryCatch (_, _, _) -> "Catch"
+  | TryFinally (_, _, _) -> "Finally"
+  | Throw (_, _) -> "Throw"
   | Lambda (_, xs, e) ->
-    "func("^(string_of_list xs (fun x->x))^", "^(string_of_exp e)^")"
+    "func(" ^ (string_of_list (fun x -> x) xs) ^ ", " ^ (string_of_exp e) ^ ")"
   | Eval (_, _, _) -> "eval"
   | Hint (_, _, _) -> "hint"
 
@@ -370,15 +370,15 @@ let rec full_string_of_exp exp = match exp with
   | True _ -> "true"
   | False _ -> "false"
   | Id (_, x) -> x
-  | Object (_, _, _) -> "object"
-  | GetAttr (_, _, _, _) -> "getattr"
-  | SetAttr (_, _, _, _, _) -> "setattr"
-  | GetObjAttr (_, _, _) -> "getobjattr"
-  | SetObjAttr (_, _, _, _) -> "setobjattr"
-  | GetField (_, _, _, _) -> "getfield"
-  | SetField (_, _, _, _, _) -> "setfield"
-  | DeleteField (_, _, _) -> "deletefield"
-  | OwnFieldNames (_, _) -> "ownfieldnames"
+  | Object (_, _, _) -> "Object"
+  | GetAttr (_, _, _, _) -> "GetAttr"
+  | SetAttr (_, _, _, _, _) -> "SetAttr"
+  | GetObjAttr (_, _, _) -> "GetObjAttr"
+  | SetObjAttr (_, _, _, _) -> "SetObjAttr"
+  | GetField (_, _, _, _) -> "GetField"
+  | SetField (_, _, _, _, _) -> "SetField"
+  | DeleteField (_, _, _) -> "DeleteField"
+  | OwnFieldNames (_, _) -> "OwnFieldNames"
   | SetBang (_, s, e) -> s ^ " := " ^ (full_string_of_exp e)
   | Op1 (_, s, e) -> s ^ "(" ^ (full_string_of_exp e) ^ ")"
   | Op2 (_, s, e1, e2) -> (full_string_of_exp e1) ^ " " ^ s ^ " " ^ (full_string_of_exp e2)
@@ -389,20 +389,20 @@ let rec full_string_of_exp exp = match exp with
                         (String.concat ", " (List.map full_string_of_exp args)) ^ ")"
   | Seq (_, e1, e2) -> (full_string_of_exp e1) ^ "; " ^ (full_string_of_exp e2)
   | Let (_, x, e, body) ->
-    "{let (" ^ x ^ " = " ^ (full_string_of_exp e) ^ ") " ^ (full_string_of_exp body) ^ "}"
+    "let (" ^ x ^ " = " ^ (full_string_of_exp e) ^ ") " ^ (full_string_of_exp body)
   | Rec (_, x, e1, e2) ->
     "rec (" ^ x ^ " = " ^ (full_string_of_exp e1) ^ ") " ^ (full_string_of_exp e2) ^ ")"
-  | Label (_, _, _) -> "label"
-  | Break (_, _, _) -> "break"
-  | TryCatch (_, _, _) -> "catch"
-  | TryFinally (_, _, _) -> "finally"
-  | Throw (_, _) -> "throw"
+  | Label (_, _, _) -> "Label"
+  | Break (_, _, _) -> "Break"
+  | TryCatch (_, _, _) -> "Catch"
+  | TryFinally (_, _, _) -> "Finally"
+  | Throw (_, _) -> "Throw"
   | Lambda (_, xs, e) ->
     "func (" ^ (String.concat ", " xs) ^ ") {" ^ (full_string_of_exp e) ^ "}"
-  | Eval (_, _, _) -> "eval"
-  | Hint (_, _, _) -> "hint"
+  | Eval (_, _, _) -> "Eval"
+  | Hint (_, _, _) -> "Hint"
 
 let string_of_prop = function
-  | Data ({value = v; _}, _, _) -> "data(" ^ (string_of_exp v) ^ ")"
+  | Data ({value = v; _}, _, _) -> "Data(" ^ (string_of_exp v) ^ ")"
   | Accessor ({getter = g; setter = s}, _, _) ->
-    "accessor(" ^ (string_of_exp g) ^ ", " ^ (string_of_exp s) ^ ")"
+    "Accessor(" ^ (string_of_exp g) ^ ", " ^ (string_of_exp s) ^ ")"
