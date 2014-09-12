@@ -27,9 +27,8 @@ module Make =
     let join (a : Address.t) (v : Value.t) (store : t)  =
       if AddrMap.mem a store then begin
         let (v', count) = AddrMap.find a store in
-        print_endline ("\027[31mJoining values: " ^ (Value.to_string v) ^
-                       " and " ^ (Value.to_string v') ^
-                       " at location " ^ (Address.to_string a) ^ "\027[0m");
+        Printf.printf "\027[35mJoining values: %s and %s at location %s\027[0m\n"
+          (Value.to_string v) (Value.to_string v') (Address.to_string a);
         AddrMap.add a ((Value.join v v'), Infinity) store
       end
       else
@@ -56,7 +55,7 @@ module Make =
           if not (Address.is_reclaimable a) || (AddressSet.mem a addrs) then
             true
           else begin
-            print_endline ("\027[32mreclaim(" ^ (Address.to_string a) ^ ")\027[0m");
+            Printf.printf "\027[32mreclaim(%s)\027[0m\n" (Address.to_string a);
             false
           end)
 

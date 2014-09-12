@@ -13,7 +13,24 @@ module AValue = struct
     | `Obj of ObjAddressSet.t
     | `Bot
   ]
+
   let bool b = if b then `True else `False
+
+  let to_string : t -> string = function
+    | `Top -> "Top"
+    | `Str s -> "'" ^ s ^ "'"
+    | `StrT -> "StrT"
+    | `Num n -> string_of_float n
+    | `NumT -> "NumT"
+    | `True -> "true"
+    | `False -> "false"
+    | `BoolT -> "BoolT"
+    | `Null -> "null"
+    | `Undef -> "undefined"
+    | `Clos (_, args, body) -> "Clos(" ^ (string_of_list (fun x -> x) args) ^ ")"
+    | `ClosT -> "ClosT"
+    | `Obj addrs -> "Obj(" ^ (ObjAddressSet.to_string addrs) ^ ")"
+    | `Bot -> "Bot"
 
   (* TODO: ppx *)
   let compare (x : t) (y : t) : int = match x, y with
@@ -44,25 +61,14 @@ module AValue = struct
       | `Num _, `Num _ | `NumT, `Num _ | `Num _, `NumT -> `NumT
       | `True, `False | `False, `True | `BoolT, `True | `True, `BoolT
       | `BoolT, `False | `False, `BoolT | `BoolT, `BoolT -> `BoolT
-      | `Clos _, `Clos _ | `ClosT, `Clos _ | `Clos _, `ClosT | `ClosT, `ClosT -> `ClosT
+      | `Clos _, `Clos _ | `ClosT, `Clos _ | `Clos _, `ClosT | `ClosT, `ClosT ->
+        Printf.printf "\027[31mJoining two closures: %s and %s\027[0m\n"
+          (to_string x) (to_string y);
+        `ClosT
       | `Obj addrs, `Obj addrs' -> `Obj (ObjAddressSet.join addrs addrs')
       | `Bot, v | v, `Bot -> v
-      | _, _ -> `Top
-
-  let to_string : t -> string = function
-    | `Top -> "Top"
-    | `Str s -> "'" ^ s ^ "'"
-    | `StrT -> "StrT"
-    | `Num n -> string_of_float n
-    | `NumT -> "NumT"
-    | `True -> "true"
-    | `False -> "false"
-    | `BoolT -> "BoolT"
-    | `Null -> "null"
-    | `Undef -> "undefined"
-    | `Clos (_, args, body) -> "Clos(" ^ (string_of_list (fun x -> x) args) ^ ")"
-    | `ClosT -> "ClosT"
-    | `Obj addrs -> "Obj(" ^ (ObjAddressSet.to_string addrs) ^ ")"
-    | `Bot -> "Bot"
-
+      | _, _ ->
+        Printf.printf "\027[31mJoining two incompatible values: %s and %s\027[0m\n"
+          (to_string x) (to_string y);
+        `Top
 end
