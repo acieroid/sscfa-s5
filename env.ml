@@ -14,14 +14,14 @@ module type Env_signature =
     val empty : t
 
     (** Add a mapping to the environment *)
-    val extend : string -> Address.t -> t -> t
+    val extend : string -> VarAddress.t -> t -> t
 
     (** Check whether the environment contains a mapping for the given name *)
     val contains : string -> t -> bool
 
     (** Fetch the address of a name in the environment, raising Not_found if no
         such mapping exist *)
-    val lookup : string -> t -> Address.t
+    val lookup : string -> t -> VarAddress.t
 
     (** Keep only the mappings corresponding to the names in the given set *)
     val keep : IdSet.t -> t -> t
@@ -42,7 +42,7 @@ module type Env_signature =
     val domain : t -> IdSet.t
 
     (** Extract the range of the environment (that is, the set of addresses) *)
-    val range : t -> AddressSet.t
+    val range : t -> VarAddressSet.t
 
     (** Merge two environments together, giving priority to values from the
         first environment *)
@@ -65,7 +65,7 @@ module Env =
     module StringMap = BatMap.Make(BatString)
 
     type t = {
-      env : Address.t StringMap.t;
+      env : VarAddress.t StringMap.t;
       call : Pos.t list;
       strategy : allocation_strategy;
     }
@@ -84,13 +84,13 @@ module Env =
     let compare e e' =
       order_concat [lazy (compare_list Pos.compare e.call e'.call);
                     lazy (Pervasives.compare e.strategy e'.strategy);
-                    lazy (StringMap.compare Address.compare e.env e'.env)]
+                    lazy (StringMap.compare VarAddress.compare e.env e'.env)]
 
 
     let size e = StringMap.cardinal e.env
 
     let to_string e = String.concat ", "
-        (BatList.map (fun (v, a) -> v ^ ": " ^ (Address.to_string a))
+        (BatList.map (fun (v, a) -> v ^ ": " ^ (VarAddress.to_string a))
            (StringMap.bindings e.env))
 
     let subsumes e1 e2 =
@@ -106,7 +106,7 @@ module Env =
     (* urr *)
     let domain e = IdSet.from_list (BatList.of_enum (StringMap.keys e.env))
 
-    let range e = AddressSet.of_enum (StringMap.values e.env)
+    let range e = VarAddressSet.of_enum (StringMap.values e.env)
 
     let merge e1 e2 =
       let merge_val _ v1 v2 =

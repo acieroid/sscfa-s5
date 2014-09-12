@@ -19,7 +19,7 @@ let to_lookup ostore ostore' = fun a ->
   else if ObjectStore.contains a ostore' then
     ObjectStore.lookup a ostore'
   else
-    failwith ("No object found at address " ^ (Address.to_string a))
+    failwith ("No object found at address " ^ (ObjAddressSet.to_string a))
 
 let typeof lookup = function
   | `Undef -> `Str "undefined"

@@ -116,13 +116,7 @@ struct
   module GCStackSummary =
   struct
     (* Stack summary used for garbage collection  *)
-    type t = AddressSet.t
-    let empty = AddressSet.empty
-    let compare = AddressSet.compare
-    let to_string ss = "[" ^ (BatString.concat ", "
-                                (BatList.map Address.to_string
-                                   (AddressSet.elements ss))) ^ "]"
-
+    include AddressSet
     let push (ss : t) (global : global) (f : F.t) =
       AddressSet.union ss (Frame.touch f global.genv)
   end
@@ -143,7 +137,11 @@ struct
     else
       error ("Identifier cannot be resolved: " ^ id) Not_found
 
-  let which_ostore (a : Address.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
+  (* TODO: as object addresses are now a set of addresses, this might be more
+     tricky than it seems: what if some addresses are in the local store and
+     some in the global store? Ideally, they should either all be in the global
+     store, or they should all having been copied in the local store *)
+  let which_ostore (a : ObjAddressSet.t) (ostore : ObjectStore.t) (ostore' : ObjectStore.t)
     : ObjectStore.t =
     if ObjectStore.contains a ostore then
       ostore
@@ -151,7 +149,7 @@ struct
       ostore'
     else
       error ("Object lives at an unreachable address: " ^
-             (Address.to_string a)) Not_found
+             (ObjAddressSet.to_string a)) Not_found
 
   let ostore_set a obj ostore ostore' : ObjectStore.t =
     if ObjectStore.contains a ostore then
@@ -163,9 +161,9 @@ struct
       ObjectStore.join a obj ostore
     else
       error ("Cannot set object at unreachable location: " ^
-             (Address.to_string a)) Not_found
+             (ObjAddressSet.to_string a)) Not_found
 
-  let which_vstore (a : Address.t) (vstore : ValueStore.t) (vstore' : ValueStore.t)
+  let which_vstore (a : VarAddress.t) (vstore : ValueStore.t) (vstore' : ValueStore.t)
     : ValueStore.t =
     if ValueStore.contains a vstore then
       vstore
@@ -173,7 +171,7 @@ struct
       vstore'
     else
       error ("Value lives at an unreachable address: " ^
-             (Address.to_string a)) Not_found
+             (VarAddress.to_string a)) Not_found
 
   (** Isolate garbage collection specific functions *)
   module GC =
@@ -185,20 +183,20 @@ struct
             | `Null | `True | `False | `BoolT | `Num _ | `NumT
             | `Str _ | `StrT | `Undef | `Bot -> acc
             | `Clos (env, args, exp) ->
-              AddressSet.union acc (Env.range env)
-            | `Obj a -> if AddressSet.mem a visited_objs then
+              AddressSet.union_vars (Env.range env) acc
+            | `Obj a -> if ObjAddressSet.subset a visited_objs then
                 acc
               else if ObjectStore.contains a ostore then
                 let obj = ObjectStore.lookup a ostore in
-                aux_obj (AddressSet.add a acc)
-                  (AddressSet.add a visited_objs) obj
+                aux_obj (AddressSet.union_objs a acc)
+                  (ObjAddressSet.union a visited_objs) obj
               else if ObjectStore.contains a global.gostore then
                 (* ignore addresses in the global store, as they are not
                    reclaimable and can't point to reclaimable addresses *)
                 acc
               else
                 error ("GC reached a non-reachable object address: " ^
-                       (Address.to_string a)) Not_found
+                       (ObjAddressSet.to_string a)) Not_found
             | `ClosT | `Top -> failwith ("touch: a value was too abstract: " ^
                                          (AValue.to_string v))
           end
@@ -227,16 +225,19 @@ struct
                             aux acc visited_objs s;
                             aux acc visited_objs enum;
                             aux acc visited_objs config]) visited_objs props in
-      aux AddressSet.empty AddressSet.empty v
+      aux AddressSet.empty ObjAddressSet.empty v
 
     let rec control_root control env vstore ostore global
       : AddressSet.t = match control with
-      | Exp e -> Frame.addresses_of_vars (S.free_vars e) env global.genv
+      | Exp e ->
+        AddressSet.vars (Frame.addresses_of_vars (S.free_vars e)
+                           env global.genv)
       | Prop (_, S.Data ({S.value = v; _}, _, _)) ->
-        Frame.addresses_of_vars (S.free_vars v) env global.genv
+        AddressSet.vars (Frame.addresses_of_vars (S.free_vars v) env global.genv)
       | Prop (_, S.Accessor ({S.getter = g; S.setter = s}, _, _)) ->
-        Frame.addresses_of_vars (IdSet.union (S.free_vars g) (S.free_vars s))
-          env global.genv
+        AddressSet.vars (Frame.addresses_of_vars (IdSet.union (S.free_vars g)
+                                                    (S.free_vars s))
+                           env global.genv)
       | Frame (control, frame) ->
         AddressSet.union (control_root control env vstore ostore global)
           (Frame.touch frame global.genv)
@@ -252,31 +253,37 @@ struct
       AddressSet.union ss (control_root state.control state.env
                              state.vstore state.ostore global)
 
-    let touching_rel1 (vstore : ValueStore.t) (ostore : ObjectStore.t)
-        (global : global) (addr : Address.t)
-      : AddressSet.t = let v =
-      if Address.is_obj_addr addr then
-        `Obj addr
-      else
-        let store = which_vstore addr vstore global.gvstore in
-        ValueStore.lookup addr store
-      in
+    let touching_rel1_var (vstore : ValueStore.t) (ostore : ObjectStore.t)
+        (global : global) (addr : VarAddress.t) : AddressSet.t =
+      let store = which_vstore addr vstore global.gvstore in
+      let v = ValueStore.lookup addr store in
       touch vstore ostore global (`A v)
+
+    let touching_rel1_obj (vstore : ValueStore.t) (ostore : ObjectStore.t)
+        (global : global) (addr : ObjAddress.t) : AddressSet.t =
+      touch vstore ostore global (`A (`Obj (ObjAddressSet.singleton addr)))
 
     let touching_rel vstore ostore global addr =
       let rec aux todo acc =
         if AddressSet.is_empty todo then
           acc
-        else
-          let a = AddressSet.choose todo in
-          if AddressSet.mem a acc then
-            aux (AddressSet.remove a todo) acc
-          else
-            let addrs = touching_rel1 vstore ostore global a in
-            aux (AddressSet.remove a (AddressSet.union addrs todo))
-              (AddressSet.add a acc)
+        else match AddressSet.choose todo with
+          | `Var a -> if AddressSet.mem_var a acc then
+              aux (AddressSet.remove_var a todo) acc
+            else
+              let addrs = touching_rel1_var vstore ostore global a in
+              aux (AddressSet.remove_var a (AddressSet.union addrs todo))
+                (AddressSet.add_var a acc)
+          | `Obj a -> if AddressSet.mem_obj a acc then
+              aux (AddressSet.remove_obj a todo) acc
+            else
+              let addrs = touching_rel1_obj vstore ostore global a in
+              aux (AddressSet.remove_obj a (AddressSet.union addrs todo))
+                (AddressSet.add_obj a acc)
       in
-      aux (AddressSet.singleton addr) AddressSet.empty
+      aux (match addr with
+          | `Var a -> AddressSet.singleton_var a
+          | `Obj a -> AddressSet.singleton_obj a) AddressSet.empty
 
     let reachable ((state, ss) : conf) (global : global) : AddressSet.t =
       let r = root (state, ss) global in
@@ -288,8 +295,8 @@ struct
       if !gc != `NoGC then
         let r = reachable (state, ss) global in
         ({state with
-          vstore = ValueStore.restrict r state.vstore;
-          ostore = ObjectStore.restrict r state.ostore},
+          vstore = ValueStore.restrict (AddressSet.to_vars r) state.vstore;
+          ostore = ObjectStore.restrict (AddressSet.to_objs r) state.ostore},
          ss)
       else
         (state, ss)
@@ -328,20 +335,24 @@ struct
 
   let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     match state.env.Env.strategy with
-    | `MCFA -> Address.alloc_var p id (`MCFATime state.env.Env.call)
-    | `PSKCFA -> Address.alloc_var p id state.time
+    | `MCFA -> VarAddress.alloc p id (`MCFATime state.env.Env.call)
+    | `PSKCFA -> VarAddress.alloc p id state.time
 
   let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) =
     match state.env.Env.strategy with
-    | `MCFA -> Address.alloc_obj p id (`MCFATime state.env.Env.call)
-    | `PSKCFA -> Address.alloc_obj p id state.time
+    | `MCFA ->
+      ObjAddressSet.singleton
+        (ObjAddress.alloc p id (`MCFATime state.env.Env.call))
+    | `PSKCFA ->
+      ObjAddressSet.singleton
+        (ObjAddress.alloc p id state.time)
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
-    | `A v -> (state.ostore, v)
-    | `StackObj obj ->
-      let a = alloc_obj p id obj conf in
-      let ostore' = ObjectStore.join a obj state.ostore in
-      (ostore', `Obj a)
+      | `A v -> (state.ostore, v)
+      | `StackObj obj ->
+        let a = alloc_obj p id obj conf in
+        let ostore' = ObjectStore.join a obj state.ostore in
+        (ostore', `Obj a)
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = {control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
@@ -735,7 +746,7 @@ struct
             failwith "DeleteFieldField: cannot update object in the global store"
           else
             failwith ("DeleteFieldField: no object found at address " ^
-                      (Address.to_string a))
+                      (ObjAddressSet.to_string a))
         | `StackObj obj, `A (`Str s) ->
           (* This stack object will not be reachable when this is reached *)
           if O.has_prop obj s then

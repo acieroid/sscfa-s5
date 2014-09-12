@@ -2,7 +2,7 @@ open Env
 open Shared
 module S = Ljs_syntax
 
-module rec AValue : sig
+module AValue = struct
   type t = [
     | `Top
     | `Str of string | `StrT
@@ -10,23 +10,7 @@ module rec AValue : sig
     | `True | `False | `BoolT
     | `Null | `Undef
     | `Clos of Env.t * Prelude.id list * S.exp | `ClosT
-    | `Obj of Object.t
-    | `Bot
-  ]
-
-  val compare : t -> t -> int
-  val join : t -> t -> t
-  val to_string : t -> string
-  val bool : bool -> t
-end = struct
-  type t = [
-    | `Top
-    | `Str of string | `StrT
-    | `Num of float | `NumT
-    | `True | `False | `BoolT
-    | `Null | `Undef
-    | `Clos of Env.t * Prelude.id list * S.exp | `ClosT
-    | `Obj of Object.t
+    | `Obj of ObjAddressSet.t
     | `Bot
   ]
   let bool b = if b then `True else `False
@@ -49,7 +33,8 @@ end = struct
                     lazy (Pervasives.compare exp exp')]
     | `Clos _, _ -> 1 | _, `Clos _ -> -1
     | `ClosT, `ClosT -> 0 | `ClosT, _ -> 1 | _, `ClosT -> -1
-    | `Obj o, `Obj o' -> Object.compare o o' | `Obj _, _ -> 1 | _, `Obj _ -> -1
+    | `Obj addrs, `Obj addrs' -> ObjAddressSet.compare addrs addrs'
+    | `Obj _, _ -> 1 | _, `Obj _ -> -1
     | `Bot, `Bot -> 0
 
   let join (x : t) (y : t) : t = if compare x y = 0 then x else
@@ -60,7 +45,7 @@ end = struct
       | `True, `False | `False, `True | `BoolT, `True | `True, `BoolT
       | `BoolT, `False | `False, `BoolT | `BoolT, `BoolT -> `BoolT
       | `Clos _, `Clos _ | `ClosT, `Clos _ | `Clos _, `ClosT | `ClosT, `ClosT -> `ClosT
-      | `Obj o, `Obj o' -> `Obj (Object.join o o')
+      | `Obj addrs, `Obj addrs' -> `Obj (ObjAddressSet.join addrs addrs')
       | `Bot, v | v, `Bot -> v
       | _, _ -> `Top
 
@@ -77,18 +62,7 @@ end = struct
     | `Undef -> "undefined"
     | `Clos (_, args, body) -> "Clos(" ^ (string_of_list args (fun x -> x)) ^ ")"
     | `ClosT -> "ClosT"
-    | `Obj o -> "Obj( " ^ (Object.to_string o) ^ ")"
+    | `Obj addrs -> "Obj( " ^ (ObjAddressSet.to_string addrs) ^ ")"
     | `Bot -> "Bot"
 
-end
-and Object : sig
-  type t = Address.t
-  val compare : t -> t -> int
-  val join : t -> t -> t
-  val to_string : t -> string
-end = struct
-  type t = Address.t
-  let compare = Address.compare
-  let join x y = failwith "joining object: nyi"
-  let to_string = Address.to_string
 end

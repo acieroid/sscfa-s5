@@ -23,7 +23,7 @@ type t =
   (* {let (id = exp) body}, where the exp in the frame is body *)
   | Let of Pos.t * id * S.exp * Env.t
   (* {rec (id = exp) body} *)
-  | Rec of Pos.t * id * Address.t * S.exp * Env.t
+  | Rec of Pos.t * id * VarAddress.t * S.exp * Env.t
   (* {[field1: val1, ...]} *)
   | ObjectAttrs of Pos.t * string * O.t * (string * S.exp) list * (string * S.prop) list * Env.t
   | ObjectProps of Pos.t * string * O.t * (string * S.prop) list * Env.t
@@ -68,7 +68,7 @@ type t =
   | DeleteFieldObj of S.exp * Env.t
   | DeleteFieldField of V.t * Env.t
   (* id := val *)
-  | SetBang of Pos.t * string * Address.t * Env.t
+  | SetBang of Pos.t * string * VarAddress.t * Env.t
   (* label lab : exp *)
   | Label of string * Env.t
   (* break lab ret *)
@@ -129,13 +129,13 @@ let env_of_frame = function
   | RestoreEnv (_, env) ->
     env
 
-let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet.t =
+let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : VarAddressSet.t =
   IdSet.fold (fun v acc ->
       if Env.contains v env then
-        AddressSet.add (Env.lookup v env) acc
+        VarAddressSet.add (Env.lookup v env) acc
       else if Env.contains v genv then
         if !gc != `NoGlobalGC then
-          AddressSet.add (Env.lookup v genv) acc
+          VarAddressSet.add (Env.lookup v genv) acc
         else
           acc
       else  begin
@@ -143,7 +143,7 @@ let addresses_of_vars (vars : IdSet.t) (env : Env.t) (genv : Env.t) : AddressSet
            Shouldn't they be reported before doing the interpretation? *)
         print_endline ("Ignoring variable not found in env: " ^ v);
         acc
-      end) vars AddressSet.empty
+      end) vars VarAddressSet.empty
 
 let free_vars frame =
   let fv_list f = List.fold_left (fun acc x ->
@@ -217,7 +217,7 @@ let free_vars frame =
   | RestoreEnv _ -> IdSet.empty
 
 let touched_addresses = function
-  | Rec (_, _, a, _, _) -> AddressSet.singleton a
+  | Rec (_, _, a, _, _) -> AddressSet.singleton_var a
   | _ -> AddressSet.empty
 
 (* TODO: some of those functions should probably go elsewhere *)
@@ -231,9 +231,10 @@ let rec addresses_of_vals (l : V.t list) =
   let rec aux acc = function
     | [] -> acc
     | h :: t -> begin match h with
-        | `A `Clos (env, _, _) -> aux (AddressSet.union (Env.range env) acc) t
+        | `A `Clos (env, _, _) ->
+          aux (AddressSet.union_vars (Env.range env) acc) t
         | `A `ClosT -> failwith "Closure was too abstracted"
-        | `A `Obj a -> aux (AddressSet.add a acc) t
+        | `A `Obj a -> aux (AddressSet.union_objs a acc) t
         | `StackObj o -> addresses_of_obj o
         | _ -> aux acc t
       end in
@@ -308,7 +309,8 @@ let touched_addresses_from_values frame =
 
 let touch frame genv =
   AddressSet.union
-    (AddressSet.union (addresses_of_vars (free_vars frame) (env_of_frame frame) genv)
+    (AddressSet.union_vars
+       (addresses_of_vars (free_vars frame) (env_of_frame frame) genv)
        (touched_addresses frame))
     (touched_addresses_from_values frame)
 
@@ -373,7 +375,7 @@ let compare f f' = match f, f' with
   | Rec (p, id, a, exp, env), Rec (p', id', a', exp', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare id id');
-                  lazy (Address.compare a a');
+                  lazy (VarAddress.compare a a');
                   lazy (Pervasives.compare exp exp');
                   lazy (Env.compare env env')]
   | Rec _, _ -> 1
@@ -583,7 +585,7 @@ let compare f f' = match f, f' with
   | SetBang (p, id, a, env), SetBang (p', id', a', env') ->
     order_concat [lazy (Pos.compare p p');
                   lazy (Pervasives.compare id id');
-                  lazy (Address.compare a a');
+                  lazy (VarAddress.compare a a');
                   lazy (Env.compare env env')]
   | DeleteFieldObj (exp, env), DeleteFieldObj (exp', env') ->
     order_concat [lazy (Pervasives.compare exp exp');

@@ -42,7 +42,7 @@ module StringSet = BatSet.Make(struct
     let compare = Pervasives.compare
   end)
 
-module type Time_signature =
+module type TimeSignature =
 sig
   type t
   type arg
@@ -73,137 +73,74 @@ module KCFABased =
       BatList.take K.k (x :: t)
   end
 
-type 'a addr_kind = [ `ObjAddress of 'a | `VarAddress of 'a ]
-
-module type Address_signature =
+module type AddressSignature =
   sig
-    type a
-    type t = a addr_kind
+    type t
     type time
     val compare : t -> t -> int
     val is_reclaimable : t -> bool
     val to_string : t -> string
-    val alloc_obj : Pos.t -> string -> time -> t
-    val alloc_var : Pos.t -> string -> time -> t
-    val is_obj_addr : t -> bool
-    val is_var_addr : t -> bool
+    val alloc : Pos.t -> string -> time -> t
   end
 
-(* S5 uses Store.Loc module (util/store.ml) *)
 module MakeAddress =
-  functor (T : Time_signature) ->
-struct
-  type time = T.t
-  type a = (Pos.t * string * T.t)
-  type t = a addr_kind
-  let compare (x : t) (y : t) = match x, y with
-    | `ObjAddress (p, id, t), `ObjAddress (p', id', t')
-    | `VarAddress (p, id, t), `VarAddress (p', id', t') ->
+  functor (T : TimeSignature) ->
+  struct
+    type time = T.t
+    type t = (Pos.t * string * T.t)
+    let compare ((p, id, t) : t) ((p', id', t') : t) =
       order_concat [lazy (Pos.compare p p');
                     lazy (Pervasives.compare id id');
                     lazy (T.compare t t')]
-    | `ObjAddress _, `VarAddress _ -> 1
-    | `VarAddress _, `ObjAddress _ -> -1
-  let is_reclaimable a =
-    if !gc != `RestrictedGC then
-      match a with
-      (* %or is a special variable frequetly present in desugared S5 code, but
-         it is *not* used to denote a global identifier *)
-      | `VarAddress (_, "let-%or", _) -> true
-      (* variables starting with % or # are global and should not be GCed, even
-         if they are not reachable, as we could be loading an environment where
-         they are not used, but they'll be used in a program using this
-         environment *)
-      | `ObjAddress (_, id, _) ->
-        (* object allocation scheme different than variable's *)
-        not (BatString.starts_with id "let-%" || BatString.starts_with id "let-#")
-      | `VarAddress (_, id, _) ->
-        not (BatString.starts_with id "%" || BatString.starts_with id "#")
-    else
-      true
-  let to_string = function
-    | `ObjAddress (_, id, t) -> "@obj-" ^ id ^ "-" ^ (T.to_string t)
-    | `VarAddress (_, id, t) -> "@var-" ^ id ^ "-" ^ (T.to_string t)
-  let alloc_obj (p : Pos.t) (id : string) (t : T.t) : t =
-    print_endline ("\027[33malloc_obj(" ^ (Pos.to_string p) ^ ", " ^ id ^
-                   ", " ^ (T.to_string t) ^ ")\027[0m");
-    `ObjAddress (p, id, t)
-  let alloc_var (p : Pos.t) (id : string) (t : T.t) : t =
-    print_endline ("\027[33malloc_var(" ^ (Pos.to_string p) ^ ", " ^ id ^
-                   ", " ^ (T.to_string t) ^ ")\027[0m");
-    `VarAddress (p, id, t)
-  let is_obj_addr = function
-    | `ObjAddress _ -> true
-    | _ -> false
-  let is_var_addr = function
-    | `VarAddress _ -> true
-    | _ -> false
-end
-
-module ParameterSensitiveNoObj =
-  struct
-    (* We need to duplicate a bit of lattice.ml here, it should be better to put
-       this in another file. We cannot use the Lattice module here as it depends
-       on this module for addresses *)
-    type v = [ `True | `False | `BoolT
-             | `Str of string | `StrT
-             | `Num of float | `NumT
-             | `Null | `Undef
-             | `Top | `Bot ]
-
-
-    let string_of_v : v -> string = function
-      | `True -> "true"
-      | `False -> "false"
-      | `BoolT -> "boolT"
-      | `Num n -> string_of_float n
-      | `NumT -> "numT"
-      | `Str s -> "'" ^ s ^ "'"
-      | `StrT -> "strT"
-      | `Null -> "null"
-      | `Undef -> "undef"
-      | `Top -> "T"
-      | `Bot -> "_|_"
-
-    let compare_v x y = match x, y with
-      | `True, `True | `False, `False | `BoolT, `BoolT
-      | `StrT, `StrT | `NumT, `NumT
-      | `Null, `Null | `Undef, `Undef
-      | `Top, `Top | `Bot, `Bot -> 0
-      | `Str s, `Str s' -> Pervasives.compare s s'
-      | `Num n, `Num n' -> Pervasives.compare n n'
-      | `True, _ -> 1 | _, `True -> -1
-      | `False, _ -> 1 | _, `False -> -1
-      | `BoolT, _ -> 1 | _, `BoolT -> -1
-      | `Str _, _ -> 1 | _, `Str _ -> -1
-      | `StrT, _ -> 1 | _, `StrT -> -1
-      | `Num _, _ -> 1 | _, `Num _ -> -1
-      | `NumT, _ -> 1 | _, `NumT -> -1
-      | `Null, _ -> 1 | _, `Null -> -1
-      | `Undef, _ -> 1 | _, `Undef -> -1
-      | `Top, _ -> 1 | _, `Top -> -1
-
-    type t = Pos.t * (string * v) list
-
-    let compare ((p, l) : t) ((p', l') : t) : int =
-      let cmp (n, v) (n', v') =
-        order_concat [lazy (Pervasives.compare n n');
-                      lazy (compare_v v v')] in
-      order_concat [lazy (Pos.compare p p');
-                    lazy (compare_list cmp l l')]
-
-    let to_string ((p, l) : t) =
-      string_of_list l (fun (n, v) -> n ^ ": " ^ (string_of_v v))
+    let is_reclaimable a = true
+    let to_string (_, id, t) = id ^ "-" ^ (T.to_string t)
+    let alloc (p : Pos.t) (id : string) (t : T.t) : t = (p, id, t)
   end
 
+module MakeVarAddress =
+  functor (T : TimeSignature) ->
+  struct
+    module A = MakeAddress(T)
+    include A
+    let is_reclaimable (_, id, _) =
+      if !gc != `RestrictedGC then
+        (* %or is a special variable frequetly present in desugared S5 code, but
+           it is *not* used to denote a global identifier *)
+        id = "let-%or" ||
+        (* other variables starting with % or # are not reclaimable *)
+        not (BatString.starts_with id "%" || BatString.starts_with id "#")
+      else
+        true
+    let to_string a = "@var-" ^ (A.to_string a)
+  end
+
+module MakeObjAddress =
+  functor (T : TimeSignature) ->
+  struct
+    module A = MakeAddress(T)
+    include A
+    let is_reclaimable (_, id, _) =
+      if !gc != `RestrictedGC then
+        (* object allocation scheme different than variable's *)
+        not (BatString.starts_with id "let-%" || BatString.starts_with id "let-#")
+      else
+        true
+    let to_string a = "@obj-" ^ (A.to_string a)
+  end
+
+module type ParameterSensitiveArgument = sig
+  type t
+  val to_string : t -> string
+  val compare : t -> t -> int
+end
 module ParameterSensitive =
-  functor (A : Address_signature) ->
+  functor (Arg : ParameterSensitiveArgument) ->
   struct
     (* We need to duplicate a bit of lattice.ml here, it should be better to put
        this in another file. We cannot use the Lattice module here as it depends
        on this module for addresses *)
     type v = [ `True | `False | `BoolT
-             | `Obj of A.t
+             | `Obj of Arg.t
              | `Str of string | `StrT
              | `Num of float | `NumT
              | `Null | `Undef
@@ -213,7 +150,7 @@ module ParameterSensitive =
       | `True -> "true"
       | `False -> "false"
       | `BoolT -> "boolT"
-      | `Obj a -> "obj" ^ (A.to_string a)
+      | `Obj addrs -> "obj" ^ (Arg.to_string addrs)
       | `Num n -> string_of_float n
       | `NumT -> "numT"
       | `Str s -> "'" ^ s ^ "'"
@@ -223,12 +160,12 @@ module ParameterSensitive =
       | `Top -> "T"
       | `Bot -> "_|_"
 
-    let compare_v x y = match x, y with
+    let compare_v (x : v) (y : v) : int  = match x, y with
       | `True, `True | `False, `False | `BoolT, `BoolT
       | `StrT, `StrT | `NumT, `NumT
       | `Null, `Null | `Undef, `Undef
       | `Top, `Top | `Bot, `Bot -> 0
-      | `Obj a, `Obj a' -> A.compare a a'
+      | `Obj addrs, `Obj addrs' -> Arg.compare addrs addrs'
       | `Str s, `Str s' -> Pervasives.compare s s'
       | `Num n, `Num n' -> Pervasives.compare n n'
       | `True, _ -> 1 | _, `True -> -1
@@ -257,94 +194,41 @@ module ParameterSensitive =
 
   end
 
-module K1 = struct let k = 1 end
-
-(* This is a bit verbose, it would be cool to find a way to lift values inside
-   `ObjAddress and `VarAddress to the outside *)
-module ProductAddress =
-  functor (A1 : Address_signature) -> functor (A2 : Address_signature) -> struct
-    type time = [
-      | `LeftTime of A1.time
-      | `RightTime of A2.time
-    ]
-    type a = [
-      | `Left of A1.a
-      | `Right of A2.a
-    ]
-    type t = a addr_kind
-    let lift_left = function
-      | `ObjAddress (`Left a) -> `ObjAddress a
-      | `VarAddress (`Left a) -> `VarAddress a
-    let lift_right = function
-      | `ObjAddress (`Right a) -> `ObjAddress a
-      | `VarAddress (`Right a) -> `VarAddress a
-    let unlift_left = function
-      | `ObjAddress a -> `ObjAddress (`Left a)
-      | `VarAddress a -> `VarAddress (`Left a)
-    let unlift_right = function
-      | `ObjAddress a -> `ObjAddress (`Right a)
-      | `VarAddress a -> `VarAddress (`Right a)
-
-    let compare (x : t) (y : t) = match x, y with
-      | `ObjAddress (`Left a), `ObjAddress (`Left a') ->
-        A1.compare (`ObjAddress a) (`ObjAddress a')
-      | `ObjAddress (`Left _), _ -> 1
-      | _, `ObjAddress (`Left _) -> -1
-      | `ObjAddress (`Right a), `ObjAddress (`Right a') ->
-        A2.compare (`ObjAddress a) (`ObjAddress a')
-      | `ObjAddress (`Right _), _ -> 1
-      | _, `ObjAddress (`Right _) -> -1
-      | `VarAddress (`Left a), `VarAddress (`Left a') ->
-        A1.compare (`VarAddress a) (`VarAddress a')
-      | `VarAddress (`Left _), _ -> 1
-      | _, `VarAddress (`Left _) -> -1
-      | `VarAddress (`Right a), `VarAddress (`Right a') ->
-        A2.compare (`VarAddress a) (`VarAddress a')
-    let is_reclaimable (a : t) : bool = match a with
-      | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
-        A1.is_reclaimable (lift_left a)
-      | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
-        A2.is_reclaimable (lift_right a)
-    let to_string (a : t) = match a with
-      | (`ObjAddress (`Left _) as a) | (`VarAddress (`Left _) as a) ->
-        A1.to_string (lift_left a)
-      | (`ObjAddress (`Right _) as a) | (`VarAddress (`Right _) as a) ->
-        A2.to_string (lift_right a)
-    let alloc_obj p id : time -> t = function
-      | `LeftTime t -> unlift_left (A1.alloc_obj p id t)
-      | `RightTime t -> unlift_right (A2.alloc_obj p id t)
-    let alloc_var p id = function
-      | `LeftTime t -> unlift_left (A1.alloc_var p id t)
-      | `RightTime t -> unlift_right (A2.alloc_var p id t)
-    let is_obj_addr : t -> bool = function
-      | `ObjAddress _ -> true
-      | `VarAddress _ -> false
-    let is_var_addr : t -> bool = function
-      | `ObjAddress _ -> false
-      | `VarAddress _ -> true
-  end
-
-
 (* Two kinds of timestamps (and therefore two kinds of addresses).
    This could be more modular, but is not easy to get right *)
 let k = 1
-module rec Address : sig
-  include Address_signature with type time = Time.t
+module rec VarAddress : sig
+  include AddressSignature with type time = Time.t
+end = MakeVarAddress(Time)
+and ObjAddress : sig
+  include AddressSignature with type time = Time.t
+end = MakeObjAddress(Time)
+and ObjAddressSet : sig
+  include BatSet.S with type elt = ObjAddress.t
+                    (* for compatibility with ObjectStore *)
+                    and type t = BatSet.Make(ObjAddress).t
+  val to_string : t -> string
+  val join : t -> t -> t
+end = struct
+  module A = BatSet.Make(ObjAddress)
+  include A
+  let to_string = string_of_set A.fold ObjAddress.to_string
+  let join = A.union
 end
-  = MakeAddress(Time)
 and Time : sig
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t
+           | `Obj of ObjAddressSet.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef
            | `Top | `Bot ]
-  include Time_signature with type arg = Pos.t * (string * v) list
-                          and type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
+  include TimeSignature
+    with type arg = Pos.t * (string * v) list
+     and type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
 end
 = struct
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t
+           | `Obj of ObjAddressSet.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef
@@ -366,20 +250,21 @@ end
 end
 and PSTime : sig
   type v = [ `True | `False | `BoolT
-           | `Obj of Address.t
+           | `Obj of ObjAddressSet.t
            | `Str of string | `StrT
            | `Num of float | `NumT
            | `Null | `Undef
            | `Top | `Bot ]
-  include Time_signature with type arg = Pos.t * (string * v) list
+  include TimeSignature with type arg = Pos.t * (string * v) list
 end
 = struct
-  module PS = ParameterSensitive(Address)
+  module PS = ParameterSensitive(ObjAddressSet)
+  module K1 = struct let k = 1 end
   include KCFABased(PS)(K1)
   type v = PS.v
 end
 and K1Time : sig
-  include Time_signature with type arg = Pos.t and type t = Pos.t list
+  include TimeSignature with type arg = Pos.t and type t = Pos.t list
 end
 = struct
   type arg = Pos.t
@@ -390,7 +275,55 @@ end
   let tick x t = BatList.take k (x :: t)
 end
 
-module AddressSet = BatSet.Make(Address)
+module VarAddressSet = struct
+  module A = BatSet.Make(VarAddress)
+  include A
+  let to_string = string_of_set A.fold VarAddress.to_string
+end
+
+module AddressSet = struct
+  type t = {
+    vars : VarAddressSet.t;
+    objs : ObjAddressSet.t;
+  }
+  let empty = {vars = VarAddressSet.empty; objs = ObjAddressSet.empty}
+  let vars vs = {empty with vars = vs}
+  let objs os = {empty with objs = os}
+  let singleton_var a = {empty with vars = VarAddressSet.singleton a}
+  let singleton_obj a = {empty with objs = ObjAddressSet.singleton a}
+  let add_var a t = {t with vars = VarAddressSet.add a t.vars}
+  let add_obj a t = {t with objs = ObjAddressSet.add a t.objs}
+  let union_vars addrs t = {t with vars = VarAddressSet.union addrs t.vars}
+  let union_objs addrs t = {t with objs = ObjAddressSet.union addrs t.objs}
+  let union t t' = {
+    vars = VarAddressSet.union t.vars t'.vars;
+    objs = ObjAddressSet.union t.objs t'.objs;
+  }
+  let mem_var a t = VarAddressSet.mem a t.vars
+  let mem_obj a t = ObjAddressSet.mem a t.objs
+(*  let mem_objs a t = ObjAddressSet.subset a t.objs *)
+  let remove_var a t = {t with vars = VarAddressSet.remove a t.vars}
+  let remove_obj a t = {t with objs = ObjAddressSet.remove a t.objs}
+(*  let remove_objs addrs t = {t with objs = ObjAddressSet.diff t.objs addrs} *)
+  let compare t t' =
+    order_concat [lazy (VarAddressSet.compare t.vars t'.vars);
+                  lazy (ObjAddressSet.compare t.objs t'.objs)]
+  let is_empty t =
+    VarAddressSet.is_empty t.vars && ObjAddressSet.is_empty t.objs
+  let choose t =
+    if VarAddressSet.is_empty t.vars then
+      `Obj (ObjAddressSet.choose t.objs)
+    else
+      `Var (VarAddressSet.choose t.vars)
+  let fold f t init =
+    let init' = VarAddressSet.fold (fun a acc -> f (`Var a) acc) t.vars init in
+    ObjAddressSet.fold (fun a acc -> f (`Obj a) acc) t.objs init'
+  let to_string t =
+    "[" ^ (VarAddressSet.to_string t.vars) ^
+    ", " ^ (ObjAddressSet.to_string t.objs) ^ "]"
+  let to_vars t = t.vars
+  let to_objs t = t.objs
+end
 
 let rec string_of_exp exp = match exp with
   | Null p -> "null"

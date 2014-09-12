@@ -230,7 +230,6 @@ and join_value (x : value) (y : value) : value = match x, y with
   | `A v, `A v' -> `A (AValue.join v v')
   | `StackObj o, `StackObj o' -> `StackObj (join o o')
   | _, _ -> failwith ("cannot join " ^ (string_of_value x) ^ " and " ^ (string_of_value y))
-  
 
 let d_attrsv = {
   primval = `A `Undef;
