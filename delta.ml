@@ -1,7 +1,5 @@
  (* Imported from labichn's LambdaS5 fork
-   TODO:
-     - labichn object store stores set of object, whereas mine stores either one
-       object or the top object. Using his approach might be a better idea
+   TODO: nullable isn't correctly handled everywhere
 *)
 
 open Prelude
@@ -32,15 +30,24 @@ let typeof lookup = function
       | _ -> `Str "function"
     end
   | `Clos _ -> raise (PrimErr "typeof got lambda")
+  | `Nullable _ -> `StrT (* "null" |_| typeof v' *)
   | _ -> `StrT
 
 let is_closure v = match v with
-  | `Clos _ | `ClosT-> `True
+  | `Clos _ | `ClosT -> `True
+  | `Nullable (`Clos _) | `Nullable `ClosT -> `BoolT
   | _ -> `False
 
-let is_primitive v = match v with
-  | `Undef | `Null | `Str _ | `StrT | `Num _ | `NumT | `True | `False | `BoolT -> `True
-  | _ -> `False
+let is_primitive v =
+  let rec helper = function
+    | `Undef | `Null | `Str _ | `StrT | `Num _ | `NumT | `True | `False | `BoolT -> `True
+    | `Nullable v' ->
+      begin match helper v' with
+        | `True -> `True
+        | `False | `BoolT -> `BoolT
+      end
+    | _ -> `False in
+  (helper v :> AValue.t)
 
 let float_str n =
   if not (n <= n || n >= n) then "NaN"
@@ -77,6 +84,7 @@ let prim_to_str v = match v with
   | `True -> `Str "true"
   | `False -> `Str "false"
   | `BoolT | `NumT | `StrT -> `StrT
+  | `Nullable _ -> `StrT (* "null" |_| prim_to_str v' *)
   | _ -> raise (PrimErr ("prim_to_str with value " ^ (AValue.to_string v)))
 
 let strlen s = match s with
@@ -94,19 +102,17 @@ let prim_to_num v = match v with
   | `Str "" -> `Num 0.0
   | `Str s -> `Num (try float_of_string s with Failure _ -> nan)
   | `BoolT | `NumT | `StrT -> `NumT
+  | `Nullable `Undef | `Nullable `Null | `Nullable `True | `Nullable `False
+  | `Nullable (`Num _) | `Nullable (`Str _) | `Nullable `StrT | `Nullable `BoolT
+  | `Nullable `NumT -> `NumT
   | _ -> raise (PrimErr ("prim_to_num with value " ^ (AValue.to_string v)))
 
-let prim_to_bool v =
-  let helper = function
-    | true -> `True
-    | false -> `False in
-  match v with
-  | `Num x -> helper (not (x == nan || x = 0.0 || x = -0.0))
-  | `Str s -> helper (not (String.length s = 0))
-  | `BoolT | `NumT | `StrT -> `BoolT
-  | `False
-  | `Undef
-  | `Null -> `False
+let prim_to_bool v = match v with
+  | `Num x -> AValue.bool (not (x == nan || x = 0.0 || x = -0.0))
+  | `Str s -> AValue.bool (not (String.length s = 0))
+  | `False | `Undef | `Null
+  | `Nullable `False | `Nullable `Undef | `Nullable `Null -> `False
+  | `BoolT | `NumT | `StrT | `Nullable _ -> `BoolT
   | `True
   | _ -> `True
 
@@ -124,52 +130,72 @@ let print v = match v with
 let pretty v =
   printf "%s\n%!" (AValue.to_string v); `Undef
 
-let is_extensible lookup obj = match obj with
-  | `Obj loc -> begin match lookup loc with
-    | ({O.extensible = `A ext; _}, _) -> ext
-    | ({O.extensible = `StackObj _; _}, _) -> `True
-    end
-  | _ -> raise (PrimErr "is-extensible")
+let is_extensible lookup obj =
+  let rec helper = function
+    | `Obj loc -> begin match lookup loc with
+        | ({O.extensible = `A ext; _}, _) -> ext
+        | ({O.extensible = `StackObj _; _}, _) -> `True
+      end
+    | `Nullable v ->
+      begin match helper v with
+      | `False -> `False
+      | _ -> `BoolT
+      end
+    | _ -> raise (PrimErr "is-extensible") in
+  helper obj
 
-  (* Implement this here because there's no need to expose the class
-     property outside of the delta function *)
+(* Implement this here because there's no need to expose the class
+   property outside of the delta function *)
 let object_to_string lookup obj = match obj with
   | `Obj loc -> begin match lookup loc with
       | ({O.klass = kls; _}, _) -> begin match kls with
-        | `A (`Str s) -> `Str ("[object " ^ s ^ "]")
-        | _ -> `StrT
+          | `A (`Str s) -> `Str ("[object " ^ s ^ "]")
+          | _ -> `StrT
         end
     end
+  | `Nullable (`Obj _) -> `StrT
   | _ -> raise (PrimErr "object-to-string, wasn't given object")
 
-let is_array lookup obj = match obj with
-  | `Obj loc -> begin match lookup loc with
-    | ({O.klass = kls; _}, _) -> begin match kls with
-      | `A (`Str "Array") -> `True
-      | `A (`Str _) -> `False
-      | _ -> `BoolT
+let is_array lookup obj =
+  let rec helper = function
+    | `Obj loc -> begin match lookup loc with
+        | ({O.klass = kls; _}, _) -> begin match kls with
+            | `A (`Str "Array") -> `True
+            | `A (`Str _) -> `False
+            | _ -> `BoolT
+          end
       end
-    end
-  | _ -> raise (PrimErr "is-array")
+    | `Nullable v -> begin match helper v with
+      | `False -> `False
+      | `True | `BoolT -> `BoolT
+      end
+    | _ -> raise (PrimErr "is-array") in
+  (helper obj :> AValue.t)
 
 let to_int32 v = match v with
   | `Num d -> `Num (float_of_int (int_of_float d))
   | `NumT -> `NumT
   | _ -> raise (PrimErr "to-int")
 
-let nnot e = match e with
-  | `Undef
-  | `False
-  | `Null -> `True
-  | `Num d when (d = 0.) || (d <> d) -> `True
-  | `Str s when (s = "") -> `True
-  | `Num _
-  | `Str _
-  | `Obj _
-  | `Clos _ | `ClosT
-  | `True -> `False
-  | `NumT | `StrT | `BoolT | `Top -> `BoolT
-  | _ -> raise (PrimErr "nnot fallthrough")
+let nnot e =
+  let rec helper = function
+    | `Undef
+    | `False
+    | `Null -> `True
+    | `Num d when (d = 0.) || (d <> d) -> `True
+    | `Str s when (s = "") -> `True
+    | `Num _
+    | `Str _
+    | `Obj _
+    | `Clos _ | `ClosT
+    | `True -> `False
+    | `NumT | `StrT | `BoolT | `Top -> `BoolT
+    | `Nullable v -> begin match helper v with
+      | `True -> `True
+      | `False | `BoolT -> `BoolT
+      end
+    | _ -> raise (PrimErr "nnot fallthrough") in
+  (helper e :> AValue.t)
 
 let void v = `Undef
 
@@ -321,24 +347,35 @@ let string_lessthan v1 v2 = match v1, v2 with
   | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT -> `BoolT
   | _ -> raise (PrimErr "string less than")
 
-let stx_eq v1 v2 = match v1, v2 with
-  | `Num x1, `Num x2 -> AValue.bool (x1 = x2)
-  | `Str x1, `Str x2 -> AValue.bool (x1 = x2)
+let stx_eq v1 v2 =
+  let bool b = if b then `True else `False in
+  let rec helper x y = match x, y with
+  | `Num x1, `Num x2 -> bool (x1 = x2)
+  | `Str x1, `Str x2 -> bool (x1 = x2)
   | `Undef, `Undef
   | `Null, `Null
   | `False, `False
   | `True, `True -> `True
+  | `Nullable _, `Null | `Null, `Nullable _ -> `BoolT
+  | `Nullable v1, `Nullable v2 | `Nullable v1, v2 | v1, `Nullable v2 ->
+    begin match helper v1 v2 with
+    | `False -> `False
+    | `True | `BoolT -> `BoolT
+    end
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
   | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
   | `BoolT, `True | `True, `BoolT | `BoolT, `False | `False, `BoolT
   | `BoolT, `BoolT -> `BoolT
-  | _ -> AValue.bool (v1 == v2) (* otherwise, pointer equality *)
+  | _ -> bool (x == y) (* otherwise, pointer equality *) in
+  (helper v1 v2 :> AValue.t)
 
-  (* Algorithm 11.9.3, steps 1 through 19. Steps 20 and 21 are desugared to
-     access the heap. *)
+(* Algorithm 11.9.3, steps 1 through 19. Steps 20 and 21 are desugared to
+   access the heap. *)
 let abs_eq v1 v2 = match v1, v2 with
   | `Null, `Undef
-  | `Undef, `Null -> `True
+  | `Undef, `Null
+  | `Nullable `Undef, `Null | `Null, `Nullable `Undef
+  | `Nullable `Undef, `Nullable `Undef -> `True
   | `Str s1, `Str s2 when s1 = s2 -> `True
   | `Num x, `Num y when x = y -> `True
   | `Str s, `Num x
@@ -350,13 +387,16 @@ let abs_eq v1 v2 = match v1, v2 with
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
   | `StrT, `Num _ | `StrT, `NumT | `Num _, `StrT | `NumT, `StrT
   | `NumT, `True | `True, `NumT | `NumT, `False | `False, `NumT
-  | `Num _, `BoolT | `BoolT, `Num _ | `NumT, `BoolT | `BoolT, `NumT ->
+  | `Num _, `BoolT | `BoolT, `Num _ | `NumT, `BoolT | `BoolT, `NumT
+  | `Nullable _, _ | _, `Nullable `Undef ->
     `BoolT
   | _ -> `False
+  (* TODO: could be more precise with nullable, as in some case we might know
+     that the answer is false *)
   (* TODO: are these all the cases? *)
 
-  (* Algorithm 9.12, the SameValue algorithm.
-     This gives "nan = nan" and "+0 != -0". *)
+(* Algorithm 9.12, the SameValue algorithm.
+   This gives "nan = nan" and "+0 != -0". *)
 let same_value v1 v2 = match v1, v2 with
   | `Num x, `Num y ->
     AValue.bool (if x = 0. && y = 0.
@@ -365,44 +405,49 @@ let same_value v1 v2 = match v1, v2 with
   | `NumT, `Num _ | `Num _, `NumT | `NumT, `NumT
   | `StrT, `Str _ | `Str _, `StrT | `StrT, `StrT
   | `BoolT, `True | `True, `BoolT | `BoolT, `False | `False, `BoolT
-  | `BoolT, `BoolT -> `BoolT
+  | `BoolT, `BoolT | `Nullable _, _ | _, `Nullable _ -> `BoolT
   | _ -> AValue.bool (Pervasives.compare v1 v2 = 0)
 
 let has_property lookup obj field =
-  let rec aux obj field = match obj, field with
+  let rec helper obj field = match obj, field with
     | `A (`Obj loc), `Str s -> begin match lookup loc with
         | (({O.proto = proto; _}, _) as o) ->
           if O.has_prop o s then
             `True
           else
-            aux proto field
+            helper proto field
+      end
+    | `A (`Nullable v), _ -> begin match helper (`A v) field with
+      | `False -> `False
+      | `True | `BoolT -> `BoolT
       end
     | `StackObj (({O.proto = proto; _}, _) as o), `Str s ->
       if O.has_prop o s then
         `True
       else
-        aux proto field
+        helper proto field
     | _ -> `False in
-  aux (`A obj) field
+  (helper (`A obj) field :> AValue.t)
 
-let rec has_own_property lookup obj field =
-  match obj, field with
-  | `Obj loc, `Str s -> begin match lookup loc with
-      | (({O.proto = proto; _}, _) as o) ->
-        AValue.bool (O.has_prop o s)
-    end
-  | `Nullable (`Obj loc as obj), _ ->
-    begin match has_own_property lookup obj field with
-    | `False -> `False
-    | _ -> `BoolT
-    end
-  | `Obj _, `StrT -> `BoolT
-  | `Obj loc, _ ->
-    raise (PrimErr "has-own-property: field not a string")
-  | _, `Str s ->
-    raise (PrimErr ("has-own-property: obj not an object for field " ^ s))
-  | _ ->
-    raise (PrimErr "has-own-property: neither an object nor a string")
+let has_own_property lookup obj field =
+  let rec helper obj field = match obj, field with
+    | `Obj loc, `Str s -> begin match lookup loc with
+        | (({O.proto = proto; _}, _) as o) ->
+          AValue.bool (O.has_prop o s)
+      end
+    | `Nullable (`Obj loc as obj), _ ->
+      begin match helper obj field with
+        | `False -> `False
+        | `True | `BoolT -> `BoolT
+      end
+    | `Obj _, `StrT -> `BoolT
+    | `Obj loc, _ ->
+      raise (PrimErr "has-own-property: field not a string")
+    | _, `Str s ->
+      raise (PrimErr ("has-own-property: obj not an object for field " ^ s))
+    | _ ->
+      raise (PrimErr "has-own-property: neither an object nor a string") in
+  (helper obj field :> AValue.t)
 
 let base n r =
   let rec get_digits n l = match n with
@@ -474,7 +519,7 @@ let to_fixed a b = match a, b with
   | _ -> raise (PrimErr "to-fixed didn't get 2 numbers")
 
 let is_accessor lookup obj field =
-  let rec aux obj field = match obj, field with
+  let rec helper obj field = match obj, field with
     | `A (`Obj loc), `Str s ->
       let o = lookup loc in
       if O.has_prop o s then
@@ -483,7 +528,9 @@ let is_accessor lookup obj field =
         | O.Accessor _ -> `True
       else
         let ({O.proto = proto; _}, _) = o in
-        aux proto field
+        helper proto field
+    | `A `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
+    | `A (`Nullable v), _ -> failwith "isAccessor on a nullable object"
     | `StackObj o , `Str s->
       if O.has_prop o s then
         match O.lookup_prop o s with
@@ -491,10 +538,9 @@ let is_accessor lookup obj field =
           | O.Accessor _ -> `True
       else
         let ({O.proto = proto; _}, _) = o in
-        aux proto field
-    | `A `Null, `Str s -> raise (PrimErr "isAccessor on a null object")
+        helper proto field
     | _ -> raise (PrimErr "isAccessor") in
-  aux (`A obj) field
+  helper (`A obj) field
 
 let op2 (store : ObjectStore.t) (gstore : ObjectStore.t) (op : string)
   : AValue.t -> AValue.t -> AValue.t =
