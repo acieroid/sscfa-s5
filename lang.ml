@@ -843,7 +843,7 @@ struct
   let rec is_atomic = function
     | S.Null _ | S.Undefined _ | S.String _ | S.Num _
     | S.True _ | S.False _ | S.Id _ | S.Lambda _ ->
-      true
+      !atomic_eval
     (* TODO: there are probably other compound expressions that can be
        considered atomic *)
     | S.Hint (_, _, e) -> is_atomic e

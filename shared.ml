@@ -3,6 +3,7 @@ open Ljs_syntax
 
 let gc : [ `NormalGC | `NoGC | `NoGlobalGC | `RestrictedGC ] ref = ref `NormalGC
 let only_mcfa = ref false
+let atomic_eval = ref true
 
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =

@@ -24,6 +24,8 @@ let speclist = [
   "assume all transitions are deterministic, resulting in a list of states instead of a graph";
   "-only-mcfa", Arg.Set only_mcfa,
   "only use m-CFA addresses, and no parameter-sensitive k-CFA";
+  "-no-atomic-eval", Arg.Unit (fun () -> atomic_eval := false),
+  "disable atomic evaluator"
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"
