@@ -43,6 +43,8 @@ module StringSet = BatSet.Make(struct
     let compare = Pervasives.compare
   end)
 
+type strategy = [ `MCFA | `PSMCFA ]
+
 module type TimeSignature =
 sig
   type t
@@ -50,7 +52,7 @@ sig
   val initial : t
   val compare : t -> t -> int
   val to_string : t -> string
-  val tick : arg -> t -> t
+  val tick : arg -> t -> strategy -> t
 end
 
 module type KCFA_k = sig val k : int end
@@ -59,6 +61,7 @@ module type KCFA_arg = sig
   type t
   val compare : t -> t -> int
   val to_string : t -> string
+  val apply : strategy -> t -> t
 end
 
 module KCFABased =
@@ -69,9 +72,9 @@ module KCFABased =
     let initial = []
     let compare = compare_list Arg.compare
     let to_string = string_of_list Arg.to_string
-    let tick x t =
+    let tick x t strategy =
       (* print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m"); *)
-      BatList.take K.k (x :: t)
+      BatList.take K.k ((Arg.apply strategy x) :: t)
   end
 
 module type AddressSignature =
@@ -201,6 +204,9 @@ module ParameterSensitive =
     let to_string ((p, l) : t) =
       string_of_list (fun (n, v) -> n ^ ": " ^ (string_of_v v)) l
 
+    let apply strategy (p, args) = match strategy with
+      | `MCFA -> (p, [])
+      | `PSMCFA -> (p, args)
   end
 
 (* Two kinds of timestamps (and therefore two kinds of addresses).
@@ -231,39 +237,6 @@ and Time : sig
            | `Num of float | `NumT
            | `Null | `Undef
            | `Top | `Bot ]
-  include TimeSignature
-    with type arg = Pos.t * (string * v) list
-     and type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
-end
-= struct
-  type v = [ `True | `False | `BoolT
-           | `Obj of ObjAddressSet.t
-           | `Str of string | `StrT
-           | `Num of float | `NumT
-           | `Null | `Undef
-           | `Top | `Bot ]
-  type arg = Pos.t * (string * v) list
-  type t = [ `MCFATime of K1Time.t | `PSKCFATime of PSTime.t ]
-  let initial = `PSKCFATime PSTime.initial
-  let compare x y = match x, y with
-    | `MCFATime t, `MCFATime t' -> K1Time.compare t t'
-    | `MCFATime _, _ -> 1
-    | _, `MCFATime __ -> 1
-    | `PSKCFATime t, `PSKCFATime t' -> PSTime.compare t t'
-  let to_string = function
-    | `MCFATime t -> K1Time.to_string t
-    | `PSKCFATime t -> PSTime.to_string t
-  let tick (arg : arg) : t -> t = function
-    | `MCFATime t -> `MCFATime t (* don't tick here with m-CFA *)
-    | `PSKCFATime t -> `PSKCFATime (PSTime.tick arg t)
-end
-and PSTime : sig
-  type v = [ `True | `False | `BoolT
-           | `Obj of ObjAddressSet.t
-           | `Str of string | `StrT
-           | `Num of float | `NumT
-           | `Null | `Undef
-           | `Top | `Bot ]
   include TimeSignature with type arg = Pos.t * (string * v) list
 end
 = struct
@@ -271,17 +244,6 @@ end
   module K1 = struct let k = 1 end
   include KCFABased(PS)(K1)
   type v = PS.v
-end
-and K1Time : sig
-  include TimeSignature with type arg = Pos.t and type t = Pos.t list
-end
-= struct
-  type arg = Pos.t
-  type t = arg list
-  let initial = []
-  let compare = compare_list Pos.compare
-  let to_string = string_of_list Pos.to_string
-  let tick x t = BatList.take k (x :: t)
 end
 
 module VarAddressSet = struct

@@ -92,7 +92,6 @@ struct
     env : Env.t;
     vstore : ValueStore.t;
     ostore : ObjectStore.t;
-    time : Time.t; (* only used for increasing context-sensitivity in some places *)
   }
 
   let string_of_state (state : state) =
@@ -104,8 +103,7 @@ struct
     order_concat [lazy (Pervasives.compare state.control state'.control);
                   lazy (Env.compare state.env state'.env);
                   lazy (ValueStore.compare state.vstore state'.vstore);
-                  lazy (ObjectStore.compare state.ostore state'.ostore);
-                  lazy (Time.compare state.time state'.time)]
+                  lazy (ObjectStore.compare state.ostore state'.ostore)]
 
   type global = {
     genv : Env.t;
@@ -334,19 +332,11 @@ struct
     let compare = compare_stack_change
   end
 
-  let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) =
-    match state.env.Env.strategy with
-    | `MCFA -> VarAddress.alloc p id (`MCFATime state.env.Env.call)
-    | `PSKCFA -> VarAddress.alloc p id state.time
+  let alloc_var (p : Pos.t) (id : string) _ ((state, ss) : conf) : VarAddress.t =
+    VarAddress.alloc p id state.env.Env.time
 
-  let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) =
-    match state.env.Env.strategy with
-    | `MCFA ->
-      ObjAddressSet.singleton
-        (ObjAddress.alloc p id (`MCFATime state.env.Env.call))
-    | `PSKCFA ->
-      ObjAddressSet.singleton
-        (ObjAddress.alloc p id state.time)
+  let alloc_obj (p : Pos.t) (id : string) _ ((state, ss) : conf) : ObjAddressSet.t =
+    ObjAddressSet.singleton (ObjAddress.alloc p id state.env.Env.time)
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
       | `A v -> (state.ostore, v)
@@ -357,7 +347,7 @@ struct
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = {control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
-                 ostore = ObjectStore.empty; time = Time.initial} in
+                 ostore = ObjectStore.empty} in
     let empty_global = {genv = Env.empty; gvstore = ValueStore.empty;
                         gostore = ObjectStore.empty} in
     (empty, StackSummary.empty),
@@ -391,7 +381,7 @@ struct
     let f ((n, v) : string * V.t) : ((string * Time.v) option) = match v with
       | `A v' ->
         begin match v' with
-          | #PSTime.v as v'' -> Some (n, v'')
+          | #Time.v as v'' -> Some (n, v'')
           | _ -> None
         end
       | _ -> None in
@@ -417,26 +407,23 @@ struct
                        env = Env.extend name a state.env}, ss) in
         let (state', ss) as conf' =
           BatList.fold_right2 alloc_arg args args'
-            ({state with env = {env' with Env.call = state.env.Env.call;
+            ({state with env = {env' with Env.time = state.env.Env.time;
                                           Env.strategy = state.env.Env.strategy}}, ss) in
         let alloc =
-          if state.env.Env.strategy = `PSKCFA ||
+          if state.env.Env.strategy = `PSMCFA ||
              (BatOption.map_default (fun id -> Env.contains id global.genv)
                 false name && not !only_mcfa) then
             (* Improve precision by switching to PS k-CFA *)
-            `PSKCFA
+            `PSMCFA
           else
             `MCFA in
         Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name)
           (BatList.map V.to_string args);
         (body, {state' with
-                env = Env.set_alloc alloc (Env.call p state'.env);
-                time = match alloc with
-                  (* | `KCFA -> Time.tick (S.pos_of body) state.time *)
-                  | `PSKCFA -> Time.tick ((S.pos_of body),
-                                          select_params (BatList.combine args' args))
-                                 state.time
-                  | `MCFA -> state.time})
+                env = Env.set_strategy
+                    alloc (Env.call (p, select_params
+                                       (BatList.combine args' args))
+                             state'.env)})
     | `A `ClosT -> failwith ("Closure too abstracted when called at " ^
                              (Pos.to_string p))
     | `A `Obj a ->
@@ -463,8 +450,7 @@ struct
       let env'' = Env.extend id a env' in
       let ostore', v' = alloc_if_necessary p conf ("let-" ^ id) v in
       let vstore' = ValueStore.join a v' state.vstore in
-      [{state with control = Exp body; env = env''; vstore = vstore';
-                   ostore = ostore'}]
+      [{control = Exp body; env = env''; vstore = vstore'; ostore = ostore'}]
     | F.ObjectAttrs (p, name, obj, [], [], env') ->
       let obj' = O.set_attr_str obj name v in
       [{state with control = Val (`StackObj obj'); env = env'}]
@@ -778,13 +764,11 @@ struct
     | F.Rec (p, name, a, body, env') ->
       let ostore', v' = alloc_if_necessary p conf ("rec-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
-      [{state with control = Exp body;
-                   vstore = vstore'; ostore = ostore'; env = env'}]
+      [{control = Exp body; vstore = vstore'; ostore = ostore'; env = env'}]
     | F.SetBang (p, name, a, env') ->
       let ostore', v' = alloc_if_necessary p conf ("setbang-" ^ name) v in
       let vstore' = ValueStore.set a v' state.vstore in
-      [{state with control = Val (`A v');
-                   vstore = vstore'; ostore = ostore'; env = env'}]
+      [{control = Val (`A v'); vstore = vstore'; ostore = ostore'; env = env'}]
     | F.Label (_, env') ->
       [{state with env = env'}]
     | F.Break (lab, env') ->

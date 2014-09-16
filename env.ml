@@ -3,7 +3,7 @@ open Prelude
 
 let m = 1
 
-type allocation_strategy = [ `MCFA | `PSKCFA ]
+type allocation_strategy = [ `MCFA | `PSMCFA ]
 
 module type Env_signature =
   sig
@@ -53,10 +53,10 @@ module type Env_signature =
        application and restored at the end of a function application *)
 
     (** Store the call site in the environment (for m-CFA) *)
-    val call : Pos.t -> t -> t
+    val call : Time.arg -> t -> t
 
     (** Change the allocation strategy *)
-    val set_alloc : allocation_strategy -> t -> t
+    val set_strategy : allocation_strategy -> t -> t
   end
 
 (* S5 uses a map of identifier *)
@@ -66,11 +66,11 @@ module Env =
 
     type t = {
       env : VarAddress.t StringMap.t;
-      call : Pos.t list;
+      time : Time.t;
       strategy : allocation_strategy;
     }
 
-    let empty = {env = StringMap.empty; call = []; strategy = `MCFA}
+    let empty = {env = StringMap.empty; time = Time.initial; strategy = `MCFA}
 
     let extend id a e = {e with env = StringMap.add id a e.env}
 
@@ -82,7 +82,7 @@ module Env =
       { e with env = StringMap.filter (fun var _ -> IdSet.mem var vars) e.env}
 
     let compare e e' =
-      order_concat [lazy (compare_list Pos.compare e.call e'.call);
+      order_concat [lazy (Time.compare e.time e'.time);
                     lazy (Pervasives.compare e.strategy e'.strategy);
                     lazy (StringMap.compare VarAddress.compare e.env e'.env)]
 
@@ -115,9 +115,9 @@ module Env =
         | None, None -> None in
       {e1 with env = StringMap.merge merge_val e1.env e2.env}
 
-    let call p env =
-      {env with call = BatList.take m (p :: env.call)}
+    let call arg env =
+      {env with time = Time.tick arg env.time env.strategy}
 
-    let set_alloc strategy env =
+    let set_strategy strategy env =
       {env with strategy = strategy}
   end
