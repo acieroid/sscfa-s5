@@ -1,3 +1,4 @@
+// Expected: 'success'
 let (%fun2 = %context["print" , {[#proto: null,
                                   #class: "Object",
                                   #extensible: true,]}])

@@ -1,2 +1,2 @@
-// Expected: ?
+// Expected: null
 %protoOfField(%context, "foo")
