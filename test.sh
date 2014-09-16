@@ -38,7 +38,7 @@ for TEST in $(ls $TESTDIR/*.s5); do
 done
 
 echo -n "Ran $RAN tests, $FAILED of them failed"
-if [ "$FAILED" -gt 1 ]; then
+if [ "$FAILED" -gt 0 ]; then
     echo -n " (see $LOGFILE for the reasons of failure)"
 fi
 echo "."

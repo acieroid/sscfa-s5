@@ -1,4 +1,4 @@
-// Expected: undef
+// Expected: undefined
 let (%context = %nonstrictContext)
 {%defineGlobalVar(%context,
                   "y");
