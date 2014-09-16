@@ -426,6 +426,7 @@ let has_property lookup obj field =
         `True
       else
         helper proto field
+    | `A (`Obj _), `StrT | `StackObj _, `StrT -> `BoolT
     | _ -> `False in
   (helper (`A obj) field :> AValue.t)
 
