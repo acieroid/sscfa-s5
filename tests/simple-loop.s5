@@ -1,0 +1,15 @@
+// Expected: NumT
+%defineGlobalVar(%context, "i");
+%EnvCheckAssign(%context, "i", 0., #strict);
+rec (while = func(test , body , after) {
+  if (test()) {
+    body();
+    after();
+    while(test, body, after)
+  } else {
+    undefined
+  }})
+while(func() { %LessThan(%context["i" , {[]}], 2.) },
+      func() {1.},
+      func() {%PostIncrement(%context, "i")});
+%context["i" , {[]}]
