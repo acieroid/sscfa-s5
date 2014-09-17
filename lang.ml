@@ -95,8 +95,6 @@ struct
   }
 
   let string_of_state (state : state) =
-    (*    Printf.sprintf "Env: %d, VStore: %d, OStore: %d"
-          (Env.size state.env) (ValueStore.size state.vstore) (ObjectStore.size state.ostore) *)
     (string_of_control state.control)
 
   let compare_state state state' =
@@ -564,13 +562,16 @@ struct
           begin match ObjectStore.lookup a store with
             | ({O.extensible = extensible; _} as attrs, props) ->
               begin match get_prop obj s state.ostore global with
-                | Some (O.Data ({O.writable = `A `True; _}, enum, config)) ->
+                | Some (O.Data ({O.writable = `A `True; _} as prop, enum, config)) ->
                   let (enum, config) = if O.has_prop (attrs, props) s then
                       (enum, config)
                     else
                       (`A `True, `A `True) in
+                  let oldval = prop.O.value in
+                  (* lose a bit of precision voluntarily *)
+                  let newval' = if oldval = `A `Undef then newval else V.join oldval newval in
                   let newobj = O.set_prop (attrs, props) s
-                      (O.Data ({O.value = newval; O.writable = `A `True},
+                      (O.Data ({O.value = newval'; O.writable = `A `True},
                                enum, config)) in
                   let ostore' = ostore_set a newobj state.ostore global.gostore in
                   [{state with control = Val newval; env = env'; ostore = ostore'}]

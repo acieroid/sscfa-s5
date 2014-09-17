@@ -82,13 +82,6 @@ and string_of_prop : prop -> string = function
   | Accessor ({getter = g; setter = s}, _, _) ->
     "Accessor(" ^ (string_of_value g) ^ ", " ^ (string_of_value s) ^ ")"
 
-module Value = struct
-  type t = value
-  let to_string = string_of_value
-  let compare = compare_value
-  let inj (v : AValue.t) = `A v
-end
-
 (* TODO: should use AValue.compare, as its definition could change *)
 let compare : t -> t -> int = Pervasives.compare
 
@@ -124,7 +117,8 @@ let get_attr ((attrs, props) : t) (attr : S.pattr) (field : string) : value =
     | Data ({value = v; _}, _, _), S.Value -> v
     | Accessor ({ getter = g; _}, _, _), S.Getter -> g
     | Accessor ({ setter = s; _}, _, _), S.Setter -> s
-    | _ -> failwith "bad access of attriubte"
+    | prop, attr -> failwith ("O.get_attr: bad access of attribute: " ^
+                              (string_of_prop prop) ^ (S.string_of_attr attr))
   end
 
 (* Mostly taken from Ljs_eval.set_attr *)
@@ -241,3 +235,18 @@ let d_attrsv = {
   extensible = `A `False;
   klass = `A (`Str "LambdaJS internal");
 }
+
+
+module Value = struct
+  type t = value
+  let to_string = string_of_value
+  let compare = compare_value
+  let inj (v : AValue.t) = `A v
+  let join (t : t) (t' : t) : t = match t, t' with
+    | `A v, `A v' -> `A (AValue.join v v')
+    | `StackObj o, `StackObj o' -> `StackObj (join o o')
+    | _, _ ->
+      Printf.printf "\027[31mJoining value with stack object: %s and %s\027[0m\n%!"
+        (to_string t) (to_string t');
+      `A `Top
+end
