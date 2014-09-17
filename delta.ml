@@ -22,9 +22,9 @@ let to_lookup ostore ostore' = fun a ->
 let typeof lookup = function
   | `Undef -> `Str "undefined"
   | `Null -> `Str "null"
-  | `Str _ -> `Str "string"
-  | `Num _ -> `Str "number"
-  | `True | `False -> `Str "boolean"
+  | `Str _ | `StrT -> `Str "string"
+  | `Num _ | `NumT -> `Str "number"
+  | `True | `False | `BoolT -> `Str "boolean"
   | `Obj a -> begin match lookup a with
       | ({O.code = `A `Bot; _}, _) -> `Str "object"
       | _ -> `Str "function"
