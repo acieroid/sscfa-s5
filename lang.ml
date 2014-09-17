@@ -416,7 +416,8 @@ struct
           else
             `MCFA in
         Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name)
-          (BatList.map V.to_string args);
+          (BatList.map V.to_string args)
+          (alloc = `MCFA || (alloc = `PSMCFA && state.env.Env.strategy = `MCFA));
         (body, {state' with
                 env = Env.set_strategy
                     alloc (Env.call (p, select_params
@@ -573,6 +574,7 @@ struct
                   let newobj = O.set_prop (attrs, props) s
                       (O.Data ({O.value = newval'; O.writable = `A `True},
                                enum, config)) in
+                  Printf.printf "SetFieldArgs: %s: %s |_| %s = %s\n%!" s (V.to_string oldval) (V.to_string newval) (V.to_string newval');
                   let ostore' = ostore_set a newobj state.ostore global.gostore in
                   [{state with control = Val newval; env = env'; ostore = ostore'}]
                 | Some (O.Data _)

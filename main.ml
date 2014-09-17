@@ -25,7 +25,9 @@ let speclist = [
   "-only-mcfa", Arg.Set only_mcfa,
   "only use m-CFA addresses, and no parameter-sensitive k-CFA";
   "-no-atomic-eval", Arg.Unit (fun () -> atomic_eval := false),
-  "disable atomic evaluator"
+  "disable atomic evaluator";
+  "-debug", Arg.Set debug,
+  "enable debug mode, printing messages on alloc and reclaim";
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"

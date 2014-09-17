@@ -1,7 +1,8 @@
 let stats = BatHashtbl.create 20
 
-let called name args =
-  Printf.printf "Called: %s(%s)\n" name (String.concat ", " args);
+let called name args print =
+  if print then
+    Printf.printf "Called: %s(%s)\n%!" name (String.concat ", " args);
   match BatHashtbl.Exceptionless.find stats  name with
   | Some v -> BatHashtbl.replace stats name (1+v)
   | None -> BatHashtbl.add stats name 1

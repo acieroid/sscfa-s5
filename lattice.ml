@@ -67,7 +67,7 @@ module AValue = struct
       | `True, `False | `False, `True | `BoolT, `True | `True, `BoolT
       | `BoolT, `False | `False, `BoolT | `BoolT, `BoolT -> `BoolT
       | `Clos _, `Clos _ | `ClosT, `Clos _ | `Clos _, `ClosT | `ClosT, `ClosT ->
-        Printf.printf "\027[31mJoining two closures: %s and %s\027[0m\n"
+        Printf.printf "\027[31mJoining two closures: %s and %s\027[0m\n%!"
           (to_string x) (to_string y);
         `ClosT
       | `Obj addrs, `Obj addrs' -> `Obj (ObjAddressSet.join addrs addrs')
@@ -75,7 +75,7 @@ module AValue = struct
       | `Null, v | v, `Null -> `Nullable v
       | `Bot, v | v, `Bot -> v
       | _, _ ->
-        Printf.printf "\027[31mJoining two incompatible values: %s and %s\027[0m\n"
+        Printf.printf "\027[31mJoining two incompatible values: %s and %s\027[0m\n%!"
           (to_string x) (to_string y);
         `Top
 end

@@ -1,6 +1,7 @@
 open Prelude
 open Ljs_syntax
 
+let debug = ref false
 let gc : [ `NormalGC | `NoGC | `NoGlobalGC | `RestrictedGC ] ref = ref `NormalGC
 let only_mcfa = ref false
 let atomic_eval = ref true
@@ -117,8 +118,9 @@ module MakeVarAddress =
         true
     let to_string a = "@var-" ^ (A.to_string a)
     let alloc p id t =
-      Printf.printf "\027[33malloc_var(%s, %s, %s)\027[0m\n%!"
-        (Pos.to_string p) id (T.to_string t);
+      if !debug then
+        Printf.printf "\027[33malloc_var(%s, %s, %s)\027[0m\n%!"
+          (Pos.to_string p) id (T.to_string t);
       A.alloc p id t
   end
 
@@ -135,8 +137,9 @@ module MakeObjAddress =
         true
     let to_string a = "@obj-" ^ (A.to_string a)
     let alloc p id t =
-      Printf.printf "\027[33malloc_obj(%s, %s, %s)\027[0m\n%!"
-        (Pos.to_string p) id (T.to_string t);
+      if !debug then
+        Printf.printf "\027[33malloc_obj(%s, %s, %s)\027[0m\n%!"
+          (Pos.to_string p) id (T.to_string t);
       A.alloc p id t
   end
 
