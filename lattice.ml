@@ -78,4 +78,19 @@ module AValue = struct
         Printf.printf "\027[31mJoining two incompatible values: %s and %s\027[0m\n%!"
           (to_string x) (to_string y);
         `Top
+
+  let aval : t -> t = function
+    | `Top -> `Top
+    | `Str _ | `StrT -> `StrT
+    | `Num _ | `NumT -> `NumT
+    | `True -> `True
+    | `False -> `False
+    | `BoolT -> `BoolT
+    | `Null -> `Null
+    | `Undef -> `Undef
+    | `Clos c -> `Clos c
+    | `ClosT -> `ClosT
+    | `Obj a -> `Obj a
+    | `Nullable t -> `Nullable t
+    | `Bot -> `Bot
 end

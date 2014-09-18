@@ -236,6 +236,16 @@ let d_attrsv = {
   klass = `A (`Str "LambdaJS internal");
 }
 
+let props_to_nearest_top (attrs, props) : t =
+  (attrs, IdMap.map (function
+    | Data ({value = v; writable = w}, enum, config) ->
+      let newval = match v with
+        | `A v' -> `A (AValue.aval v')
+        | `StackObj o -> `StackObj o in
+      Data ({value = newval; writable = w}, enum, config)
+    | Accessor (a, enum, config) ->
+      Accessor (a, enum, config))
+      props)
 
 module Value = struct
   type t = value

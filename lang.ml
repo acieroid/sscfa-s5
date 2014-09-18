@@ -568,13 +568,11 @@ struct
                       (enum, config)
                     else
                       (`A `True, `A `True) in
-                  let oldval = prop.O.value in
                   (* lose a bit of precision voluntarily *)
-                  let newval' = if oldval = `A `Undef then newval else V.join oldval newval in
+                  let newval' = match newval with `A v -> `A (AValue.aval v) | _ -> newval in
                   let newobj = O.set_prop (attrs, props) s
                       (O.Data ({O.value = newval'; O.writable = `A `True},
                                enum, config)) in
-                  Printf.printf "SetFieldArgs: %s: %s |_| %s = %s\n%!" s (V.to_string oldval) (V.to_string newval) (V.to_string newval');
                   let ostore' = ostore_set a newobj state.ostore global.gostore in
                   [{state with control = Val newval; env = env'; ostore = ostore'}]
                 | Some (O.Data _)
@@ -582,7 +580,19 @@ struct
                   [{state with control = Exception (`Throw (`A (`Str "uwritable-field")))}]
                 | Some (O.Accessor ({O.setter = setter; O.getter = getter}, _, _)) ->
                   (* TODO: lose precision in the setter as well *)
-                  let (exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body] conf global in
+                  let body', ostore' = match body with
+                    | `A (`Obj a) ->
+                      let ostore = which_ostore a state.ostore global.gostore in
+                      let obj : O.t = ObjectStore.lookup a ostore in
+                      let obj' : O.t = O.props_to_nearest_top obj in
+                      body, ostore_set a obj' state.ostore global.gostore
+                    | `StackObj obj ->
+                      `StackObj (O.props_to_nearest_top obj), state.ostore
+                    | _ ->
+                      Printf.printf "SetFieldArgs: body is not an object";
+                      body, state.ostore in
+                  let conf' = {state with ostore = ostore'}, ss in
+                  let (exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body'] conf' global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
