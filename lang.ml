@@ -337,11 +337,11 @@ struct
     ObjAddressSet.singleton (ObjAddress.alloc p id state.env.Env.time)
 
   let alloc_if_necessary (p : Pos.t) ((state, _) as conf : conf) id = function
-      | `A v -> (state.ostore, v)
-      | `StackObj obj ->
-        let a = alloc_obj p id obj conf in
-        let ostore' = ObjectStore.join a obj state.ostore in
-        (ostore', `Obj a)
+    | `A v -> (state.ostore, v)
+    | `StackObj obj ->
+      let a = alloc_obj p id obj conf in
+      let ostore' = ObjectStore.join a obj state.ostore in
+      (ostore', `Obj a)
 
   let inject (exp : S.exp) (c : conf option) : (conf * global) =
     let empty = {control = Exp exp; env = Env.empty; vstore = ValueStore.empty;
@@ -535,7 +535,7 @@ struct
             | Some (O.Data ({O.value = v; _}, _, _)) ->
               [{state with control = Val v; env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun p None g [obj; v] conf global in
+              let (body, state') = apply_fun p (Some ("getter-" ^ s)) g [obj; v] conf global in
               [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
             | None -> [{state with control = Val (`A `Undef); env = env'}]
           end
@@ -580,8 +580,9 @@ struct
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `A `Undef; _}, _, _)) ->
                   [{state with control = Exception (`Throw (`A (`Str "uwritable-field")))}]
-                | Some (O.Accessor ({O.setter = setter; _}, _, _)) ->
-                  let (exp, state') = apply_fun p None setter [obj; body] conf global in
+                | Some (O.Accessor ({O.setter = setter; O.getter = getter}, _, _)) ->
+                  (* TODO: lose precision in the setter as well *)
+                  let (exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body] conf global in
                   [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
