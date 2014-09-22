@@ -353,7 +353,9 @@ let rec full_string_of_exp exp = match exp with
   | Id (_, x) -> x
   | Object (_, _, _) -> "Object"
   | GetAttr (_, _, _, _) -> "GetAttr"
-  | SetAttr (_, _, _, _, _) -> "SetAttr"
+  | SetAttr (_, pattr, obj, field, value) ->
+    (full_string_of_exp obj) ^ "[" ^ (full_string_of_exp field) ^
+    (string_of_attr pattr) ^ " = " ^ (full_string_of_exp value) ^ "]"
   | GetObjAttr (_, _, _) -> "GetObjAttr"
   | SetObjAttr (_, _, _, _) -> "SetObjAttr"
   | GetField (_, _, _, _) -> "GetField"

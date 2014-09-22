@@ -156,33 +156,51 @@ let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
       | `A v -> failwith ("set_attr: " ^ (AValue.to_string v))
       | `StackObj o -> failwith ("set_attr: StackObj: " ^ (to_string o))
     else
+      (* TODO: In all the cases with `BoolT as config, there should be two
+         results: one corresponding to `True, and one error state corresponding
+         to `False. However, we assume that the desugared S5 code will never
+         perform a field update when it can't (ie. the BoolTs results from
+         joining a False with a more recent True) *)
       match (IdMap.find field props), attr with
       | Data ({writable = `A `True; _} as d, enum, config), S.Writable
-      | Data (d, enum, (`A `True as config)), S.Writable ->
+      | Data ({writable = `A `BoolT; _} as d, enum, config), S.Writable
+      | Data (d, enum, (`A `True as config)), S.Writable
+      | Data (d, enum, (`A `BoolT as config)), S.Writable ->
         Data ({d with writable = value}, enum, config)
-      | Data ({writable = `A `True; _} as d, enum, config), S.Value ->
+      | Data ({writable = `A `True; _} as d, enum, config), S.Value
+      | Data ({writable = `A `BoolT; _} as d, enum, config), S.Value ->
         Data ({d with value = value}, enum, config)
-      | Data (d, enum, `A `True), S.Setter ->
+      | Data (d, enum, `A `True), S.Setter
+      | Data (d, enum, `A `BoolT), S.Setter ->
         Accessor ({getter = `A `Undef; setter = value}, enum, `A `True)
-      | Data (d, enum, `A `True), S.Getter ->
+      | Data (d, enum, `A `True), S.Getter
+      | Data (d, enum, `A `BoolT), S.Getter ->
         Accessor ({getter = value; setter = `A `Undef}, enum, `A `True)
-      | Accessor (a, enum, `A `True), S.Getter ->
+      | Accessor (a, enum, `A `True), S.Getter
+      | Accessor (a, enum, `A `BoolT), S.Getter ->
         Accessor ({a with getter = value}, enum, `A `True)
-      | Accessor (a, enum, `A `True), S.Setter ->
+      | Accessor (a, enum, `A `True), S.Setter
+      | Accessor (a, enum, `A `BoolT), S.Setter ->
         Accessor ({a with setter = value}, enum, `A `True)
-      | Accessor (a, enum, `A `True), S.Value ->
+      | Accessor (a, enum, `A `True), S.Value
+      | Accessor (a, enum, `A `BoolT), S.Value ->
         Data ({value = value; writable = `A `False}, enum, `A `True)
-      | Accessor (a, enum, `A `True), S.Writable ->
+      | Accessor (a, enum, `A `True), S.Writable
+      | Accessor (a, enum, `A `BoolT), S.Writable ->
         Data ({value = `A `Undef; writable = value}, enum, `A `True)
-      | Data (d, _, `A `True), S.Enum ->
+      | Data (d, _, `A `True), S.Enum
+      | Data (d, _, `A `BoolT), S.Enum ->
         Data (d, value, `A `True)
-      | Data (d, enum, `A `True), S.Config ->
+      | Data (d, enum, `A `True), S.Config
+      | Data (d, enum, `A `BoolT), S.Config ->
         Data (d, enum, value)
       | Data (d, enum, `A `False), S.Config when value = `A `False ->
         Data (d, enum, `A `False)
-      | Accessor (a, enum, `A `True), S.Config ->
+      | Accessor (a, enum, `A `True), S.Config
+      | Accessor (a, enum, `A `BoolT), S.Config ->
         Accessor (a, enum, value)
-      | Accessor (a, enum, `A `True), S.Enum ->
+      | Accessor (a, enum, `A `True), S.Enum
+      | Accessor (a, enum, `A `BoolT), S.Enum ->
         Accessor (a, value, `A `True)
       | Accessor (a, enum, `A `False), S.Config when value = `A `False ->
         Accessor (a, enum, `A `False)
