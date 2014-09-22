@@ -54,6 +54,7 @@ sig
   val compare : t -> t -> int
   val to_string : t -> string
   val tick : arg -> t -> strategy -> t
+  val drop_objs : t -> t
 end
 
 module type KCFA_k = sig val k : int end
@@ -63,6 +64,7 @@ module type KCFA_arg = sig
   val compare : t -> t -> int
   val to_string : t -> string
   val apply : strategy -> t -> t
+  val drop_objs : t -> t
 end
 
 module KCFABased =
@@ -76,6 +78,8 @@ module KCFABased =
     let tick x t strategy =
       (* print_endline ("\027[34mtick " ^ (Arg.to_string x) ^ "\027[0m"); *)
       BatList.take K.k ((Arg.apply strategy x) :: t)
+    let drop_objs t =
+      BatList.map Arg.drop_objs t
   end
 
 module type AddressSignature =
@@ -140,7 +144,7 @@ module MakeObjAddress =
       if !debug then
         Printf.printf "\027[33malloc_obj(%s, %s, %s)\027[0m\n%!"
           (Pos.to_string p) id (T.to_string t);
-      A.alloc p id t
+      A.alloc p id (T.drop_objs t)
   end
 
 module type ParameterSensitiveArgument = sig
@@ -165,7 +169,7 @@ module ParameterSensitive =
       | `True -> "true"
       | `False -> "false"
       | `BoolT -> "boolT"
-      | `Obj addrs -> "obj" ^ (Arg.to_string addrs)
+     | `Obj addrs -> "obj" ^ (Arg.to_string addrs)
       | `Num n -> string_of_float n
       | `NumT -> "numT"
       | `Str s -> "'" ^ s ^ "'"
@@ -206,6 +210,9 @@ module ParameterSensitive =
 
     let to_string ((p, l) : t) =
       string_of_list (fun (n, v) -> n ^ ": " ^ (string_of_v v)) l
+
+    let drop_objs ((p, l) : t) =
+      (p, BatList.filter (function _, `Obj _ -> false | _, _ -> true) l)
 
     let apply strategy (p, args) = match strategy with
       | `MCFA -> (p, [])
