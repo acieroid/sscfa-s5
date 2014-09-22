@@ -443,7 +443,11 @@ struct
                      (Pos.to_string p))
 
   let apply_frame (v : V.t) (frame : frame) ((state, ss) as conf : conf)
-      (global : global) : state list = match frame with
+      (global : global) : state list =
+    let v = if state.env.Env.strategy = `MCFA then
+        match v with `A v' -> `A (AValue.aval v') | _ -> v
+      else v in
+    match frame with
     | F.Let (p, id, body, env') ->
       let a = alloc_var p id id conf in
       let env'' = Env.extend id a env' in
@@ -563,7 +567,7 @@ struct
           begin match ObjectStore.lookup a store with
             | ({O.extensible = extensible; _} as attrs, props) ->
               begin match get_prop obj s state.ostore global with
-                | Some (O.Data ({O.writable = `A `True; _} as prop, enum, config)) ->
+                | Some (O.Data ({O.writable = `A `True; _}, enum, config)) ->
                   let (enum, config) = if O.has_prop (attrs, props) s then
                       (enum, config)
                     else

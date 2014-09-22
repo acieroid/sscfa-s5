@@ -81,7 +81,8 @@ module AValue = struct
 
   let aval : t -> t = function
     | `Top -> `Top
-    | `Str _ | `StrT -> `StrT
+    | `Str s -> `Str s
+    | `StrT -> `StrT
     | `Num _ | `NumT -> `NumT
     | `True -> `True
     | `False -> `False
