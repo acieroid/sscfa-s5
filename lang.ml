@@ -601,7 +601,7 @@ struct
                     | `StackObj obj ->
                       `StackObj (O.props_to_nearest_top obj), state.ostore
                     | _ ->
-                      Printf.printf "SetFieldArgs: body is not an object";
+                      Printf.printf "SetFieldArgs: body is not an object\n%!";
                       body, state.ostore in
                   let conf' = {state with ostore = ostore'}, ss in
                   let (exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body'] conf' global in

@@ -221,8 +221,8 @@ let rec join ((attrs, props) : t) ((attrs', props') : t) : t =
   let new_attrs = {code = join_value attrs.code attrs'.code;
                    proto = join_value attrs.proto attrs'.proto;
                    primval = join_value attrs.primval attrs'.primval;
-                   klass = join_value attrs.primval attrs'.primval;
-                   extensible = join_value attrs.primval attrs'.primval} in
+                   klass = join_value attrs.klass attrs'.klass;
+                   extensible = join_value attrs.extensible attrs'.extensible} in
   let join_props (p : prop) (p' : prop) : prop = match p, p' with
     | Data ({value = v; writable = w}, enum, config),
       Data ({value = v'; writable = w'}, enum', config') ->
