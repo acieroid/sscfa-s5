@@ -567,21 +567,29 @@ struct
           begin match ObjectStore.lookup a store with
             | ({O.extensible = extensible; _} as attrs, props) ->
               begin match get_prop obj s state.ostore global with
-                | Some (O.Data ({O.writable = `A `True; _}, enum, config)) ->
-                  let (enum, config) = if O.has_prop (attrs, props) s then
+                | Some (O.Data ({O.writable = `A (`True as w); _}, enum, config))
+                | Some (O.Data ({O.writable = `A (`False as w); _}, enum, config))
+                | Some (O.Data ({O.writable = `A (`BoolT as w); _}, enum, config)) ->
+                  let t = let (enum, config) = if O.has_prop (attrs, props) s then
                       (enum, config)
                     else
                       (`A `True, `A `True) in
                   (* lose a bit of precision voluntarily *)
-                  let newval' = match newval with `A v -> `A (AValue.aval v) | _ -> newval in
-                  let newobj = O.set_prop (attrs, props) s
-                      (O.Data ({O.value = newval'; O.writable = `A `True},
-                               enum, config)) in
-                  let ostore' = ostore_set a newobj state.ostore global.gostore in
-                  [{state with control = Val newval; env = env'; ostore = ostore'}]
+                    let newval' = match newval with `A v -> `A (AValue.aval v) | _ -> newval in
+                    let newobj = O.set_prop (attrs, props) s
+                        (O.Data ({O.value = newval'; O.writable = `A `True},
+                                 enum, config)) in
+                    let ostore' = ostore_set a newobj state.ostore global.gostore in
+                    {state with control = Val newval; env = env'; ostore = ostore'} in
+                  let f = {state with control = Exception (`Throw (`A (`Str "unwritable-field")))} in
+                  begin match w with
+                  | `True -> [t]
+                  | `False -> [f]
+                  | `BoolT -> [t; f]
+                  end
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `A `Undef; _}, _, _)) ->
-                  [{state with control = Exception (`Throw (`A (`Str "uwritable-field")))}]
+                  [{state with control = Exception (`Throw (`A (`Str "unwritable-field")))}]
                 | Some (O.Accessor ({O.setter = setter; O.getter = getter}, _, _)) ->
                   (* TODO: lose precision in the setter as well *)
                   let body', ostore' = match body with
