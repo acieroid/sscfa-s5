@@ -102,7 +102,7 @@ module ObjectStore = struct
     (* join all the objects pointed to and returns only one *)
     match BatList.map (fun addr -> NormalObjectStore.lookup addr store)
             (ObjAddressSet.elements a) with
-    | [] -> failwith "lookup: empty ObjAddressSet"
+    | [] -> failwith "Store lookup: empty ObjAddressSet"
     | hd :: [] -> hd
     | hd :: tl -> BatList.fold_left Obj_val.join hd tl
 

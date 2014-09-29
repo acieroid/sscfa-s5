@@ -394,7 +394,9 @@ struct
            applying a function in Javascript does not lead to an error. However,
            such a mismatch should not happen in S5 code, and that is why this
            is an internal error *)
-        failwith "Arity mismatch"
+        failwith (Printf.sprintf "Arity mismatch in call to %s at %s: expected %d, got %d"
+                    (BatOption.map_default (fun id -> id) "<anonymous>" name)
+                    (Pos.to_string p) (List.length args') (List.length args))
       else
         let alloc_arg v name ((state, ss) as conf) =
           let (ostore', v') = alloc_if_necessary p conf ("arg-" ^ name) v in
@@ -687,13 +689,17 @@ struct
     | F.SetObjAttrNewval (p, oattr, obj, env') ->
       let helper attrs v' = match oattr, v' with
         | S.Proto, `A (`Obj _) | S.Proto, `A `Null -> {attrs with O.proto = v'}
-        | S.Proto, _ -> failwith "Cannot update proto without an object or null"
+        | S.Proto, _ ->
+          failwith ("Cannot update proto without an object or null, got " ^
+                    (V.to_string v'))
         | S.Extensible, `A `True | S.Extensible, `A `False | S.Extensible, `A `BoolT ->
           {attrs with O.extensible = v'}
-        | S.Extensible, _ -> failwith "Cannot update extensible without a boolean"
-        | S.Code, _ -> failwith "Cannot update code"
+        | S.Extensible, _->
+          failwith ("Cannot update extensible without a boolean, got " ^
+                    (V.to_string v'))
+        | S.Code, _ -> failwith "Cannot update code attribute of an object"
         | S.Primval, _ -> {attrs with O.primval = v'}
-        | S.Klass, _ -> failwith "Cannot update klass" in
+        | S.Klass, _ -> failwith "Cannot update klass attribute of an object" in
       begin match obj with
         | `A (`Obj a) ->
           let store = which_ostore a state.ostore global.gostore in
@@ -708,7 +714,7 @@ struct
           (* TODO: this object lives on the stack and will not be returned by
              this operation, it is therefore not reachable. Is this expected? *)
           [{state with control = Val v; env = env'}]
-        | _ -> failwith "SetObjAttrNewval on a non-object"
+        | _ -> failwith ("SetObjAttrNewval on a non-object: " ^ (V.to_string obj))
       end
     | F.OwnFieldNames (p, env') ->
       let helper props =
@@ -735,7 +741,7 @@ struct
             | (_, props) -> helper props
           end
         | `StackObj (_, props) -> helper props
-        | _ -> failwith "OwnFieldNames on a non-object"
+        | _ -> failwith ("OwnFieldNames on a non-object: " ^ (V.to_string v))
       end
     | F.DeleteFieldObj (field, env') ->
       [{state with control = Frame (Exp field, F.DeleteFieldField (v, env'))}]

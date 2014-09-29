@@ -45,11 +45,11 @@ let load_s5 file : S.exp =
     e
   with
   |  Failure "lexing: empty token" ->
-    failwith (sprintf "lexical error at %s"
+    failwith (Printf.sprintf "lexical error at %s"
                 (Pos.to_string
                    (Pos.real (lexbuf.lex_curr_p, lexbuf.lex_curr_p))))
   | Parsing.Parse_error ->
-    failwith (sprintf "parse error at %s; unexpected token %s"
+    failwith (Printf.sprintf "parse error at %s; unexpected token %s"
                 (Pos.to_string
                    (Pos.real (lexbuf.lex_curr_p, lexbuf.lex_curr_p)))
                 (lexeme lexbuf))

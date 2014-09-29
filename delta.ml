@@ -120,12 +120,12 @@ let prim_to_bool_v v = match v with
   | `A v -> prim_to_bool v
   | `StackObj _ -> `True
 
-(* TODO: how to deal with such side effects in an abstract interpreter? *)
-let print v = match v with
-  | `Str s -> printf "%s\n%!" s; `Undef
-  | `Num n -> let s = string_of_float n in printf "%S\n%!" s; `Undef
-  | _ -> printf "%s\n%!" (AValue.to_string v); `Undef
-(*  | _ -> failwith ("[interp] Print received non-string: " ^ AValue.to_string v) *)
+let print v = begin match v with
+  | `Str s -> Printf.printf "%s\n%!" s
+  | `Num n -> Printf.printf "%f\n%!" n
+  | _ -> Printf.printf "%s\n%!" (AValue.to_string v)
+end;
+  `Undef
 
 let pretty v =
   printf "%s\n%!" (AValue.to_string v); `Undef

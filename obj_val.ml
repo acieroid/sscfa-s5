@@ -90,7 +90,7 @@ let set_attr_str ((attrs, props) : t) (attr : string) (value : value) =
   | "proto" -> ({ attrs with proto = value }, props)
   | "code" -> ({ attrs with code = value }, props)
   | "prim" -> ({ attrs with primval = value }, props)
-  | _ -> failwith ("Invalid attr for object: " ^ attr)
+  | _ -> failwith ("Invalid attribute name for object: " ^ attr)
 
 let set_prop ((attrs, props) : t) (prop : string) (value : prop) =
   (attrs, IdMap.add prop value props)
@@ -153,8 +153,7 @@ let set_attr ({extensible = ext; _} as attrs, props : t) (attr : S.pattr)
         end
       | `A `False -> failwith "extending inextensible object" (* TODO: raise an error that will be thrown instead *)
       | `A `BoolT -> failwith "set_attr: TODO (branching)"
-      | `A v -> failwith ("set_attr: " ^ (AValue.to_string v))
-      | `StackObj o -> failwith ("set_attr: StackObj: " ^ (to_string o))
+      | `A _ | `StackObj _ -> failwith ("set_attr: extensible is set to a value it shouldn't have: " ^ (string_of_value ext))
     else
       (* TODO: In all the cases with `BoolT as config, there should be two
          results: one corresponding to `True, and one error state corresponding
