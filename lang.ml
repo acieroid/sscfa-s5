@@ -25,12 +25,18 @@ sig
   val string_of_conf : conf -> string
   module ConfOrdering : BatInterfaces.OrderedType with type t = conf
 
+  (** Check whether a configuration contains a value (meaning, something that
+      has been evaluated successfully) *)
   val is_value_conf : conf -> bool
 
   (** Global information that can be useful. It remains constant throughout the
       evaluation, and is passed to the step function at each step. It can for
       example be used to model a global environment and/or store *)
   type global
+
+  (** Some logic to know whether the graph-building algorithm can compute
+      the following step in a new graph *)
+  val gen_new_graph : int -> conf -> global -> bool
 
   (** The frame is what the stack is made up from *)
   type frame
@@ -72,6 +78,7 @@ struct
 
   type control =
     | Exp of S.exp
+    | App of string * S.exp
     | Prop of string * S.prop
     | PropVal of O.prop
     | Val of V.t
@@ -80,6 +87,7 @@ struct
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
+    | App (name, exp) -> "App(" ^ name ^ ", " ^ (string_of_exp exp) ^ ")"
     | Prop (name, prop) -> "Prop(" ^ name ^ ", " ^ (string_of_prop prop) ^ ")"
     | Val v -> "Val(" ^ (V.to_string v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
@@ -226,7 +234,7 @@ struct
 
     let rec control_root control env vstore ostore global
       : AddressSet.t = match control with
-      | Exp e ->
+      | Exp e | App (_, e) ->
         AddressSet.vars (Frame.addresses_of_vars (S.free_vars e)
                            env global.genv)
       | Prop (_, S.Data ({S.value = v; _}, _, _)) ->
@@ -386,7 +394,7 @@ struct
     BatList.filter_map f args
 
   let rec apply_fun (p : Pos.t) (name : string option) (f : V.t) (args : V.t list)
-      ((state, ss) : conf) (global : global) : (S.exp * state) =
+      ((state, ss) : conf) (global : global) : (string * S.exp * state) =
     match f with
     | `A `Clos (env', args', body) ->
       if (List.length args) != (List.length args') then
@@ -417,14 +425,14 @@ struct
             `PSMCFA
           else
             `MCFA in
-        Stats.called (BatOption.map_default (fun x -> x) "<anonymous>" name)
-          (BatList.map V.to_string args)
+        let name = BatOption.map_default (fun x -> x) "<anonymous>" name in
+        Stats.called name (BatList.map V.to_string args)
           (alloc = `MCFA || (alloc = `PSMCFA && state.env.Env.strategy = `MCFA));
-        (body, {state' with
-                env = Env.set_strategy
-                    alloc (Env.call (p, select_params
-                                       (BatList.combine args' args))
-                             state'.env)})
+        (name, body,
+         {state' with env = Env.set_strategy
+                          alloc (Env.call (p, select_params
+                                             (BatList.combine args' args))
+                                   state'.env)})
     | `A `ClosT -> failwith ("Closure too abstracted when called at " ^
                              (Pos.to_string p))
     | `A `Obj a ->
@@ -487,20 +495,20 @@ struct
     | F.Seq (exp, env') ->
       [{state with control = Exp exp; env = env'}]
     | F.AppFun (p, exp, [], env') ->
-      let (exp, state') = apply_fun p (match exp with
+      let (name, exp, state') = apply_fun p (match exp with
           | S.Id (_, name) -> Some name
           | _ -> None)
           v [] conf global in
-      [{state' with control = Exp exp}]
+      [{state' with control = App (name, exp)}]
     | F.AppFun (p, exp, arg :: args, env') ->
       [{state with control = Frame (Exp arg, (F.AppArgs (p, exp, v, [], args, env')));
                    env = env'}]
     | F.AppArgs (p, exp, f, vals, [], env') ->
       let args = BatList.rev (v :: vals) in
-      let (exp, state') = apply_fun p (match exp with
+      let (name, exp, state') = apply_fun p (match exp with
           | S.Id (_, name) -> Some name
           | _ -> None) f args conf global in
-      [{state' with control = Exp exp}]
+      [{state' with control = App (name, exp)}]
     | F.AppArgs (p, exp, f, vals, arg :: args, env') ->
       [{state with control = Frame (Exp arg,
                                     (F.AppArgs (p, exp, f, v :: vals, args, env')));
@@ -541,8 +549,8 @@ struct
             | Some (O.Data ({O.value = v; _}, _, _)) ->
               [{state with control = Val v; env = env'}]
             | Some (O.Accessor ({O.getter = g; _}, _, _)) ->
-              let (body, state') = apply_fun p (Some ("getter-" ^ s)) g [obj; v] conf global in
-              [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
+              let (name, body, state') = apply_fun p (Some ("getter-" ^ s)) g [obj; v] conf global in
+              [{state' with control = Frame (App (name, body), F.RestoreEnv (p, env'))}]
             | None -> [{state with control = Val (`A `Undef); env = env'}]
           end
         | `A (`Obj _), `A `StrT ->
@@ -576,7 +584,7 @@ struct
                       (enum, config)
                     else
                       (`A `True, `A `True) in
-                  (* lose a bit of precision voluntarily *)
+                    (* lose a bit of precision voluntarily *)
                     let newval' = match newval with `A v -> `A (AValue.aval v) | _ -> newval in
                     let newobj = O.set_prop (attrs, props) s
                         (O.Data ({O.value = newval'; O.writable = `A `True},
@@ -585,9 +593,9 @@ struct
                     {state with control = Val newval; env = env'; ostore = ostore'} in
                   let f = {state with control = Exception (`Throw (`A (`Str "unwritable-field")))} in
                   begin match w with
-                  | `True -> [t]
-                  | `False -> [f]
-                  | `BoolT -> [t; f]
+                    | `True -> [t]
+                    | `False -> [f]
+                    | `BoolT -> [t; f]
                   end
                 | Some (O.Data _)
                 | Some (O.Accessor ({O.setter = `A `Undef; _}, _, _)) ->
@@ -606,8 +614,8 @@ struct
                       Printf.printf "SetFieldArgs: body is not an object\n%!";
                       body, state.ostore in
                   let conf' = {state with ostore = ostore'}, ss in
-                  let (exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body'] conf' global in
-                  [{state' with control = Frame (Exp exp, F.RestoreEnv (p, env'))}]
+                  let (name, exp, state') = apply_fun p (Some ("setter-" ^ s)) setter [obj; body'] conf' global in
+                  [{state' with control = Frame (App (name, exp), F.RestoreEnv (p, env'))}]
                 | None ->
                   let t =
                     let newobj = O.set_prop (attrs, props) s
@@ -812,8 +820,8 @@ struct
       [{state with control = Val v; env = env'}]
     | F.TryCatchHandler (p, exc, env') ->
       (* Exception should be handled by the handler *)
-      let (body, state') = apply_fun p None v [exc] conf global in
-      [{state' with control = Frame (Exp body, F.RestoreEnv (p, env'))}]
+      let (name, body, state') = apply_fun p None v [exc] conf global in
+      [{state' with control = Frame (App (name, body), F.RestoreEnv (p, env'))}]
     | F.TryFinally (finally, env') ->
       (* No exception, execute the finally *)
       [{state with control = Exp finally; env = env'}]
@@ -1033,6 +1041,7 @@ struct
       (frame : (conf * F.t) option) : (stack_change * conf) list =
     match state.control with
     | Exp e -> step_exp e conf global
+    | App (_, e) -> step_exp e conf global
     | Prop (name, prop) -> step_prop (name, prop) conf global
     | Val v -> begin match frame with
         | Some ((_, ss'), frame) ->
@@ -1066,5 +1075,11 @@ struct
   let is_value_conf ((state, _) : conf) =
     match state.control with
     | Val _ | PropVal _ -> true
+    | _ -> false
+
+  let gen_new_graph level ((state, _) : conf) global =
+    match level, state.control with
+    | 0, App (name, _) -> Env.contains name global.genv &&
+                          not (Env.contains name state.env)
     | _ -> false
 end
