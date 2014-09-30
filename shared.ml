@@ -113,7 +113,7 @@ module MakeVarAddress =
     module A = MakeAddress(T)
     include A
     let is_reclaimable (_, id, _) =
-      if !gc != `RestrictedGC then
+      if !gc == `RestrictedGC then
         (* %or is a special variable frequetly present in desugared S5 code, but
            it is *not* used to denote a global identifier *)
         id = "let-%or" ||
