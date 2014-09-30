@@ -29,6 +29,9 @@ sig
       has been evaluated successfully) *)
   val is_value_conf : conf -> bool
 
+  (** Forget the stack summary of a configuration *)
+  val strip_ss : conf -> conf
+
   (** Global information that can be useful. It remains constant throughout the
       evaluation, and is passed to the step function at each step. It can for
       example be used to model a global environment and/or store *)
@@ -37,6 +40,11 @@ sig
   (** Some logic to know whether the graph-building algorithm can compute
       the following step in a new graph *)
   val gen_new_graph : int -> conf -> global -> bool
+
+  (** Merge two configurations after reaching the second state in a different
+      graph (therefore, keep more recent values first, but also restore the
+      old stack summary *)
+  val merge_after_new_graph : conf -> conf -> conf
 
   (** The frame is what the stack is made up from *)
   type frame
@@ -1079,8 +1087,14 @@ struct
 
   let gen_new_graph level ((state, _) : conf) global =
     match level, state.control with
-    | 0, App (name, _) -> !flatten_lib_calls &&
-                          Env.contains name global.genv &&
+    | 0, App (name, _) -> Env.contains name global.genv &&
                           not (Env.contains name state.env)
     | _ -> false
+
+  let strip_ss (state, _) = (state, StackSummary.empty)
+
+  let merge_after_new_graph (oldstate, oldss) (newstate, _) =
+    ({newstate with vstore = ValueStore.merge newstate.vstore oldstate.vstore;
+                    ostore = ObjectStore.merge newstate.ostore oldstate.ostore},
+     oldss)
 end

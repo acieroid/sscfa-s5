@@ -197,11 +197,16 @@ module BuildDSG =
     let rec explore level dsg c =
       (* print_endline ("explore " ^ (L.string_of_conf c)); *)
       let next =
-        if L.gen_new_graph level c dsg.global then begin
+        if !flatten && L.gen_new_graph level c dsg.global then begin
           Printf.printf "Creating new graph: %s\n%!" (L.string_of_conf c);
           let dsg' = build_dyck_conf (level+1) c dsg.global in
-          BatList.map (fun conf -> (L.StackUnchanged, conf)) (final_states dsg')
-          (* TODO: merge stores *)
+          let final = final_states dsg' in
+          BatList.map (fun conf -> (L.StackUnchanged, conf)) final
+        end else if !flatten_strip && L.gen_new_graph level c dsg.global then begin
+          Printf.printf "Creating new graph: %s\n%!" (L.string_of_conf c);
+          let dsg' = build_dyck_conf (level+1) (L.strip_ss c) dsg.global in
+          let final = final_states dsg' in
+          BatList.map (fun conf -> (L.StackUnchanged, L.merge_after_new_graph c conf)) final
         end else
           L.step c dsg.global None in
       let ds = (List.fold_left

@@ -28,8 +28,10 @@ let speclist = [
   "disable atomic evaluator";
   "-debug", Arg.Set debug,
   "enable debug mode, printing messages on alloc and reclaim";
-  "-flatten", Arg.Set flatten_lib_calls,
+  "-flatten", Arg.Set flatten,
   "flatten library calls into only one transition";
+  "-flatten-strip", Arg.Set flatten_strip,
+  "flatten library calls into only one transition, strip the stack summary when doing so";
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"

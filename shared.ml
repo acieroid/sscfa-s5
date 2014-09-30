@@ -5,7 +5,8 @@ let debug = ref false
 let gc : [ `NormalGC | `NoGC | `NoGlobalGC | `RestrictedGC ] ref = ref `NormalGC
 let only_mcfa = ref false
 let atomic_eval = ref true
-let flatten_lib_calls = ref false
+let flatten = ref false
+let flatten_strip = ref false
 
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =
