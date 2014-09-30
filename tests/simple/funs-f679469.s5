@@ -1,2 +1,2 @@
-// Expected: 1.
+// Expected: NumT
 (func (y) { (func(x) { x })(y) })(1)

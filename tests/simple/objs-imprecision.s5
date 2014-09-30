@@ -1,4 +1,4 @@
-// Expected: 0.
+// Expected: NumT
 // This example shows that k-CFA with the last k call sites is not enough.
 // It can be solved for k-CFA by ticking on object declaration.
 // More generally, it can be solved by adding a positional component to
