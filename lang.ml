@@ -1079,7 +1079,8 @@ struct
 
   let gen_new_graph level ((state, _) : conf) global =
     match level, state.control with
-    | 0, App (name, _) -> Env.contains name global.genv &&
+    | 0, App (name, _) -> !flatten_lib_calls &&
+                          Env.contains name global.genv &&
                           not (Env.contains name state.env)
     | _ -> false
 end

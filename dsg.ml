@@ -84,6 +84,21 @@ module BuildDSG =
     let output_dsg dsg = output_graph dsg.g
     let output_ecg dsg = output_graph dsg.ecg
 
+
+    let final_states dsg =
+      (* The initial state is the only one which has no vertex coming into it *)
+      let initial = G.fold_vertex
+          (fun v -> function
+            | None -> if G.in_degree dsg.g v = 0 then Some v else None
+            | Some init -> Some init)
+          dsg.g None in
+      match initial with
+      | Some init ->
+        (* The final states are all value states reachable from the initial
+           state in the ECG *)
+        BatList.filter L.is_value_conf (G.succ dsg.ecg init)
+      | None -> failwith "final_states: no initial state found"
+
     let add_short dsg c c' =
       (* print_endline ("add_short" ^ (L.string_of_conf c) ^ " -> " ^ (L.string_of_conf c'));
          print_endline ("size of ECG: (" ^ (string_of_int (G.nb_vertex dsg.ecg)) ^ ", " ^
@@ -179,21 +194,27 @@ module BuildDSG =
          EdgeSet.empty,
          EpsSet.filter (fun (c1, c2) -> not (G.mem_edge dsg.ecg c1 c2)) dh)
 
-    let explore dsg c =
+    let rec explore level dsg c =
       (* print_endline ("explore " ^ (L.string_of_conf c)); *)
-      let stepped = L.step c dsg.global None in
+      let next =
+        if L.gen_new_graph level c dsg.global then begin
+          Printf.printf "Creating new graph: %s\n%!" (L.string_of_conf c);
+          let dsg' = build_dyck_conf (level+1) c dsg.global in
+          BatList.map (fun conf -> (L.StackUnchanged, conf)) (final_states dsg')
+          (* TODO: merge stores *)
+        end else
+          L.step c dsg.global None in
       let ds = (List.fold_left
                   (fun set (_, conf) -> ConfSet.add conf set)
-                  ConfSet.empty stepped)
+                  ConfSet.empty next)
       and de = (List.fold_left
                   (fun set (stack_op, conf) -> EdgeSet.add (c, stack_op, conf) set)
-                  EdgeSet.empty stepped) in
+                  EdgeSet.empty next) in
       (ConfSet.filter (fun c -> not (G.mem_vertex dsg.g c)) ds,
        EdgeSet.filter (fun c -> not (G.mem_edge_e dsg.g c)) de,
        EpsSet.empty)
 
-    let build_dyck exp init =
-      let (c0, global) = L.inject exp init in
+    and build_dyck_conf level conf global =
       let i = ref 0 in
       let rec loop dsg ds de dh =
         i := !i + 1;
@@ -231,7 +252,7 @@ module BuildDSG =
           else if not (ConfSet.is_empty ds) then
             let c = ConfSet.choose ds in
             (* print_endline ("conf: " ^ (L.string_of_conf c)); *)
-            let (ds', de', dh') = explore dsg c in
+            let (ds', de', dh') = explore level dsg c in
             (* print_endline ("Adding vertex " ^ (L.string_of_conf c)); *)
             loop { dsg with g = G.add_vertex dsg.g c; ecg = G.add_vertex dsg.ecg c }
               (ConfSet.remove c (ConfSet.union ds ds'))
@@ -246,22 +267,12 @@ module BuildDSG =
             print_endline (Printexc.to_string e);
             dsg
           end
-      in loop { g = G.empty; q0 = c0; ecg = G.empty; global = global }
-        (ConfSet.singleton c0) EdgeSet.empty EpsSet.empty
+      in loop { g = G.empty; q0 = conf; ecg = G.empty; global = global }
+        (ConfSet.singleton conf) EdgeSet.empty EpsSet.empty
 
-    let final_states dsg =
-      (* The initial state is the only one which has no vertex coming into it *)
-      let initial = G.fold_vertex
-          (fun v -> function
-            | None -> if G.in_degree dsg.g v = 0 then Some v else None
-            | Some init -> Some init)
-          dsg.g None in
-      match initial with
-      | Some init ->
-        (* The final states are all value states reachable from the initial
-           state in the ECG *)
-        BatList.filter L.is_value_conf (G.succ dsg.ecg init)
-      | None -> failwith "final_states: no initial state found"
+    let build_dyck exp conf init =
+      let (c0, global) = L.inject exp init in
+      build_dyck_conf 0 c0 global
   end
 
 module L = LJS

@@ -28,6 +28,8 @@ let speclist = [
   "disable atomic evaluator";
   "-debug", Arg.Set debug,
   "enable debug mode, printing messages on alloc and reclaim";
+  "-flatten", Arg.Set flatten_lib_calls,
+  "flatten library calls into only one transition";
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"
@@ -109,7 +111,7 @@ let () =
     let env = BatOption.map load_state !env in
     begin match !computation with
       | `Dsg ->
-        let dsg = DSG.build_dyck s5 env in
+        let dsg = DSG.build_dyck s5 0 env in
         let final_states = DSG.final_states dsg in
         print_endline ("Final states: " ^ (string_of_list LJS.string_of_conf
                                              final_states));
