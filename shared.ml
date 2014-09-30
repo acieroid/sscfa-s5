@@ -6,6 +6,7 @@ let gc : [ `NormalGC | `NoGC | `NoGlobalGC | `RestrictedGC ] ref = ref `NormalGC
 let only_mcfa = ref false
 let atomic_eval = ref true
 let flatten = ref false
+let flatten_level = ref 1
 let flatten_strip = ref false
 
 (* Some functions to simplify the writing of comparison functions *)

@@ -196,13 +196,16 @@ module BuildDSG =
 
     let rec explore level dsg c =
       (* print_endline ("explore " ^ (L.string_of_conf c)); *)
+      let new_graph () = (!flatten_level = -1 || level < !flatten_level) &&
+                         L.is_library_call c dsg.global &&
+                         not (G.is_empty dsg.g) in
       let next =
-        if !flatten && L.gen_new_graph level c dsg.global then begin
+        if !flatten && new_graph () then begin
           Printf.printf "Creating new graph: %s\n%!" (L.string_of_conf c);
           let dsg' = build_dyck_conf (level+1) c dsg.global in
           let final = final_states dsg' in
           BatList.map (fun conf -> (L.StackUnchanged, conf)) final
-        end else if !flatten_strip && L.gen_new_graph level c dsg.global then begin
+        end else if !flatten_strip && new_graph () then begin
           Printf.printf "Creating new graph: %s\n%!" (L.string_of_conf c);
           let dsg' = build_dyck_conf (level+1) (L.strip_ss c) dsg.global in
           let final = final_states dsg' in

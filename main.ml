@@ -30,6 +30,8 @@ let speclist = [
   "enable debug mode, printing messages on alloc and reclaim";
   "-flatten", Arg.Set flatten,
   "flatten library calls into only one transition";
+  "-flatten-level", Arg.Set_int flatten_level,
+  "maximum level for flattening library function calls (-1 means infinite). Defaults to 1";
   "-flatten-strip", Arg.Set flatten_strip,
   "flatten library calls into only one transition, strip the stack summary when doing so";
 ]

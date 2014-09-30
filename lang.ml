@@ -37,9 +37,8 @@ sig
       example be used to model a global environment and/or store *)
   type global
 
-  (** Some logic to know whether the graph-building algorithm can compute
-      the following step in a new graph *)
-  val gen_new_graph : int -> conf -> global -> bool
+  (** Check whether a configuration represents the start of a library call *)
+  val is_library_call : conf -> global -> bool
 
   (** Merge two configurations after reaching the second state in a different
       graph (therefore, keep more recent values first, but also restore the
@@ -95,7 +94,7 @@ struct
 
   let string_of_control = function
     | Exp exp -> "Exp(" ^ (string_of_exp exp) ^ ")"
-    | App (name, exp) -> "App(" ^ name ^ ", " ^ (string_of_exp exp) ^ ")"
+    | App (name, exp) -> "App(" ^ name ^ ")"
     | Prop (name, prop) -> "Prop(" ^ name ^ ", " ^ (string_of_prop prop) ^ ")"
     | Val v -> "Val(" ^ (V.to_string v) ^ ")"
     | PropVal v -> "PropVal(" ^ (O.string_of_prop v) ^ ")"
@@ -1085,10 +1084,10 @@ struct
     | Val _ | PropVal _ -> true
     | _ -> false
 
-  let gen_new_graph level ((state, _) : conf) global =
-    match level, state.control with
-    | 0, App (name, _) -> Env.contains name global.genv &&
-                          not (Env.contains name state.env)
+  let is_library_call ((state, _) : conf) global =
+    match state.control with
+    | App (name, _) -> Env.contains name global.genv &&
+                       not (Env.contains name state.env)
     | _ -> false
 
   let strip_ss (state, _) = (state, StackSummary.empty)
