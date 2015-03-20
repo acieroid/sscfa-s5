@@ -1,0 +1,3 @@
+[submodule "ml-hash"]
+	path = ml-hash
+	url = git@github.com:acieroid/ml-hash

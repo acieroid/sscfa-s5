@@ -115,20 +115,21 @@ module MakeVarAddress =
     module A = MakeAddress(T)
     include A
     let is_reclaimable (_, id, _) =
-      if !gc == `RestrictedGC then
+      if !gc == `NoGlobalGC || !gc == `RestrictedGC then
         (* %or is a special variable frequetly present in desugared S5 code, but
            it is *not* used to denote a global identifier *)
-        id = "let-%or" ||
+        id = "%or" ||
         (* other variables starting with % or # are not reclaimable *)
         not (BatString.starts_with id "%" || BatString.starts_with id "#")
       else
         true
     let to_string a = "@var-" ^ (A.to_string a)
     let alloc p id t =
+      let a = A.alloc p id t in
       if !debug then
-        Printf.printf "\027[33malloc_var(%s, %s, %s)\027[0m\n%!"
-          (Pos.to_string p) id (T.to_string t);
-      A.alloc p id t
+        Printf.printf "\027[33malloc_var(%s, %s, %s): %s\027[0m\n%!"
+          (Pos.to_string p) id (T.to_string t) (A.to_string a);
+      a
   end
 
 module MakeObjAddress =
@@ -137,9 +138,9 @@ module MakeObjAddress =
     module A = MakeAddress(T)
     include A
     let is_reclaimable (_, id, _) =
-      if !gc != `RestrictedGC then
+      if !gc == `NoGlobalGC || !gc == `RestrictedGC then
         (* object allocation scheme different than variable's *)
-        not (BatString.starts_with id "let-%" || BatString.starts_with id "let-#")
+        not (BatString.starts_with id "let-%" || BatString.starts_with id "%" || BatString.starts_with id "let-#")
       else
         true
     let to_string a = "@obj-" ^ (A.to_string a)
