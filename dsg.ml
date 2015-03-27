@@ -5,9 +5,9 @@ module type BuildDSG_signature =
   functor (L : Lang_signature) ->
   sig
     module G : Graph.Sig.P
-    module ConfSet : BatSet.S with type elt = L.conf
-    module EdgeSet : BatSet.S with type elt = (L.conf * L.stack_change * L.conf)
-    module EpsSet : BatSet.S with type elt = L.conf * L.conf
+    module ConfSet : Set.S with type elt = L.conf
+    module EdgeSet : Set.S with type elt = (L.conf * L.stack_change * L.conf)
+    module EpsSet : Set.S with type elt = L.conf * L.conf
     type dsg = { g : G.t; q0 : L.conf; ecg : G.t }
     val build_dyck : L.exp -> dsg
     val add_short : dsg -> L.conf -> L.conf -> ConfSet.t * EdgeSet.t * EpsSet.t
@@ -60,10 +60,10 @@ module BuildDSG =
     module Dot = Graph.Graphviz.Dot(DotArg)
     let output_graph graph file =
       let out = open_out_bin file in
-      Dot.output_graph out graph;
+      (* Dot.output_graph out graph; *)
       close_out out
 
-    module ConfSet = BatSet.Make(L.ConfOrdering)
+    module ConfSet = Set.Make(L.ConfOrdering)
     module EdgeOrdering = struct
       type t = L.conf * L.stack_change * L.conf
       let compare (c1, g, c2) (c1', g', c2') =
@@ -71,14 +71,14 @@ module BuildDSG =
                       lazy (L.StackChangeOrdering.compare g g');
                       lazy (L.ConfOrdering.compare c2 c2')]
     end
-    module EdgeSet = BatSet.Make(EdgeOrdering)
+    module EdgeSet = Set.Make(EdgeOrdering)
     module EpsOrdering = struct
       type t = L.conf * L.conf
       let compare (c1, c2) (c1', c2') =
         order_concat [lazy (L.ConfOrdering.compare c1 c1');
                       lazy (L.ConfOrdering.compare c2 c2')]
     end
-    module EpsSet = BatSet.Make(EpsOrdering)
+    module EpsSet = Set.Make(EpsOrdering)
 
     type dsg = { g : G.t; q0 : L.conf; ecg : G.t; global : L.global }
     let output_dsg dsg = output_graph dsg.g
@@ -280,7 +280,9 @@ module BuildDSG =
 
     let build_dyck exp conf init =
       let (c0, global) = L.inject exp init in
-      build_dyck_conf 0 c0 global
+      let dsg = build_dyck_conf 0 c0 global in
+      Printf.printf "Finished computing after %d states\n%!" (G.nb_vertex dsg.g);
+      dsg
   end
 
 module L = LJS

@@ -8,6 +8,7 @@ let atomic_eval = ref true
 let flatten = ref false
 let flatten_level = ref 1
 let flatten_strip = ref false
+let no_global_store = ref false
 
 (* Some functions to simplify the writing of comparison functions *)
 let order_comp x y =

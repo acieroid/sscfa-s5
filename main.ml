@@ -34,6 +34,8 @@ let speclist = [
   "maximum level for flattening library function calls (-1 means infinite). Defaults to 1";
   "-flatten-strip", Arg.Set flatten_strip,
   "flatten library calls into only one transition, strip the stack summary when doing so";
+  "-no-global-store", Arg.Set no_global_store,
+  "use a local store for the store loaded from the environment file";
 ]
 
 let usage = "usage: " ^ (Sys.argv.(0)) ^ " [-dump file] [-env file] file"

@@ -363,14 +363,17 @@ struct
                  ostore = ObjectStore.empty} in
     let empty_global = {genv = Env.empty; gvstore = ValueStore.empty;
                         gostore = ObjectStore.empty} in
-    (empty, StackSummary.empty),
-    BatOption.map_default
-      (fun (init, ss) ->
-         (* Perform GC to get rid of all non-needed values in the global
-            env/store *)
-         let (init', _) = GC.gc ({init with control = Exp exp}, ss) empty_global in
-         {genv = init'.env; gvstore = init'.vstore; gostore = init'.ostore})
-      empty_global c
+    let gced_global = BatOption.map_default
+        (fun (init, ss) ->
+           (* Perform GC to get rid of all non-needed values in the global
+              env/store *)
+           let (init', _) = GC.gc ({init with control = Exp exp}, ss) empty_global in
+           {genv = init'.env; gvstore = init'.vstore; gostore = init'.ostore})
+        empty_global c in
+    if !no_global_store then
+      ({empty with env = gced_global.genv; vstore = gced_global.gvstore; ostore = gced_global.gostore}, StackSummary.empty), empty_global
+    else
+      (empty, StackSummary.empty), gced_global
 
   let rec get_prop obj prop ostore global = match obj with
     | `A `Obj a ->
